@@ -52,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="download the MediaPipe face model and verify its SHA256")
     parser.add_argument("--seed-demo", action="store_true",
                         help="add synthetic demo sessions to the local database and exit")
+    parser.add_argument("--background", action="store_true",
+                        help="start minimized to the tray (used by the sign-in autostart entry)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -74,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from focuslab.ui.main_window import run_app
 
-    return run_app(demo=args.demo)
+    return run_app(demo=args.demo, background=args.background)
 
 
 if __name__ == "__main__":

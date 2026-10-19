@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from focuslab import autostart
 from focuslab.activity.recorder import RecorderState
 from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig, face_model_path
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
@@ -93,7 +95,28 @@ class SettingsPage(QWidget):
         self.recording_state = QLabel(wordWrap=True)
         self.recording_button = QPushButton()
         self.recording_button.clicked.connect(self._toggle_recording)
-        form.addRow("자동 활동 기록", _row(self.recording_state, self.recording_button))
+        self.recording_pause = QPushButton()
+        self.recording_pause.clicked.connect(self._toggle_recording_pause)
+        form.addRow(
+            "자동 활동 기록",
+            _row(self.recording_state, self.recording_button, self.recording_pause),
+        )
+        self.idle_minutes = QSpinBox()
+        self.idle_minutes.setRange(1, 60)
+        self.idle_minutes.setSuffix(" 분")
+        self.idle_minutes.valueChanged.connect(self._idle_changed)
+        idle_hint = QLabel(
+            "이 시간 동안 입력이 없으면 마지막 입력 시각부터 유휴로 기록",
+            objectName="Muted", wordWrap=True,
+        )
+        form.addRow("유휴 기준", _row(self.idle_minutes, idle_hint))
+        self.autostart = QCheckBox("Windows 로그인 시 트레이로 자동 실행")
+        self.autostart.toggled.connect(self._autostart_toggled)
+        self.close_to_tray = QCheckBox("창을 닫아도 트레이에서 계속 기록")
+        self.close_to_tray.toggled.connect(
+            lambda on: self.ctx.set_flag("ui.close_to_tray", on)
+        )
+        form.addRow("백그라운드", _row(self.autostart, self.close_to_tray))
 
         self.activity_state = QLabel()
         self.activity_button = QPushButton()
@@ -220,6 +243,20 @@ class SettingsPage(QWidget):
         self.recording_state.setText(text)
         self.recording_button.setText("끄기" if self.ctx.recording_consent else "켜기")
         self.recording_button.setEnabled(not self.ctx.demo)
+        running = status is not None and status.state is not RecorderState.STOPPED
+        self.recording_pause.setVisible(running)
+        self.recording_pause.setText(
+            "재개" if status and status.state is RecorderState.PAUSED else "일시정지"
+        )
+        for widget, value in (
+            (self.idle_minutes, round(self.ctx.idle_threshold_s / 60)),
+            (self.autostart, autostart.is_enabled()),
+            (self.close_to_tray, self.ctx.close_to_tray),
+        ):
+            widget.blockSignals(True)
+            (widget.setValue if isinstance(widget, QSpinBox) else widget.setChecked)(value)
+            widget.blockSignals(False)
+        self.autostart.setEnabled(not self.ctx.demo)
 
     def set_session_active(self, active: bool) -> None:
         self.calib_button.setEnabled(
@@ -228,6 +265,20 @@ class SettingsPage(QWidget):
         self.delete_all_button.setEnabled(not active)
 
     # actions ----------------------------------------------------------------------
+    def _toggle_recording_pause(self) -> None:
+        self.ctx.set_recording_paused(self.ctx.recording_state is RecorderState.RUNNING)
+        self.refresh()
+
+    def _idle_changed(self, minutes: int) -> None:
+        self.ctx.set_idle_threshold(minutes * 60)
+
+    def _autostart_toggled(self, on: bool) -> None:
+        try:
+            self.ctx.set_autostart(on)
+        except OSError as exc:
+            QMessageBox.warning(self, "자동 실행", f"시작 프로그램을 바꾸지 못했습니다: {exc}")
+        self.refresh()
+
     def _toggle_recording(self) -> None:
         if self.ctx.recording_consent:
             self.ctx.set_flag("consent.recording", False)
