@@ -2,7 +2,7 @@
 
 > 상태: Windows 오픈소스 개발 실행 계획 v1.0 · 기준일: 2026-10-20 · 진행 현황은 [README 로드맵](README.md#개발-로드맵) 참고\
 > 대상: Windows 11 공식 개발·검증 우선, Windows 10은 별도 호환성 테스트; 개인 사용자·로컬 우선(계정·클라우드 불필요)\
-> 범위: 웹캠 기반 행동 관찰 + PC 활동 기록 + 세션별 집중 패턴 분석\
+> 범위: 웹캠 기반 행동 관찰 + PC 활동 기록 + 세션별 집중 패턴 분석 + 동의 기반 자동 활동 기록([§18](#18-v02-확장-native-windows-activity-tracking-engine))\
 > 주의: ADHD 진단·치료·의료기기 기능을 제공하지 않음. '집중'을 카메라만으로 직접 측정할 수 없음.
 
 ## 0. 제품 미션, 경쟁 제품과의 차이점, 공개 원칙
@@ -378,3 +378,31 @@ PR 본문은 [PR 템플릿](.github/PULL_REQUEST_TEMPLATE.md)을 따른다.
 - Qt for Python 라이선스: [https://doc.qt.io/qtforpython-6/](https://doc.qt.io/qtforpython-6/)
 - Apache-2.0: [https://choosealicense.com/licenses/apache-2.0/](https://choosealicense.com/licenses/apache-2.0/)
 - GitHub 커뮤니티 파일: [https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/about-community-profiles-for-public-repositories](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/about-community-profiles-for-public-repositories)
+
+## 18. v0.2 확장: Native Windows Activity Tracking Engine
+
+> 변경 기준일: 2026-10-20 · 현황 분석과 상세 설계: [docs/activity-engine.md](docs/activity-engine.md)
+
+### 계획 변경 사항
+
+- **관찰 범위 확장:** 기존 원칙 "사용자가 직접 시작한 세션에서만 관찰"에 더해, 최초 실행 시 **명시적 동의**를 받으면
+  PC 활동(맨 앞 프로그램·유휴·잠금·절전)과 선택형 브라우저 도메인을 **백그라운드에서 자동 기록**한다.
+  동의하지 않거나 기록을 일시정지하면 OS·브라우저 정보를 읽거나 쓰지 않는다.
+- **카메라 원칙은 유지:** 카메라는 여전히 사용자가 켠 수동 집중 세션에서만 동작한다(상시 촬영 금지).
+  자동 기록과 결합할 때는 같은 시간대의 세션 판정(자리 비움·화면 외 방향 등)을 겹쳐 보여줄 뿐 단정하지 않는다.
+- **ActivityWatch 비의존:** 수집기·저장소·분류·대시보드는 FocusLab 자체 구현이다. ActivityWatch의 공개 기능 구성만
+  참고했고 소스 코드는 사용하지 않는다.
+- **PR-09(Chrome 확장)** 는 아래 PR-C로 대체하며 Microsoft Edge도 지원한다.
+- 휴대폰 감지(PR-10)와 눈 감김 관찰은 이번 확장 범위에서 제외하고 기존 계획대로 후속 PR에서 다룬다.
+
+### 추가 PR (PR-08 이후, 앞 PR 브랜치 기준으로 순차 머지)
+
+| PR | 제목 | 범위 | 완료 조건 |
+| --- | --- | --- | --- |
+| **PR-A** | `feat: native Windows activity collector` | 스키마 v2, Win32 프로브, `ActivityRecorder`, 포그라운드 이벤트 훅 | 앱 전환·병합·저장 단위 테스트, 실기기에서 구간 기록 확인 |
+| **PR-B** | `feat: idle and system event tracking` | 유휴 소급, 잠금·절전·로그오프·시계 변경, 비정상 종료 복구, 시작 프로그램, 트레이 상주, 최초 실행 동의 | 절전 시간 미계산, 강제 종료 후 데이터 무손상 |
+| **PR-C** | `feat: native browser tracker` | MV3 확장(Chrome·Edge), Native Messaging host, 등록·해제, 검증·중복 처리 | 확장 없는 PC에서도 앱 추적 정상, 비공개 창 미수집 |
+| **PR-D** | `feat: activity classification engine` | 10개 카테고리 규칙 분류, 신뢰도·근거·출처, 사용자 정정 반영, 제외 목록 | 모호한 사이트는 `Unknown`, 정정이 이후 분류에 반영 |
+| **PR-E** | `feat: automatic session engine` | 자동 세션 감지·저장, 수동 세션·규칙 엔진·카메라 결과와 통합 | 유휴·작업 전환으로 분리, 수동 세션과 중복 집계 없음 |
+| **PR-F** | `feat: activity dashboard` | 오늘 개요, 활동 타임라인, 일·주·월 통계 | 합계가 실제 경과 시간을 넘지 않음 |
+| **PR-G** | `chore: activity stability, privacy and release checks` | 보존·내보내기·삭제, 성능 측정, 문서·CI | 장시간 실행 리소스 측정 결과 문서화 |

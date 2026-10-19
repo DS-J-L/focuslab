@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         self._timer.stop()
+        self.ctx.stop_recording()
         self.ctx.service.shutdown()
         self.tray.hide()
         QApplication.quit()
@@ -249,6 +250,7 @@ def run_app(demo: bool = False) -> int:
     recovered = ctx.service.recover_interrupted()
     with ctx.service.lock:
         ctx.service.repository.purge_older_than(ctx.retention_days)
+    ctx.start_recording()
     window = MainWindow(ctx)
     window.show()
     if recovered:

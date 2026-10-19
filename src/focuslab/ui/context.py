@@ -1,7 +1,11 @@
 """Application wiring: the session service, sensor factories and persisted user settings."""
 
 import json
+import sys
 
+from focuslab.activity.probe import WindowsProbe
+from focuslab.activity.recorder import ActivityRecorder
+from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
 from focuslab.camera.calibration import Calibration
 from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
@@ -30,6 +34,7 @@ class AppContext:
             activity_factory=self._activity_factory,
             calibration=self.calibration,
         )
+        self.recorder: ActivityRecorder | None = None
 
     # settings ---------------------------------------------------------------------
     def setting(self, key: str, default: str | None = None) -> str | None:
@@ -58,6 +63,10 @@ class AppContext:
     def activity_consent(self) -> bool | None:
         value = self.setting("consent.activity")
         return None if value is None else value == "1"
+
+    @property
+    def recording_consent(self) -> bool:
+        return self.flag("consent.recording")
 
     @property
     def camera_index(self) -> int:
@@ -98,3 +107,19 @@ class AppContext:
         if not self.activity_consent:
             return NoActivitySource()
         return WindowsActivitySource(config.allowed_apps)
+
+    # always-on recording -------------------------------------------------------------
+    def start_recording(self) -> bool:
+        """Start the background recorder if the user agreed. Demo mode never reads the OS."""
+        if self.demo or sys.platform != "win32" or not self.recording_consent:
+            return False
+        if self.recorder is None:
+            self.recorder = ActivityRecorder(
+                self.db_path, WindowsProbe(), events=WindowsEventThread
+            )
+        self.recorder.start()
+        return True
+
+    def stop_recording(self) -> None:
+        if self.recorder:
+            self.recorder.stop()

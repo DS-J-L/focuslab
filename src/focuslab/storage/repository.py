@@ -1,8 +1,7 @@
 """Sessions, per-second state samples, state segments, corrections and settings."""
 
 import sqlite3
-from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime, timedelta
 
 from focuslab.domain.events import SEVERITY, StateSegment
@@ -14,6 +13,7 @@ from focuslab.domain.models import (
     SessionStatus,
     StateSample,
 )
+from focuslab.storage.sqlite_db import transaction
 
 
 def utc_now() -> str:
@@ -34,15 +34,8 @@ class Repository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
 
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
-        self.conn.execute("BEGIN")
-        try:
-            yield
-        except BaseException:
-            self.conn.execute("ROLLBACK")
-            raise
-        self.conn.execute("COMMIT")
+    def transaction(self) -> AbstractContextManager[None]:
+        return transaction(self.conn)
 
     # sessions -----------------------------------------------------------------
     def create_session(
