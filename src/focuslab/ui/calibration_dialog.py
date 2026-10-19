@@ -1,8 +1,7 @@
 """Four-step head pose calibration (centre, left edge, right edge, desk). Camera is released
 when the dialog closes; only the resulting angles are saved."""
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -18,6 +17,7 @@ from focuslab.config import face_model_path
 from focuslab.domain.models import CameraStatus
 from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.ui.theme import CAMERA_LABELS
+from focuslab.ui.widgets import frame_pixmap, preview_label
 
 STEPS = [
     ("1/4 정면", "평소 자세로 화면 중앙을 바라보세요."),
@@ -42,9 +42,7 @@ class CalibrationDialog(QDialog):
         layout = QVBoxLayout(self)
         self.step_label = QLabel(styleSheet="font-size:18px; font-weight:700;")
         self.instruction = QLabel(wordWrap=True)
-        self.preview = QLabel("카메라 여는 중…", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.preview.setFixedSize(320, 240)
-        self.preview.setStyleSheet("background:#1F2430; color:#8C94A6; border-radius:8px;")
+        self.preview = preview_label("카메라 여는 중…")
         self.status = QLabel(objectName="Muted", wordWrap=True)
         self.progress = QProgressBar()
         self.progress.setRange(0, COLLECT_MS)
@@ -83,9 +81,7 @@ class CalibrationDialog(QDialog):
     def _tick(self) -> None:
         frame = self._source.preview()
         if frame is not None:
-            h, w, _ = frame.shape
-            image = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_RGB888).copy()
-            self.preview.setPixmap(QPixmap.fromImage(image))
+            self.preview.setPixmap(frame_pixmap(frame))
         status = self._source.status
         pose = self._source.latest_raw_pose()
         if status is not CameraStatus.RUNNING:

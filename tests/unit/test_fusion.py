@@ -12,7 +12,7 @@ NOW = 10_000
 
 
 def face(ts=NOW, visible=True, yaw=0.0, pitch=0.0, quality=0.9):
-    return FaceObservation(ts, visible, yaw, pitch, None, quality)
+    return FaceObservation(ts, visible, yaw, pitch, quality)
 
 
 def act(ts=NOW, name="code.exe", allowed=True, idle=1.0, available=True, locked=False):

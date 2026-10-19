@@ -4,7 +4,7 @@ Timestamps use a monotonic session clock. Missing observations are unknown,
 not evidence that someone is distracted or absent.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -66,7 +66,6 @@ class FaceObservation:
     face_visible: bool | None
     yaw_deg: float | None
     pitch_deg: float | None
-    eye_closed_signal: float | None
     quality: float | None
 
 
@@ -126,4 +125,4 @@ class SessionRecord:
     rule_version: str
     paused_seconds: int = 0
     self_report: str | None = None
-    allowed_apps: tuple[str, ...] = field(default=())
+    allowed_apps: tuple[str, ...] = ()

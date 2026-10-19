@@ -5,7 +5,7 @@ from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon, QWidget
 
 from focuslab.domain.models import CameraStatus
-from focuslab.services.session_service import Lifecycle, LiveSnapshot
+from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.theme import ACCENT, STATE_COLORS, STATE_LABELS
 from focuslab.ui.widgets import clock_text
 
@@ -48,7 +48,7 @@ class Tray(QSystemTrayIcon):
         self._key: tuple | None = None
 
     def update_state(self, snap: LiveSnapshot) -> None:
-        active = snap.lifecycle in (Lifecycle.RUNNING, Lifecycle.PAUSED)
+        active = snap.lifecycle in ACTIVE
         self.pause_action.setEnabled(active)
         self.finish_action.setEnabled(active)
         self.pause_action.setText("재개" if snap.lifecycle is Lifecycle.PAUSED else "일시정지")

@@ -71,7 +71,7 @@ class MockFaceSource:
                 break
             pos -= duration
         visible, yaw, pitch, quality = FACE_POSES[kind]
-        return FaceObservation(now, visible, yaw, pitch, None, quality)
+        return FaceObservation(now, visible, yaw, pitch, quality)
 
 
 class MockActivitySource:

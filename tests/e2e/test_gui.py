@@ -40,7 +40,7 @@ def test_full_session_flow(window, qtbot):
     assert window.session.badge.text() != "대기 중"
     assert "데모 카메라" in window.session.camera_flag.text()  # demo never opens a camera
 
-    window.toggle_pause()
+    window.session.pause_button.click()
     assert snapshot(window).lifecycle is Lifecycle.PAUSED
     assert window.ctx.service.face_source.status.value == "OFF"
     window.toggle_pause()

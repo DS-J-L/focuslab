@@ -46,6 +46,9 @@ class Lifecycle(StrEnum):
     FINISHED = "FINISHED"
 
 
+ACTIVE = frozenset({Lifecycle.RUNNING, Lifecycle.PAUSED})  # a session is in progress
+
+
 class InvalidTransition(RuntimeError):
     pass
 

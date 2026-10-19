@@ -1,7 +1,6 @@
 """Live session: current estimate with reasons, camera status/preview, live timeline, controls."""
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -21,10 +20,17 @@ from focuslab.domain.models import CameraStatus, FocusState
 from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.metrics import format_duration
 from focuslab.focus.reasons import Reason, describe
-from focuslab.services.session_service import Lifecycle, LiveSnapshot
+from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import CAMERA_LABELS, CORRECTION_LABELS, SHORT_LABELS
-from focuslab.ui.widgets import Legend, StateBadge, TimelineWidget, clock_text
+from focuslab.ui.widgets import (
+    Legend,
+    StateBadge,
+    TimelineWidget,
+    clock_text,
+    frame_pixmap,
+    preview_label,
+)
 
 FACE_TEXT = {
     FaceEvidence.FORWARD: "화면 방향",
@@ -45,6 +51,7 @@ def _card() -> tuple[QFrame, QVBoxLayout]:
 
 
 class SessionPage(QWidget):
+    pauseRequested = Signal()
     finishRequested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
@@ -100,9 +107,7 @@ class SessionPage(QWidget):
         cam_card, cam_layout = _card()
         cam_title = QLabel("카메라 (메모리에서만 처리, 저장 안 함)", objectName="CardTitle")
         cam_layout.addWidget(cam_title)
-        self.preview = QLabel("미리보기 없음", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.preview.setFixedSize(320, 240)
-        self.preview.setStyleSheet("background:#1F2430; color:#8C94A6; border-radius:8px;")
+        self.preview = preview_label("미리보기 없음")
         cam_layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
         toggles = QHBoxLayout()
         self.show_preview = QCheckBox("미리보기")
@@ -133,7 +138,7 @@ class SessionPage(QWidget):
 
         controls = QHBoxLayout()
         self.pause_button = QPushButton("일시정지")
-        self.pause_button.clicked.connect(self._toggle_pause)
+        self.pause_button.clicked.connect(self.pauseRequested.emit)
         self.break_button = QPushButton("휴식 시작")
         self.break_button.clicked.connect(self._toggle_break)
         self.correct_button = QToolButton()
@@ -161,14 +166,6 @@ class SessionPage(QWidget):
         self.refresh(self._snapshot)
 
     # actions ----------------------------------------------------------------------
-    def _toggle_pause(self) -> None:
-        svc = self.ctx.service
-        if self._snapshot.lifecycle is Lifecycle.RUNNING:
-            svc.pause()
-        elif self._snapshot.lifecycle is Lifecycle.PAUSED:
-            svc.resume()
-        self.refresh(svc.snapshot())
-
     def _toggle_break(self) -> None:
         if self._snapshot.lifecycle is Lifecycle.RUNNING:
             self.ctx.service.set_break(not self._snapshot.on_break)
@@ -205,14 +202,12 @@ class SessionPage(QWidget):
                 self.preview.clear()
             self.preview.setText("미리보기 없음")
             return
-        h, w, _ = frame.shape
-        image = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_RGB888).copy()
-        self.preview.setPixmap(QPixmap.fromImage(image))
+        self.preview.setPixmap(frame_pixmap(frame))
 
     # refresh ----------------------------------------------------------------------
     def refresh(self, snap: LiveSnapshot) -> None:
         self._snapshot = snap
-        active = snap.lifecycle in (Lifecycle.RUNNING, Lifecycle.PAUSED)
+        active = snap.lifecycle in ACTIVE
         for w in (self.pause_button, self.break_button, self.correct_button, self.finish_button):
             w.setEnabled(active)
         if snap.config is None:
@@ -258,7 +253,7 @@ class SessionPage(QWidget):
             self.confidence.setValue(round(decision.confidence * 100))
 
         idle = "-" if snap.idle_s is None else f"{snap.idle_s:.0f}초 전"
-        face = FACE_TEXT.get(snap.face_evidence, "-") if snap.face_evidence else "-"
+        face = FACE_TEXT.get(snap.face_evidence, "-")
         app = snap.app_name or "-"
         if self.ctx.demo:
             app += " (데모 센서)"

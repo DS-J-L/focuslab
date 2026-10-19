@@ -60,9 +60,6 @@ class CameraFaceSource:
             return CameraStatus.MODEL_ERROR
         return self._capture.status
 
-    def set_calibration(self, calibration: Calibration) -> None:
-        self._calibration = calibration
-
     def start(self) -> None:
         if self._model_path is None or (self._thread and self._thread.is_alive()):
             return
@@ -129,7 +126,7 @@ class CameraFaceSource:
         result = landmarker.detect(image, now)
         raw_pose = None
         if result is None:
-            obs = FaceObservation(now, False, None, None, None, brightness_quality(gray_mean))
+            obs = FaceObservation(now, False, None, None, brightness_quality(gray_mean))
         else:
             quality = face_quality(result.landmarks_xy, gray_mean)
             yaw = pitch = None
@@ -137,7 +134,7 @@ class CameraFaceSource:
                 raw_yaw, raw_pitch, _ = euler_from_matrix(result.matrix)
                 raw_pose = (raw_yaw, raw_pitch)
                 yaw, pitch = self._calibration.relative(raw_yaw, raw_pitch)
-            obs = FaceObservation(now, True, yaw, pitch, None, quality)
+            obs = FaceObservation(now, True, yaw, pitch, quality)
 
         preview = None
         if self.preview_enabled:

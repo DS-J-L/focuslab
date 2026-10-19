@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-FocusLab is pre-release scaffolding. No production-ready release or security support SLA is available yet.
+FocusLab is a v0.1 developer prototype. No production-ready release or security support SLA is available yet.
 
 ## Reporting a vulnerability
 

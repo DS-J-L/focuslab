@@ -13,6 +13,8 @@ APP_NAME = "FocusLab"
 RULE_VERSION = "rules-0.1"
 FACE_MODEL_FILENAME = "face_landmarker.task"
 REPO_MODEL_DIR = Path(__file__).resolve().parents[2] / "assets" / "models"
+# Foreground process label reported while FocusLab itself has focus.
+SELF_NAME = "focuslab"
 
 
 def data_dir() -> Path:
@@ -82,7 +84,7 @@ BROWSERS = (
 # Apps that are neither evidence of work nor of deviation (desktop shell, this app).
 NEUTRAL_APPS = (
     "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
-    "startmenuexperiencehost.exe", "applicationframehost.exe", "focuslab",
+    "startmenuexperiencehost.exe", "applicationframehost.exe", SELF_NAME,
 )
 
 LOCK_APPS = ("lockapp.exe", "logonui.exe")

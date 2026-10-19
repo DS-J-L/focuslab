@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from statistics import mean
 
-from focuslab.activity.windows_tracker import SELF_NAME
+from focuslab.config import SELF_NAME
 from focuslab.domain.events import StateSegment, build_segments
 from focuslab.domain.models import FocusState, StateSample
 

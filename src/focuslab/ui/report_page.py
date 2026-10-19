@@ -36,7 +36,7 @@ from focuslab.services.export_service import (
     export_json,
     session_report,
 )
-from focuslab.services.session_service import Lifecycle
+from focuslab.services.session_service import ACTIVE
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import (
     CORRECTION_LABELS,
@@ -384,9 +384,7 @@ class ReportPage(QWidget):
         if report is None:
             return
         snap = self.ctx.service.snapshot()
-        if snap.session_id == report.record.id and snap.lifecycle in (
-            Lifecycle.RUNNING, Lifecycle.PAUSED
-        ):
+        if snap.session_id == report.record.id and snap.lifecycle in ACTIVE:
             QMessageBox.warning(
                 self, "삭제할 수 없음", "진행 중인 세션은 종료한 뒤 삭제할 수 있습니다."
             )

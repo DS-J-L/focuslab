@@ -1,11 +1,20 @@
-"""Reusable painted widgets: state timeline, weekly chart, stat cards, state badge."""
+"""Reusable widgets: state timeline, weekly chart, stat cards, state badge, camera preview."""
 
 from collections import Counter
 from collections.abc import Sequence
 from datetime import date
 
+import numpy as np
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPaintEvent
+from PySide6.QtGui import (
+    QColor,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPixmap,
+)
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolTip, QVBoxLayout, QWidget
 
 from focuslab.domain.events import StateSegment
@@ -21,6 +30,21 @@ def clock_text(seconds: int) -> str:
     m, s = divmod(max(0, int(seconds)), 60)
     h, m = divmod(m, 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+
+def preview_label(text: str) -> QLabel:
+    """Fixed-size dark box that shows the in-memory camera preview."""
+    label = QLabel(text, alignment=Qt.AlignmentFlag.AlignCenter)
+    label.setFixedSize(320, 240)
+    label.setStyleSheet("background:#1F2430; color:#8C94A6; border-radius:8px;")
+    return label
+
+
+def frame_pixmap(frame: np.ndarray) -> QPixmap:
+    """RGB preview frame to a pixmap; the copy detaches it from the numpy buffer."""
+    h, w, _ = frame.shape
+    image = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_RGB888).copy()
+    return QPixmap.fromImage(image)
 
 
 class StatCard(QFrame):
@@ -51,7 +75,7 @@ class StateBadge(QLabel):
         self.set_state(None)
 
     def set_state(self, state: FocusState | None, held: bool = False) -> None:
-        color = STATE_COLORS.get(state, "#E6E9EF") if state else "#E6E9EF"
+        color = STATE_COLORS[state] if state else "#E6E9EF"
         text = STATE_LABELS[state] if state else "대기 중"
         fg = "white" if state not in (None, FocusState.UNKNOWN) else "#3A4150"
         self.setText(text + ("  · 유지 중" if held else ""))

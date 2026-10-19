@@ -77,19 +77,17 @@ Windows 11 실기기의 카메라·권한·장시간 GUI 검증은 별도로 수
 
 | 경로 | 역할 |
 | --- | --- |
-| `src/focuslab/domain/` | 상태·관찰 데이터, 이벤트, 센서/저장/판단 인터페이스 |
-| `src/focuslab/camera/` | 카메라, 얼굴 랜드마크, 머리 방향, 보정, 선택형 폰 감지 |
+| `src/focuslab/` | CLI 진입점, 경로·임계값·모드 설정, 모의 센서·데모 데이터, 모델 다운로드 |
+| `src/focuslab/domain/` | 상태·관찰·세션 데이터, 상태 구간, 센서·시계 인터페이스 |
+| `src/focuslab/camera/` | 카메라, 얼굴 랜드마크, 머리 방향, 보정 |
 | `src/focuslab/activity/` | Windows 활성 프로그램 및 유휴 상태 |
 | `src/focuslab/focus/` | 센서 융합, 모드별 규칙, 지표 |
 | `src/focuslab/storage/` | SQLite, 마이그레이션, 저장소 |
 | `src/focuslab/services/` | 세션·워커·내보내기 조정 |
-| `src/focuslab/ui/` | 메인 창, 세션·리포트·설정 화면, 트레이 |
-| `assets/icons/`, `assets/models/` | 출처·라이선스 확인 후 추가할 자산 |
-| `tests/unit/`, `tests/integration/`, `tests/e2e/` | 단위·통합·시나리오 검증 |
-| `tests/fixtures/` | 합성 관찰 데이터 중심의 테스트 자료 |
+| `src/focuslab/ui/` | 메인 창, 홈·세션·리포트·설정 화면, 동의·보정 대화상자, 트레이 |
+| `assets/models/` | `--fetch-models`로 받는 얼굴 모델 위치 (커밋하지 않음) |
+| `tests/unit/`, `tests/integration/`, `tests/e2e/` | 단위, 모의 센서→저장→지표 통합, 오프스크린 GUI 테스트 |
 | `.github/` | Windows CI, 이슈·PR 템플릿 |
-
-`phone_detector.py`는 선택형 휴대폰 감지(PR-10)를 위한 자리이며 아직 구현되지 않았습니다.
 
 ## 관찰 상태
 
@@ -101,7 +99,7 @@ Windows 11 실기기의 카메라·권한·장시간 GUI 검증은 별도로 수
 | `BREAK` | 사용자가 지정한 휴식 |
 | `UNKNOWN` | 관찰 부족·센서 오류 등으로 판단 불가 |
 
-카메라 미사용을 낮은 점수로 처리하지 않으며 `UNKNOWN`, 휴식, 자리 비움은 별도로 보여줄 계획입니다.
+카메라 미사용을 낮은 점수로 처리하지 않으며 `UNKNOWN`, 휴식, 자리 비움은 별도로 집계해 보여줍니다.
 기본 앱만으로 브라우저의 사이트 관련성을 알 수는 없습니다. hostname을 사용하는 선택형 Chrome 확장은 PR-09 범위입니다.
 
 ## 개발 로드맵

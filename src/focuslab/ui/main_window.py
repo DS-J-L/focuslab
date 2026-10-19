@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from focuslab import __version__
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
-from focuslab.services.session_service import Lifecycle, LiveSnapshot
+from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
@@ -31,7 +31,6 @@ from focuslab.ui.theme import ACCENT, SELF_REPORT_LABELS, STYLESHEET
 from focuslab.ui.tray import Tray, make_icon
 
 HOME, SESSION, REPORT, SETTINGS = range(4)
-ACTIVE = (Lifecycle.RUNNING, Lifecycle.PAUSED)
 
 
 class MainWindow(QMainWindow):
@@ -75,6 +74,7 @@ class MainWindow(QMainWindow):
         self.nav.currentRowChanged.connect(self._navigate)
         self.home.startRequested.connect(self.start_session)
         self.home.openReport.connect(self.open_report)
+        self.session.pauseRequested.connect(self.toggle_pause)
         self.session.finishRequested.connect(self.finish_session)
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)

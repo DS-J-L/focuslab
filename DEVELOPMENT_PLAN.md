@@ -1,6 +1,6 @@
 # FocusLab — Windows 집중 패턴 측정 앱 개발 계획
 
-> 상태: Windows 오픈소스 개발 실행 계획 v1.0 · 기준일: 2026-10-20\
+> 상태: Windows 오픈소스 개발 실행 계획 v1.0 · 기준일: 2026-10-20 · 진행 현황은 [README 로드맵](README.md#개발-로드맵) 참고\
 > 대상: Windows 11 공식 개발·검증 우선, Windows 10은 별도 호환성 테스트; 개인 사용자·로컬 우선(계정·클라우드 불필요)\
 > 범위: 웹캠 기반 행동 관찰 + PC 활동 기록 + 세션별 집중 패턴 분석\
 > 주의: ADHD 진단·치료·의료기기 기능을 제공하지 않음. '집중'을 카메라만으로 직접 측정할 수 없음.
@@ -133,36 +133,9 @@ Windows foreground/idle -> ActivityTracker -> ActivityObservation -+->
                                                   PySide6 Session UI / Reports
 ```
 
-### 데이터 계약(초기 정의)
+### 데이터 계약
 
-```
-from dataclasses import dataclass
-from enum import Enum
-
-class FocusState(str, Enum):
-    ON_TASK = 'ON_TASK'           # 목표 관련 활동 (추정)
-    POSSIBLY_OFF_TASK = 'POSSIBLY_OFF_TASK'
-    AWAY = 'AWAY'
-    BREAK = 'BREAK'
-    UNKNOWN = 'UNKNOWN'
-
-@dataclass(frozen=True)
-class FaceObservation:
-    timestamp_ms: int             # 단조 증가 시간, 세션 내 시간차 계산용
-    face_visible: bool | None     # None: 카메라/추론 불가
-    yaw_deg: float | None
-    pitch_deg: float | None
-    eye_closed_signal: float | None  # 직접 진단/졸음 판정 금지
-    quality: float | None
-
-@dataclass(frozen=True)
-class ActivityObservation:
-    timestamp_ms: int
-    process_name: str | None
-    is_allowed_app: bool | None
-    idle_seconds: float | None
-    available: bool
-```
+상태(`FocusState`), 얼굴 관찰(`FaceObservation`: 얼굴 보임 여부·보정된 yaw/pitch·품질), PC 활동 관찰(`ActivityObservation`: 프로세스 이름·허용 앱 여부·유휴 시간·화면 잠금)의 정의는 [domain/models.py](src/focuslab/domain/models.py)가 기준이다. 관찰값이 없으면 `None`이며 이는 이탈의 증거가 아니라 판단 불가를 뜻한다.
 
 - 센서 워커는 `Observation`만 발행하고 판단하지 않는다.
 - `RuleEngine`은 관찰값+세션 모드+시간 창을 입력받아 상태와 근거 코드(`reason_codes`)를 반환한다.
@@ -171,69 +144,21 @@ class ActivityObservation:
 
 ## 3. 코드 구조
 
-```
-focuslab/
-├── pyproject.toml
-├── uv.lock
-├── README.md
-├── DEVELOPMENT_PLAN.md
-├── .gitignore
-├── .github/workflows/ci.yml
-├── assets/
-│   ├── icons/
-│   └── models/                 # 라이선스 확인된 모델만 배포
-├── src/focuslab/
-│   ├── __main__.py
-│   ├── config.py
-│   ├── domain/
-│   │   ├── models.py           # 세션/상태/관찰 데이터 모델
-│   │   ├── events.py
-│   │   └── protocols.py        # 센서/저장/룰 엔진 인터페이스
-│   ├── camera/
-│   │   ├── capture.py
-│   │   ├── face_landmarker.py
-│   │   ├── head_pose.py
-│   │   ├── phone_detector.py
-│   │   └── calibration.py
-│   ├── activity/
-│   │   ├── windows_tracker.py
-│   │   └── idle_monitor.py
-│   ├── focus/
-│   │   ├── fusion.py
-│   │   ├── rules.py
-│   │   └── metrics.py
-│   ├── storage/
-│   │   ├── sqlite_db.py
-│   │   ├── migrations.py
-│   │   └── repository.py
-│   ├── services/
-│   │   ├── session_service.py
-│   │   ├── worker_manager.py
-│   │   └── export_service.py
-│   └── ui/
-│       ├── main_window.py
-│       ├── session_page.py
-│       ├── report_page.py
-│       ├── settings_page.py
-│       └── tray.py
-└── tests/
-    ├── unit/
-    ├── integration/
-    ├── fixtures/               # 동의한 테스트 영상만, 기본은 합성 이벤트
-    └── e2e/
-```
+패키지 구성은 [README 저장소 구조](README.md#저장소-구조)에 정리되어 있다. 후속 기능은 같은 경계를 따른다: 휴대폰 감지(PR-10)는 `camera/`에 센서로 추가하고, Chrome 확장 연동(PR-09)은 관찰값만 발행하는 별도 활동 소스로 붙인다. 테스트 데이터는 합성 이벤트(`focuslab.mock_sources`)가 기본이며 실제 영상은 동의 없이 커밋하지 않는다.
 
 ## 4. 데이터 모델
 
-- **session** (`id`, `goal`, `mode`, `started_at_utc`, `ended_at_utc`, `status`, `camera_enabled`, `rule_version`)
+스키마의 기준은 [storage/migrations.py](src/focuslab/storage/migrations.py)이다.
+
+- **session** (`id`, `goal`, `mode`, `planned_minutes`, `started_at_utc`, `ended_at_utc`, `status`, `camera_enabled`, `rule_version`, `paused_seconds`, `self_report`)
 - **session_allowed_app** (`session_id`, `process_name`, `display_label`)
-- **state_sample** (`session_id`, `second_offset`, `state`, `confidence`, `reason_codes`) — 1초 단위
-- **event** (`id`, `session_id`, `started_offset_ms`, `ended_offset_ms`, `type`, `severity`, `reason_codes`, `source`)
-- **feedback** (`id`, `event_id`, `corrected_label`, `comment`, `created_at_utc`)
+- **state_sample** (`session_id`, `second_offset`, `state`, `confidence`, `reason_codes`, `app_name`) — 1초 단위
+- **event** (`id`, `session_id`, `started_offset_ms`, `ended_offset_ms`, `type`, `severity`, `reason_codes`, `app_names`, `source`) — 같은 상태가 이어진 구간
+- **feedback** (`id`, `event_id`, `corrected_label`, `comment`, `created_at_utc`) — 구간당 정정 1개
 - **settings** (`key`, `value`, `updated_at_utc`)
 - **migration** (`version`, `applied_at_utc`)
 
-데이터를 저장할 기본 폴더는 OS별 앱 데이터 디렉터리(`QStandardPaths.AppDataLocation`)를 사용한다. SQLite foreign key 활성화, WAL 및 트랜잭션·마이그레이션 테스트를 수행한다. 개인정보 처리 기본값은 로컬 전용, 카메라 미리보기만 메모리에 유지, 데이터 보존 기간 설정 및 전체 삭제를 지원한다.
+기본 저장 폴더는 `%LOCALAPPDATA%\FocusLab`(로밍하지 않는 로컬 앱 데이터)이며 `--data-dir`/`FOCUSLAB_DATA_DIR`로 바꿀 수 있다. SQLite foreign key 활성화, WAL 및 트랜잭션·마이그레이션 테스트를 수행한다. 개인정보 처리 기본값은 로컬 전용, 카메라 미리보기만 메모리에 유지, 데이터 보존 기간 설정 및 전체 삭제를 지원한다.
 
 ## 5. 동작 상태와 판정 규칙
 
@@ -414,34 +339,11 @@ UI 문구는 '집중 87점', 'ADHD 위험' 대신 '작업 유지율(추정)', '�
 4. PR에 `목적 / 변경 / 테스트 / 제약 / 스크린샷(원본 카메라 영상 제외) / 다음 단계`를 기재한다.
 5. CI 통과 + 기능 확인 후 머지; 다음 PR 착수. 미완성 기능은 비활성 feature flag로 숨긴다.
 
-### PR 작성 템플릿
+PR 본문은 [PR 템플릿](.github/PULL_REQUEST_TEMPLATE.md)을 따른다.
 
-```
-## 목적
-## 변경 내용
-## 테스트
-- [ ] uv run ruff check .
-- [ ] uv run pytest
-- [ ] Windows 실기기 확인 (센서 관련 PR)
-## 개인정보/성능 영향
-## 알려진 한계
-## 다음 작업
-```
+## 14. 개발 환경
 
-## 14. 개발 착수 명령(Windows PowerShell)
-
-```
-# uv가 없는 경우 공식 설치 안내 참고: https://docs.astral.sh/uv/getting-started/installation/
-mkdir focuslab
-cd focuslab
-uv init --package --python 3.11
-uv add pyside6 mediapipe opencv-python pywin32 psutil numpy
-uv add --dev pytest pytest-qt pytest-cov ruff
-uv sync
-uv run pytest
-```
-
-`uv init`이 생성한 기본 프로젝트 파일을 PR-00의 구조에 맞게 정리한다. 버전·플랫폼 의존성은 새 Windows 환경에서 검증한 뒤 잠근다. 앱 실행 명령/엔트리포인트는 PR-00에서 `pyproject.toml`에 확정한다.
+환경 구성과 검사 명령은 [CONTRIBUTING.md](CONTRIBUTING.md)를 따른다. 의존성 버전은 `uv.lock`으로 고정되어 있으며, 새 의존성은 Windows Python 3.11에서 확인한 뒤 잠금 파일과 [제3자 고지](THIRD_PARTY_NOTICES.md)를 함께 갱신한다.
 
 ## 15. 미래 확장(별도 PR 제안, MVP에 넣지 않음)
 
@@ -450,25 +352,9 @@ uv run pytest
 - 웨어러블 수면/활동 데이터 연동(별도 동의/지원 확인).
 - 상호작용 분석 고도화: 창 전환/휴식/세션 목표 달성으로 사용자 경험 개선.
 
-## 16. 초기 공개 저장소의 필수 문서 및 기여 흐름
+## 16. 공개 저장소 문서와 기여 흐름
 
-```
-focuslab/
-├── LICENSE                     # Apache-2.0 (프로젝트 자체 코드)
-├── NOTICE                      # 법적 고지(필요 시)
-├── THIRD_PARTY_NOTICES.md     # PySide6/Qt/ML 모델 라이선스
-├── README.md                  # 소개, 설치, 측정 한계, 데모
-├── DEVELOPMENT_PLAN.md        # 이 문서
-├── PRIVACY.md                 # 어떤 정보가 어디에 저장되는지
-├── SECURITY.md                # 보안 제보 방법
-├── CONTRIBUTING.md            # Windows 개발, PR·검증 과정
-├── CODE_OF_CONDUCT.md
-├── .github/ISSUE_TEMPLATE/
-├── .github/PULL_REQUEST_TEMPLATE.md
-└── .github/workflows/ci.yml
-```
-
-**기여 프로세스:** 이슈 선택 → branch 생성 → 기능과 테스트 추가 → `uv run ruff check .`, `uv run pytest` → PR 작성 → CI·실기기 확인 → 코드 리뷰 → squash merge.
+공개 저장소 필수 문서(LICENSE, NOTICE, THIRD_PARTY_NOTICES, README, PRIVACY, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, 이슈·PR 템플릿, CI)는 PR-00에서 갖췄다. 기여 절차는 [CONTRIBUTING.md](CONTRIBUTING.md)를 따른다.
 
 **릴리스 프로세스:** `v0.1.0` 로컬 MVP → `v0.2.0` 브라우저/폰/코칭 → `v1.0.0` 검증된 Windows 설치 배포. SHA256 체크섬, SBOM(가능하면), CHANGELOG, 제3자 고지 동봉. 자동 업데이트는 기본 OFF/별도 설계.
 
@@ -492,7 +378,3 @@ focuslab/
 - Qt for Python 라이선스: [https://doc.qt.io/qtforpython-6/](https://doc.qt.io/qtforpython-6/)
 - Apache-2.0: [https://choosealicense.com/licenses/apache-2.0/](https://choosealicense.com/licenses/apache-2.0/)
 - GitHub 커뮤니티 파일: [https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/about-community-profiles-for-public-repositories](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/about-community-profiles-for-public-repositories)
-
----
-
-**첫 번째 실행 지시:** 공개 저장소의 PR-00만 구현한다. 개발 환경·CLI 진입점·모의 센서·기본 PySide6 창·pytest/ruff/CI를 완성하고 설치·실행·테스트 결과를 보고한다. 통과 후 PR-01로 이동한다.

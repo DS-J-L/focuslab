@@ -114,4 +114,3 @@ def fuse(
         user_break=user_break,
         is_browser=bool(name and normalize(name) in BROWSERS),
     )
-

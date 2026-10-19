@@ -8,12 +8,11 @@ import sys
 from collections.abc import Iterable
 
 from focuslab.activity.idle_monitor import idle_seconds
-from focuslab.config import LOCK_APPS, NEUTRAL_APPS
+from focuslab.config import LOCK_APPS, NEUTRAL_APPS, SELF_NAME
 from focuslab.domain.models import ActivityObservation
 
 log = logging.getLogger(__name__)
 
-SELF_NAME = "focuslab"
 _DESKTOP_SWITCHDESKTOP = 0x0100
 
 

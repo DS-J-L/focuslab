@@ -1,4 +1,4 @@
-"""State segments (contiguous runs of one state) and user corrections."""
+"""State segments: contiguous runs of one state, optionally corrected by the user."""
 
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -34,15 +34,6 @@ class StateSegment:
     @property
     def effective_state(self) -> FocusState:
         return self.corrected_label or self.state
-
-
-@dataclass(frozen=True)
-class Feedback:
-    id: int
-    event_id: int
-    corrected_label: FocusState
-    comment: str | None
-    created_at_utc: str
 
 
 def build_segments(samples: Iterable[StateSample]) -> list[StateSegment]:
