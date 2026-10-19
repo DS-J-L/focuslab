@@ -173,6 +173,28 @@ class ActivityRepository:
                 (key, json.dumps(cleaned), utc_now()),
             )
 
+    # retention and deletion -------------------------------------------------------
+    def purge_before(self, cutoff_ms: int) -> int:
+        """Delete activity that ended before ``cutoff_ms``; returns the number of spans."""
+        cur = self.conn.execute("DELETE FROM activity_span WHERE end_ms < ?", (cutoff_ms,))
+        self.conn.execute("DELETE FROM system_event WHERE at_ms < ?", (cutoff_ms,))
+        self.conn.execute("DELETE FROM auto_session WHERE end_ms < ?", (cutoff_ms,))
+        self._forget_unused_apps()
+        return cur.rowcount
+
+    def delete_all(self) -> None:
+        """Delete every recorded activity. Rules and exclusions are settings and stay."""
+        for table in ("activity_span", "system_event", "auto_session", "browser_state"):
+            self.conn.execute(f"DELETE FROM {table}")  # fixed table names, no user input
+        self._forget_unused_apps()
+
+    def _forget_unused_apps(self) -> None:
+        self.conn.execute(
+            "DELETE FROM app WHERE id NOT IN"
+            " (SELECT app_id FROM activity_span WHERE app_id IS NOT NULL)"
+        )
+        self._app_ids.clear()
+
     # system events --------------------------------------------------------------
     def add_events(self, events: Iterable[tuple[int, str, str | None]]) -> None:
         self.conn.executemany(

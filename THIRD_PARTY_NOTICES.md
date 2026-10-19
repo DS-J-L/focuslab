@@ -25,3 +25,14 @@ Development-only: pytest (MIT), pytest-qt (MIT), ruff (MIT), hatchling (MIT).
 
 The model is downloaded only when the user runs `focuslab --fetch-models` (or the settings button)
 and is verified against the SHA256 above. `assets/models/*.task` is git-ignored.
+
+## Activity tracking engine and browser extension
+
+- The activity recorder, classifier, automatic sessions, dashboard, native messaging host and the
+  `browser_extension/` MV3 extension are original FocusLab code (Apache-2.0). They add **no new
+  runtime dependencies**: Windows APIs are called through the Python standard library (`ctypes`,
+  `winreg`) and the already-listed pywin32/psutil. The extension uses only the Chrome extension APIs.
+- ActivityWatch was used only as a reference for publicly documented product features (activity
+  timeline, AFK detection, browser watcher). No ActivityWatch source code, schemas or assets are
+  copied, and FocusLab neither requires nor talks to an ActivityWatch installation.
+- Development-only: Node.js (`node --test`) runs the extension tests; no npm packages are installed.

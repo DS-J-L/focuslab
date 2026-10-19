@@ -247,7 +247,13 @@ class ActivityPage(QWidget):
         self.day = min(day, datetime.now().astimezone().date())
         self.refresh()
 
-    def refresh(self) -> None:
+    def auto_refresh(self) -> None:
+        """Periodic update while the page is open: only today, never while the user has a
+        span selected (about to correct it), and without recomputing the long-range charts."""
+        if self.day == datetime.now().astimezone().date() and not self.spans.selectedItems():
+            self.refresh(statistics=False)
+
+    def refresh(self, statistics: bool = True) -> None:
         start, end = local_day_bounds(self.day)
         with self.ctx.service.lock:
             self._labeled, self.stats = activity_report(self.ctx.service.repository.conn,
@@ -258,7 +264,8 @@ class ActivityPage(QWidget):
         self._fill_timeline(start, end)
         self._fill_spans()
         self._fill_sessions(self.stats)
-        self.refresh_statistics()
+        if statistics:
+            self.refresh_statistics()
 
     def _refresh_status(self) -> None:
         state = self.ctx.recording_state

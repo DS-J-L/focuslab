@@ -406,3 +406,24 @@ PR 본문은 [PR 템플릿](.github/PULL_REQUEST_TEMPLATE.md)을 따른다.
 | **PR-E** | `feat: automatic session engine` | 자동 세션 감지·저장, 수동 세션·규칙 엔진·카메라 결과와 통합 | 유휴·작업 전환으로 분리, 수동 세션과 중복 집계 없음 |
 | **PR-F** | `feat: activity dashboard` | 오늘 개요, 활동 타임라인, 일·주·월 통계 | 합계가 실제 경과 시간을 넘지 않음 |
 | **PR-G** | `chore: activity stability, privacy and release checks` | 보존·내보내기·삭제, 성능 측정, 문서·CI | 장시간 실행 리소스 측정 결과 문서화 |
+
+### 구현 현황 (2026-10-20)
+
+| PR | 브랜치 / PR | 상태 |
+| --- | --- | --- |
+| PR-A | `feat/activity-collector` · DS-J-L/focuslab#4 | 구현·테스트 완료, 리뷰 대기 |
+| PR-B | `feat/idle-system-events` · DS-J-L/focuslab#5 | 구현·테스트 완료, 리뷰 대기 |
+| PR-C | `feat/browser-tracker` · DS-J-L/focuslab#6 | 구현·테스트 완료 (Edge 실기기 확인), 리뷰 대기 |
+| PR-D | `feat/activity-classifier` · DS-J-L/focuslab#7 | 구현·테스트 완료, 리뷰 대기 |
+| PR-E | `feat/auto-sessions` · DS-J-L/focuslab#9 | 구현·테스트 완료, 리뷰 대기 |
+| PR-F | `feat/activity-dashboard` · DS-J-L/focuslab#10 | 구현·테스트 완료, 리뷰 대기 |
+| PR-G | `chore/activity-stability-release` | 보존·내보내기·삭제, 성능 측정([docs/performance.md](docs/performance.md)), 문서 |
+
+스키마는 v1(프로토타입)에서 v5까지 순서대로 올라가며 기존 데이터를 지우지 않는다: v2 `app`·`activity_span`·`system_event`,
+v3 `browser_state`·`activity_span.domain`, v4 분류 열·`classification_rule`·`activity_feedback`, v5 `auto_session`·`state_sample.at_ms`.
+
+### 남은 과제 (기존 로드맵과 연결)
+
+- 실사용 검증(PR-12): 분류 규칙·자동 세션 기준(5분/5분/2분)·유휴 기준을 사용자 라벨로 검증·튜닝, 실제 절전·잠금·재부팅·다중 모니터 수동 시나리오.
+- 배포(PR-13): 패키지 앱에서 `FocusLab.exe`를 native host로 등록, 확장 프로그램 스토어 배포 시 확장 ID·`allowed_origins` 갱신, 설치 시 자동 실행 옵션.
+- PR-10: 휴대폰 객체 감지와 눈 감김(blendshape) 관찰은 이번 범위에서 제외.

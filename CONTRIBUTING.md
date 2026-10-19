@@ -14,6 +14,7 @@ uv sync --locked
 uv run focuslab --demo   # 모의 센서로 UI 확인
 uv run ruff check .
 uv run pytest
+node --test "browser_extension/test/*.test.js"   # 브라우저 확장
 uv build
 ```
 
@@ -21,7 +22,7 @@ uv build
 
 1. 이슈에서 범위와 개인정보 영향을 정리합니다.
 2. `feat/<scope>` 또는 `fix/<scope>` 브랜치에서 한 가지 목적만 구현합니다.
-3. 센서는 관찰값만 발행하고 판단 로직·UI·저장소와 분리합니다.
+3. 센서는 관찰값만 발행하고 판단 로직·UI·저장소와 분리합니다. 상시 레코더는 실제 OS 대신 스크립트 프로브와 가짜 시계로 테스트합니다(`tests/unit/test_recorder.py`).
 4. lint·테스트·필요한 Windows 실제 검증 결과를 PR에 남깁니다.
 5. 검증 및 리뷰 후 squash merge합니다.
 
