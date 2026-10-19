@@ -22,6 +22,8 @@ dependencies = [
 
 [project.scripts]
 focuslab = "focuslab.__main__:main"
+# Launched by Chrome/Edge through Native Messaging (see focuslab.browser.install).
+focuslab-native-host = "focuslab.browser.native_host:main"
 
 [dependency-groups]
 dev = [

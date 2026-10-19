@@ -17,7 +17,7 @@ from pathlib import Path
 import psutil
 
 from focuslab.activity.probe import WindowsProbe
-from focuslab.activity.recorder import ActivityRecorder
+from focuslab.activity.recorder import ActivityRecorder, RecorderConfig
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.storage.sqlite_db import connect
@@ -27,16 +27,21 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=float, default=60)
     parser.add_argument("--keep", action="store_true")
+    parser.add_argument("--idle", type=float, default=300, help="idle threshold in seconds")
     args = parser.parse_args()
 
     folder = Path(tempfile.mkdtemp(prefix="focuslab-smoke-"))
     db = folder / "smoke.db"
     proc = psutil.Process(os.getpid())
-    rec = ActivityRecorder(db, WindowsProbe(), events=WindowsEventThread)
+    rec = ActivityRecorder(
+        db, WindowsProbe(), events=WindowsEventThread,
+        config=RecorderConfig(idle_threshold_s=args.idle),
+    )
     cpu0, t0 = proc.cpu_times(), time.monotonic()
     rec.start()
     time.sleep(1)
     hooked = rec.status().events_hooked
+    session = bool(rec._events and rec._events.session_events)
     time.sleep(max(0.0, args.seconds - 1))
     rec.stop()
     cpu1, t1 = proc.cpu_times(), time.monotonic()
@@ -47,7 +52,7 @@ def main() -> None:
     events = repo.events_between(0, 2**62)
     conn.close()
     cpu = (cpu1.user + cpu1.system) - (cpu0.user + cpu0.system)
-    print(f"event hook active: {hooked}")
+    print(f"foreground hook: {hooked}, session/power notifications: {session}")
     elapsed = t1 - t0
     print(f"elapsed {elapsed:.1f}s, CPU {cpu:.2f}s ({cpu / elapsed * 100:.2f}% of one core)")
     rss, size = proc.memory_info().rss / 2**20, db.stat().st_size / 1024

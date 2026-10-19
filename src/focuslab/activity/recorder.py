@@ -13,11 +13,12 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from focuslab.browser import BROWSER_EXES, STATE_TTL_MS
 from focuslab.domain.activity import ActivitySpan, ProbeSample, SpanKind, SystemEvent
 from focuslab.domain.protocols import Clock, MonotonicClock
 from focuslab.storage.activity_repository import ActivityRepository
@@ -52,6 +53,32 @@ class RecorderConfig:
     max_gap_s: float = 15.0  # a longer pause between ticks is unobserved time
     clock_jump_s: float = 5.0  # wall vs monotonic disagreement that counts as a clock change
     min_span_ms: int = 1_000
+    idle_threshold_s: float = 300.0  # no input for this long -> IDLE, back-dated to the last input
+
+
+DEFAULT_IDLE_THRESHOLD_S = RecorderConfig.idle_threshold_s
+
+# OS notification name (from WindowsEventThread) -> stored event
+OS_EVENTS = {
+    "lock": SystemEvent.LOCK,
+    "unlock": SystemEvent.UNLOCK,
+    "logon": SystemEvent.LOGON,
+    "logoff": SystemEvent.LOGOFF,
+    "console_disconnect": SystemEvent.USER_SWITCH_OUT,
+    "console_connect": SystemEvent.USER_SWITCH_IN,
+    "suspend": SystemEvent.SUSPEND,
+    "wake": SystemEvent.WAKE,
+    "display_off": SystemEvent.DISPLAY_OFF,
+    "display_on": SystemEvent.DISPLAY_ON,
+    "session_end": SystemEvent.SESSION_END,
+}
+# The user left right now: end the span at the notification time, not at the next poll.
+_LEAVING = {
+    SystemEvent.LOCK, SystemEvent.LOGOFF, SystemEvent.USER_SWITCH_OUT, SystemEvent.SUSPEND,
+    SystemEvent.SESSION_END,
+}
+# The process may be frozen or killed right after these: persist immediately.
+_FLUSH_NOW = {SystemEvent.SUSPEND, SystemEvent.SESSION_END, SystemEvent.LOGOFF}
 
 
 class RecorderState(StrEnum):
@@ -75,14 +102,16 @@ class _Span:
     kind: SpanKind
     exe_name: str | None
     display_name: str | None
+    domain: str | None = None
     span_id: int | None = None
 
-    def same(self, kind: SpanKind, exe_name: str | None) -> bool:
-        return self.kind is kind and self.exe_name == exe_name
+    def same(self, kind: SpanKind, exe_name: str | None, domain: str | None) -> bool:
+        return self.kind is kind and self.exe_name == exe_name and self.domain == domain
 
     def frozen(self) -> ActivitySpan:
         return ActivitySpan(
-            self.start_ms, self.end_ms, self.kind, self.exe_name, self.display_name, self.span_id
+            self.start_ms, self.end_ms, self.kind, self.exe_name, self.display_name,
+            self.span_id, self.domain,
         )
 
 
@@ -113,6 +142,7 @@ class ActivityRecorder:
         self._repo: ActivityRepository | None = None
         self._state = RecorderState.STOPPED
         self._error: str | None = None
+        self._browser_tracking = False
         self._reset_timeline()
 
     def _reset_timeline(self) -> None:
@@ -125,13 +155,16 @@ class ActivityRecorder:
         self._last_wall = 0
         self._last_flush_mono = self._clock.monotonic_ms()
         self._floor_ms = 0  # nothing may be recorded before this (no overlaps after clock changes)
+        self._suspended = False
+        self._display_off = False
 
     # lifecycle ------------------------------------------------------------------
     @property
     def state(self) -> RecorderState:
         return self._state
 
-    def start(self, run_thread: bool = True) -> None:
+    def start(self, run_thread: bool = True, paused: bool = False) -> None:
+        """``paused=True`` restores a pause the user chose earlier without sampling once."""
         with self._lock:
             if self._state is not RecorderState.STOPPED:
                 return
@@ -140,7 +173,14 @@ class ActivityRecorder:
             last = self._repo.last_span()
             self._floor_ms = last.end_ms if last else 0
             self._state = RecorderState.RUNNING
+            previous = self._repo.last_event()
+            if previous and previous["type"] != SystemEvent.STOP:
+                # Killed, crashed or powered off: data up to the last batch is intact.
+                self._event(SystemEvent.RECOVERED, str(last.end_ms) if last else None)
             self._event(SystemEvent.START)
+            if paused:
+                self._state = RecorderState.PAUSED
+                self._event(SystemEvent.PAUSE)
             self._flush_locked()
         if run_thread:
             self._stop.clear()
@@ -190,9 +230,43 @@ class ActivityRecorder:
             self._event(SystemEvent.RESUME)
         self._wake.set()
 
+    def set_browser_tracking(self, on: bool) -> None:
+        """Attach the site reported by the browser extension to browser spans."""
+        with self._lock:
+            self._browser_tracking = on
+
+    def set_idle_threshold(self, seconds: float) -> None:
+        with self._lock:
+            self._cfg = replace(self._cfg, idle_threshold_s=max(30.0, float(seconds)))
+
     def notify(self, name: str) -> None:
-        """Called from OS event threads; a foreground change is sampled right away."""
+        """Called from OS event threads. A foreground change is sampled right away; session,
+        power and display notifications are handled synchronously because the process may be
+        suspended or terminated moments later."""
+        event = OS_EVENTS.get(name)
+        if event is not None:
+            with self._lock:
+                if self._state is RecorderState.RUNNING:  # paused: record nothing at all
+                    self._on_os_event(event)
         self._wake.set()
+
+    def _on_os_event(self, event: SystemEvent) -> None:
+        wall = self._wall()
+        if event in _LEAVING and self._open:
+            self._close(max(self._open.start_ms, min(wall, self._open.end_ms + 1_000)))
+        if event is SystemEvent.SUSPEND:
+            self._suspended = True
+        elif event is SystemEvent.WAKE:
+            self._suspended = False
+            self._last_mono = None  # the sleep is not a scheduling gap
+            self._prev = None
+        elif event is SystemEvent.DISPLAY_OFF:
+            self._display_off = True
+        elif event is SystemEvent.DISPLAY_ON:
+            self._display_off = False
+        self._event(event)
+        if event in _FLUSH_NOW:
+            self._flush_locked()
 
     def status(self) -> RecorderStatus:
         with self._lock:
@@ -217,7 +291,7 @@ class ActivityRecorder:
 
     def tick(self) -> None:
         with self._lock:
-            if self._state is not RecorderState.RUNNING:
+            if self._state is not RecorderState.RUNNING or self._suspended:
                 return
             mono, wall = self._clock.monotonic_ms(), self._wall()
             self._check_continuity(mono, wall)
@@ -248,26 +322,51 @@ class ActivityRecorder:
         self._prev = None
         self._event(event, str(round(delta_ms / 1000)))
 
+    def _kind(self, sample: ProbeSample) -> SpanKind:
+        if sample.locked:
+            return SpanKind.LOCKED
+        idle = sample.idle_s
+        if self._display_off or (idle is not None and idle >= self._cfg.idle_threshold_s):
+            return SpanKind.IDLE
+        return SpanKind.ACTIVE
+
     def _observe(self, sample: ProbeSample | None, wall: int) -> None:
         if sample is None or wall < self._floor_ms:
             self._close_open()
             return
-        kind = SpanKind.LOCKED if sample.locked else SpanKind.ACTIVE
+        kind = self._kind(sample)
         app = sample.app if kind is SpanKind.ACTIVE else None
         exe = app.exe_name if app else None
+        domain = self._domain(exe, wall)
         span = self._open
-        if span and span.same(kind, exe):
+        if span and span.same(kind, exe, domain):
             span.end_ms = max(span.end_ms, wall)
             self._mark(span)
             return
+        at = wall
+        if span and sample.idle_s is not None and SpanKind.IDLE in (span.kind, kind):
+            # Entering idle: the user really left at the last input, so the active span ends
+            # there. Leaving idle: they came back at that input. Never before the span start.
+            at = max(span.start_ms, self._floor_ms, wall - round(sample.idle_s * 1000))
         if span:
-            self._close(wall)
+            self._close(at)
         prev = self._prev
-        if prev and prev.end_ms == wall and prev.same(kind, exe):
-            self._open, self._prev = prev, None  # A, short blip, A -> one span of A
+        if prev and prev.end_ms == at and prev.same(kind, exe, domain):
+            prev.end_ms = wall  # A, short blip, A -> one span of A
+            self._open, self._prev = prev, None
+            self._mark(prev)
             return
-        self._open = _Span(wall, wall, kind, exe, app.display_name if app else None)
+        self._open = _Span(at, wall, kind, exe, app.display_name if app else None, domain)
         self._mark(self._open)
+
+    def _domain(self, exe: str | None, wall: int) -> str | None:
+        browser = BROWSER_EXES.get(exe or "")
+        if not (browser and self._browser_tracking):
+            return None
+        try:
+            return self._repo.browser_domain(browser, wall - STATE_TTL_MS)
+        except sqlite3.Error:  # the host is writing; the next sample will see it
+            return None
 
     def _close_open(self) -> None:
         if self._open:

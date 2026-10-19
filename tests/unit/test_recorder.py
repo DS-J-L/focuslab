@@ -278,6 +278,123 @@ def test_threaded_recorder_starts_and_stops_cleanly(tmp_path):
     assert not [t for t in threading.enumerate() if t.name == "focuslab-recorder"]
 
 
+def test_idle_is_backdated_to_the_last_input_and_return_is_recorded(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make(idle_threshold_s=300)
+    rec.tick()
+    run(rec, 60)  # typing in VS Code for a minute
+    for idle in range(1, 400):  # then the user walks away for 400 s
+        probe.current = app("code.exe", idle=idle)
+        run(rec, 1)
+    probe.current = app("code.exe", idle=0.5)  # back: input 0.5 s ago
+    run(rec, 1)
+    run(rec, 10)
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.kind, s.start_ms - T0, s.end_ms - T0) for s in spans] == [
+        (SpanKind.ACTIVE, 0, 60_000),
+        (SpanKind.IDLE, 60_000, 459_500),
+        (SpanKind.ACTIVE, 459_500, 470_000),
+    ]
+    assert spans[1].exe_name is None  # idle time is not attributed to any program
+
+
+def test_idle_threshold_can_be_changed_at_runtime(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make()
+    rec.set_idle_threshold(60)
+    probe.current = app("code.exe", idle=0)
+    rec.tick()
+    for idle in range(1, 71):
+        probe.current = app("code.exe", idle=idle)
+        run(rec, 1)
+    rec.stop()
+    spans, _ = stored()
+    # no input since the start: all of it was idle, the empty active span is dropped
+    assert [(s.kind, s.start_ms - T0) for s in spans] == [(SpanKind.IDLE, 0)]
+
+
+def test_lock_notification_ends_the_span_immediately(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make()
+    rec.tick()
+    run(rec, 5)
+    clock.advance(0.3)
+    rec.notify("lock")
+    probe.current = ProbeSample(None, 1.0, locked=True)
+    run(rec, 10)
+    rec.notify("unlock")
+    probe.current = app("code.exe")
+    run(rec, 2)
+    rec.stop()
+    spans, events = stored()
+    assert [(s.kind, s.start_ms - T0, s.end_ms - T0) for s in spans] == [
+        (SpanKind.ACTIVE, 0, 5_300),
+        (SpanKind.LOCKED, 6_300, 16_300),  # the first sample after unlock opens the next span
+        (SpanKind.ACTIVE, 16_300, 17_300),
+    ]
+    assert SystemEvent.LOCK in events and SystemEvent.UNLOCK in events
+
+
+def test_suspend_time_is_never_counted(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make()
+    rec.tick()
+    run(rec, 5)
+    rec.notify("suspend")
+    spans, events = stored()
+    assert events[-1] == SystemEvent.SUSPEND and spans  # flushed before the machine sleeps
+    calls = probe.calls
+    clock.advance(3600)  # an hour asleep; a stray tick must not sample
+    rec.tick()
+    assert probe.calls == calls
+    rec.notify("wake")
+    run(rec, 3)
+    rec.stop()
+    spans, events = stored()
+    assert sum(s.duration_ms for s in spans) == 5_000 + 2_000  # first sample after wake: t=0
+    assert SystemEvent.GAP not in events and SystemEvent.WAKE in events
+
+
+def test_display_off_counts_as_idle(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make()
+    rec.tick()
+    run(rec, 5)
+    rec.notify("display_off")
+    probe.current = app("code.exe", idle=2)
+    run(rec, 5)
+    rec.notify("display_on")
+    probe.current = app("code.exe", idle=0)
+    run(rec, 2)
+    rec.stop()
+    spans, _ = stored()
+    assert [s.kind for s in spans] == [SpanKind.ACTIVE, SpanKind.IDLE, SpanKind.ACTIVE]
+
+
+def test_os_events_are_ignored_while_paused(rig, clock):
+    _, _, make, run, stored = rig
+    rec = make()
+    rec.pause()
+    rec.notify("lock")
+    rec.notify("suspend")
+    rec.stop()
+    _, events = stored()
+    assert events == [SystemEvent.START, SystemEvent.PAUSE, SystemEvent.STOP]
+
+
+def test_unclean_shutdown_is_reported_on_next_start(rig, clock):
+    _, _, make, run, stored = rig
+    rec = make()
+    rec.tick()
+    run(rec, 10)  # flushed once
+    rec._repo.conn.close()  # killed: no STOP
+    rec._state = RecorderState.STOPPED
+    make().stop()
+    _, events = stored()
+    assert events == [SystemEvent.START, SystemEvent.RECOVERED, SystemEvent.START, SystemEvent.STOP]
+
+
 def test_switch_after_a_flush_persists_the_final_end(rig, clock):
     probe, _, make, run, stored = rig
     rec = make(flush_s=1)  # every tick flushes, so the closing span is already written
@@ -290,3 +407,52 @@ def test_switch_after_a_flush_persists_the_final_end(rig, clock):
     assert rel(spans) == [
         (0, 6, SpanKind.ACTIVE, "code.exe"), (6, 8, SpanKind.ACTIVE, "chrome.exe")
     ]
+
+
+def test_browser_spans_carry_the_reported_site_only_while_fresh(rig, clock):
+    from focuslab.browser.protocol import BrowserState
+    from focuslab.browser.store import BrowserStateStore
+    from focuslab.storage.repository import Repository
+
+    probe, wall, make, run, stored = rig
+    rec = make()
+    rec.set_browser_tracking(True)
+    conn = rec._repo.conn
+    settings = Repository(conn)
+    settings.set_setting("consent.recording", "1")
+    settings.set_setting("consent.browser", "1")
+    host = BrowserStateStore(conn)
+    host.apply(BrowserState("chrome", "w", 1, 0, True, "github.com"), wall())
+    probe.current = app("chrome.exe")
+    rec.tick()
+    run(rec, 5)
+    host.apply(BrowserState("chrome", "w", 2, 0, True, "youtube.com"), wall())
+    run(rec, 5)
+    probe.current = app("code.exe")  # the browser is in the background now
+    run(rec, 3)
+    probe.current = app("chrome.exe")
+    run(rec, 80)  # no heartbeat for 80 s: the site is no longer known
+    rec.set_browser_tracking(False)
+    run(rec, 2)
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.exe_name, s.domain) for s in spans] == [
+        ("chrome.exe", "github.com"), ("chrome.exe", "youtube.com"), ("code.exe", None),
+        ("chrome.exe", "youtube.com"), ("chrome.exe", None),
+    ]
+    assert [s.duration_ms // 1000 for s in spans[:3]] == [6, 5, 3]
+    for a, b in zip(spans, spans[1:], strict=False):  # switches leave no holes
+        assert a.end_ms == b.start_ms
+
+
+def test_backdated_idle_end_is_persisted_after_a_flush(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make(flush_s=1, idle_threshold_s=60)  # every tick flushes
+    rec.tick()
+    run(rec, 10)
+    for idle in range(1, 70):
+        probe.current = app("code.exe", idle=idle)
+        run(rec, 1)  # flushes happen while the active span is still open
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.kind, (s.end_ms - T0) // 1000) for s in spans][0] == (SpanKind.ACTIVE, 10)

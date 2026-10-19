@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
 )
 
 from focuslab import __version__
+from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
+from focuslab.ui.onboarding import OnboardingDialog
 from focuslab.ui.report_page import ReportPage
 from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
@@ -76,6 +78,7 @@ class MainWindow(QMainWindow):
         self.home.openReport.connect(self.open_report)
         self.session.pauseRequested.connect(self.toggle_pause)
         self.session.finishRequested.connect(self.finish_session)
+        self.session.cameraStopRequested.connect(self.stop_camera)
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
 
@@ -156,10 +159,21 @@ class MainWindow(QMainWindow):
             self.ctx.service.finish()
             self.poll()
 
+    def stop_camera(self) -> None:
+        self.ctx.service.stop_camera()
+        self.poll()
+
+    def toggle_recording_pause(self) -> None:
+        state = self.ctx.recording_state
+        if state is not RecorderState.STOPPED:
+            self.ctx.set_recording_paused(state is RecorderState.RUNNING)
+        self.settings.refresh()
+        self.poll()
+
     def poll(self) -> None:
         snap = self.ctx.service.snapshot()
         self.session.refresh(snap)
-        self.tray.update_state(snap)
+        self.tray.update_state(snap, self.ctx.recording_state)
         if self._last_lifecycle in ACTIVE and snap.lifecycle is Lifecycle.FINISHED:
             self._last_lifecycle = snap.lifecycle
             self._on_finished(snap)
@@ -191,13 +205,16 @@ class MainWindow(QMainWindow):
 
     # closing ------------------------------------------------------------------------
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self.ctx.service.snapshot().lifecycle in ACTIVE and self.tray.isVisible():
+        session = self.ctx.service.snapshot().lifecycle in ACTIVE
+        recording = self.ctx.recording_state is not RecorderState.STOPPED
+        if self.tray.isVisible() and (session or (recording and self.ctx.close_to_tray)):
             event.ignore()
             self.hide()
             if not self._tray_hint_shown:
                 self.tray.showMessage(
                     "FocusLab",
-                    "트레이에서 세션 기록을 계속합니다. 아이콘을 눌러 다시 열 수 있습니다.",
+                    "트레이에서 기록을 계속합니다. 아이콘을 눌러 다시 열고,"
+                    " 메뉴에서 일시정지하거나 완전히 종료할 수 있습니다.",
                 )
                 self._tray_hint_shown = True
             return
@@ -226,7 +243,13 @@ def _set_windows_app_id() -> None:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FocusLab.App")
 
 
-def run_app(demo: bool = False) -> int:
+def run_onboarding(ctx: AppContext, parent: QWidget | None = None) -> None:
+    dialog = OnboardingDialog(parent, round(ctx.idle_threshold_s / 60))
+    dialog.exec()
+    ctx.apply_onboarding(dialog.choice())
+
+
+def run_app(demo: bool = False, background: bool = False) -> int:
     _set_windows_app_id()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("FocusLab")
@@ -241,6 +264,8 @@ def run_app(demo: bool = False) -> int:
     lock = QLockFile(str(lock_path))
     lock.setStaleLockTime(0)
     if not lock.tryLock(100):
+        if background:  # sign-in start while FocusLab is already running: nothing to do
+            return 0
         QMessageBox.information(
             None, "FocusLab", "FocusLab이 이미 실행 중입니다. 트레이 아이콘을 확인하세요."
         )
@@ -250,9 +275,13 @@ def run_app(demo: bool = False) -> int:
     recovered = ctx.service.recover_interrupted()
     with ctx.service.lock:
         ctx.service.repository.purge_older_than(ctx.retention_days)
+    if ctx.needs_onboarding:
+        run_onboarding(ctx)
     ctx.start_recording()
     window = MainWindow(ctx)
-    window.show()
+    # Started at sign-in: stay in the tray (unless there is no tray to stay in).
+    if not (background and window.tray.isVisible()):
+        window.show()
     if recovered:
         QMessageBox.information(
             window, "이전 세션 복구",

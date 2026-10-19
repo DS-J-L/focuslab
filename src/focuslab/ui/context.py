@@ -3,10 +3,17 @@
 import json
 import sys
 
+from focuslab import autostart
 from focuslab.activity.probe import WindowsProbe
-from focuslab.activity.recorder import ActivityRecorder
+from focuslab.activity.recorder import (
+    DEFAULT_IDLE_THRESHOLD_S,
+    ActivityRecorder,
+    RecorderConfig,
+    RecorderState,
+)
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
+from focuslab.browser.store import BrowserStateStore
 from focuslab.camera.calibration import Calibration
 from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
 from focuslab.domain.models import ActivityObservation, SessionConfig, SessionMode
@@ -14,6 +21,7 @@ from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.services.session_service import SessionService
 from focuslab.services.worker_manager import CameraFaceSource
+from focuslab.ui.onboarding import OnboardingChoice
 
 
 class NoActivitySource:
@@ -69,6 +77,39 @@ class AppContext:
         return self.flag("consent.recording")
 
     @property
+    def browser_consent(self) -> bool:
+        return self.flag("consent.browser")
+
+    def set_browser_consent(self, on: bool) -> None:
+        self.set_flag("consent.browser", on)
+        if not on:  # forget the last reported site right away
+            with self.service.lock:
+                BrowserStateStore(self.service.repository.conn).clear_all()
+        if self.recorder:
+            self.recorder.set_browser_tracking(on)
+
+    def browser_last_report_ms(self) -> int | None:
+        with self.service.lock:
+            return BrowserStateStore(self.service.repository.conn).last_report_ms()
+
+    @property
+    def idle_threshold_s(self) -> float:
+        value = self.setting("activity.idle_threshold_s")
+        try:
+            return float(value) if value else DEFAULT_IDLE_THRESHOLD_S
+        except ValueError:
+            return DEFAULT_IDLE_THRESHOLD_S
+
+    def set_idle_threshold(self, seconds: float) -> None:
+        self.set_setting("activity.idle_threshold_s", str(int(seconds)))
+        if self.recorder:
+            self.recorder.set_idle_threshold(seconds)
+
+    @property
+    def close_to_tray(self) -> bool:
+        return self.flag("ui.close_to_tray", True)
+
+    @property
     def camera_index(self) -> int:
         return int(self.setting("camera.index", "0") or 0)
 
@@ -115,11 +156,43 @@ class AppContext:
             return False
         if self.recorder is None:
             self.recorder = ActivityRecorder(
-                self.db_path, WindowsProbe(), events=WindowsEventThread
+                self.db_path, WindowsProbe(), events=WindowsEventThread,
+                config=RecorderConfig(idle_threshold_s=self.idle_threshold_s),
             )
-        self.recorder.start()
+        self.recorder.set_browser_tracking(self.browser_consent)
+        # A pause chosen by the user survives restarts: nothing is read until resumed.
+        self.recorder.start(paused=self.flag("activity.paused"))
         return True
 
     def stop_recording(self) -> None:
         if self.recorder:
             self.recorder.stop()
+
+    @property
+    def recording_state(self) -> RecorderState:
+        return self.recorder.state if self.recorder else RecorderState.STOPPED
+
+    def set_recording_paused(self, paused: bool) -> None:
+        self.set_flag("activity.paused", paused)
+        if self.recorder:
+            (self.recorder.pause if paused else self.recorder.resume)()
+
+    # first run ------------------------------------------------------------------------
+    @property
+    def needs_onboarding(self) -> bool:
+        return not self.demo and not self.flag("onboarding.done")
+
+    def apply_onboarding(self, choice: OnboardingChoice) -> None:
+        self.set_flag("onboarding.done", True)
+        self.set_flag("consent.recording", choice.recording)
+        self.set_flag("ui.close_to_tray", choice.close_to_tray)
+        self.set_idle_threshold(choice.idle_minutes * 60)
+        self.set_autostart(choice.autostart)
+
+    def set_autostart(self, on: bool) -> None:
+        if sys.platform != "win32" or self.demo:
+            return
+        if on:
+            autostart.enable()
+        else:
+            autostart.disable()

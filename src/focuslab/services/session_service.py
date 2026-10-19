@@ -207,6 +207,17 @@ class SessionService:
                 raise InvalidTransition("break is only available while running")
             self._on_break = on
 
+    def stop_camera(self) -> None:
+        """Release the camera now; the session continues with PC activity only."""
+        with self._lock:
+            if self._face is None:
+                return
+            self._stop_face()
+            self._face = None
+            self._last_face = self._last_face_evidence = None
+            if self._config is not None:
+                self._config = replace(self._config, camera_enabled=False)
+
     def finish(self) -> int | None:
         """Stop observing and close the session. Returns the finished session id."""
         with self._lock:

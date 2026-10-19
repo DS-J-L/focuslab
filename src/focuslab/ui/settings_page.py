@@ -1,11 +1,14 @@
 """Settings: consent, data location/retention/export/delete, camera device, model, calibration."""
 
+import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -21,13 +24,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from focuslab import autostart
 from focuslab.activity.recorder import RecorderState
-from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig, face_model_path
+from focuslab.browser import install as browser_install
+from focuslab.config import (
+    EXTENSION_DIR,
+    MODE_PROFILES,
+    RULE_VERSION,
+    RuleConfig,
+    face_model_path,
+)
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
 from focuslab.services.export_service import delete_all, export_csv, export_json
 from focuslab.ui.calibration_dialog import CalibrationDialog
 from focuslab.ui.consent import (
     ask_activity_consent,
+    ask_browser_consent,
     ask_camera_consent,
     ask_recording_consent,
 )
@@ -77,6 +89,7 @@ class SettingsPage(QWidget):
         root.setSpacing(14)
         root.addWidget(QLabel("설정", objectName="PageTitle"))
         root.addWidget(self._privacy_box())
+        root.addWidget(self._browser_box())
         root.addWidget(self._camera_box())
         root.addWidget(self._rules_box())
         root.addStretch()
@@ -93,7 +106,28 @@ class SettingsPage(QWidget):
         self.recording_state = QLabel(wordWrap=True)
         self.recording_button = QPushButton()
         self.recording_button.clicked.connect(self._toggle_recording)
-        form.addRow("자동 활동 기록", _row(self.recording_state, self.recording_button))
+        self.recording_pause = QPushButton()
+        self.recording_pause.clicked.connect(self._toggle_recording_pause)
+        form.addRow(
+            "자동 활동 기록",
+            _row(self.recording_state, self.recording_button, self.recording_pause),
+        )
+        self.idle_minutes = QSpinBox()
+        self.idle_minutes.setRange(1, 60)
+        self.idle_minutes.setSuffix(" 분")
+        self.idle_minutes.valueChanged.connect(self._idle_changed)
+        idle_hint = QLabel(
+            "이 시간 동안 입력이 없으면 마지막 입력 시각부터 유휴로 기록",
+            objectName="Muted", wordWrap=True,
+        )
+        form.addRow("유휴 기준", _row(self.idle_minutes, idle_hint))
+        self.autostart = QCheckBox("Windows 로그인 시 트레이로 자동 실행")
+        self.autostart.toggled.connect(self._autostart_toggled)
+        self.close_to_tray = QCheckBox("창을 닫아도 트레이에서 계속 기록")
+        self.close_to_tray.toggled.connect(
+            lambda on: self.ctx.set_flag("ui.close_to_tray", on)
+        )
+        form.addRow("백그라운드", _row(self.autostart, self.close_to_tray))
 
         self.activity_state = QLabel()
         self.activity_button = QPushButton()
@@ -125,6 +159,70 @@ class SettingsPage(QWidget):
         self.delete_all_button.clicked.connect(self._delete_all)
         form.addRow("내보내기·삭제", _row(exp_json, exp_csv, self.delete_all_button))
         return box
+
+    def _browser_box(self) -> QGroupBox:
+        box = QGroupBox("브라우저 사이트 기록 (Chrome · Edge, 선택)")
+        form = QFormLayout(box)
+        self.browser_state = QLabel(wordWrap=True)
+        self.browser_button = QPushButton()
+        self.browser_button.clicked.connect(self._toggle_browser)
+        form.addRow("동의", _row(self.browser_state, self.browser_button))
+        self.host_state = QLabel(wordWrap=True)
+        self.host_install = QPushButton("연결 설치")
+        self.host_install.clicked.connect(self._install_host)
+        self.host_remove = QPushButton("연결 제거")
+        self.host_remove.clicked.connect(self._remove_host)
+        form.addRow("본체 연결", _row(self.host_state, self.host_install, self.host_remove))
+        open_ext = QPushButton("확장 프로그램 폴더 열기")
+        open_ext.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(EXTENSION_DIR)))
+        )
+        guide = QLabel(
+            "chrome://extensions 또는 edge://extensions → 개발자 모드 → '압축해제된 확장"
+            " 프로그램 로드'에서 이 폴더를 선택하세요."
+            " 확장이 없어도 프로그램 기록은 정상 동작합니다.",
+            wordWrap=True, objectName="Muted",
+        )
+        form.addRow("확장 프로그램", _row(open_ext))
+        form.addRow(guide)
+        return box
+
+    def _refresh_browser(self) -> None:
+        consent = self.ctx.browser_consent
+        last = self.ctx.browser_last_report_ms()
+        seen = (
+            f" · 마지막 수신 {datetime.fromtimestamp(last / 1000):%m/%d %H:%M:%S}"
+            if last else " · 아직 수신 없음"
+        )
+        self.browser_state.setText(("동의함" + seen) if consent else "동의 안 함")
+        self.browser_button.setText("철회" if consent else "동의")
+        registered = browser_install.registered()
+        names = [name.title() for name, ok in registered.items() if ok]
+        self.host_state.setText(("연결됨: " + ", ".join(names)) if names else "설치 안 됨")
+        windows = sys.platform == "win32" and not self.ctx.demo
+        self.host_install.setEnabled(windows)
+        self.host_remove.setEnabled(windows and bool(names))
+        self.browser_button.setEnabled(not self.ctx.demo)
+
+    def _toggle_browser(self) -> None:
+        if self.ctx.browser_consent:
+            self.ctx.set_browser_consent(False)
+        elif ask_browser_consent(self):
+            self.ctx.set_browser_consent(True)
+            if not any(browser_install.registered().values()):
+                self._install_host()
+        self.refresh()
+
+    def _install_host(self) -> None:
+        try:
+            browser_install.install(self.ctx.data_dir)
+        except OSError as exc:
+            QMessageBox.warning(self, "브라우저 연결", f"설치하지 못했습니다: {exc}")
+        self.refresh()
+
+    def _remove_host(self) -> None:
+        browser_install.uninstall(self.ctx.data_dir)
+        self.refresh()
 
     def _camera_box(self) -> QGroupBox:
         box = QGroupBox("카메라")
@@ -171,6 +269,7 @@ class SettingsPage(QWidget):
     # refresh ----------------------------------------------------------------------
     def refresh(self) -> None:
         self._refresh_recording()
+        self._refresh_browser()
         activity = self.ctx.activity_consent
         consent_text = {None: "아직 묻지 않음", True: "동의함", False: "동의 안 함"}
         self.activity_state.setText(consent_text[activity])
@@ -220,6 +319,20 @@ class SettingsPage(QWidget):
         self.recording_state.setText(text)
         self.recording_button.setText("끄기" if self.ctx.recording_consent else "켜기")
         self.recording_button.setEnabled(not self.ctx.demo)
+        running = status is not None and status.state is not RecorderState.STOPPED
+        self.recording_pause.setVisible(running)
+        self.recording_pause.setText(
+            "재개" if status and status.state is RecorderState.PAUSED else "일시정지"
+        )
+        for widget, value in (
+            (self.idle_minutes, round(self.ctx.idle_threshold_s / 60)),
+            (self.autostart, autostart.is_enabled()),
+            (self.close_to_tray, self.ctx.close_to_tray),
+        ):
+            widget.blockSignals(True)
+            (widget.setValue if isinstance(widget, QSpinBox) else widget.setChecked)(value)
+            widget.blockSignals(False)
+        self.autostart.setEnabled(not self.ctx.demo)
 
     def set_session_active(self, active: bool) -> None:
         self.calib_button.setEnabled(
@@ -228,6 +341,20 @@ class SettingsPage(QWidget):
         self.delete_all_button.setEnabled(not active)
 
     # actions ----------------------------------------------------------------------
+    def _toggle_recording_pause(self) -> None:
+        self.ctx.set_recording_paused(self.ctx.recording_state is RecorderState.RUNNING)
+        self.refresh()
+
+    def _idle_changed(self, minutes: int) -> None:
+        self.ctx.set_idle_threshold(minutes * 60)
+
+    def _autostart_toggled(self, on: bool) -> None:
+        try:
+            self.ctx.set_autostart(on)
+        except OSError as exc:
+            QMessageBox.warning(self, "자동 실행", f"시작 프로그램을 바꾸지 못했습니다: {exc}")
+        self.refresh()
+
     def _toggle_recording(self) -> None:
         if self.ctx.recording_consent:
             self.ctx.set_flag("consent.recording", False)

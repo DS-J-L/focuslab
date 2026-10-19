@@ -53,6 +53,7 @@ def _card() -> tuple[QFrame, QVBoxLayout]:
 class SessionPage(QWidget):
     pauseRequested = Signal()
     finishRequested = Signal()
+    cameraStopRequested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -70,6 +71,11 @@ class SessionPage(QWidget):
         header.addLayout(title_col, 1)
         self.camera_flag = QLabel("", objectName="CameraOn")
         header.addWidget(self.camera_flag, 0, Qt.AlignmentFlag.AlignTop)
+        self.camera_stop = QPushButton("카메라 끄기")
+        self.camera_stop.setToolTip("세션은 계속하고 카메라만 즉시 해제합니다.")
+        self.camera_stop.clicked.connect(self.cameraStopRequested)
+        self.camera_stop.hide()
+        header.addWidget(self.camera_stop, 0, Qt.AlignmentFlag.AlignTop)
         root.addLayout(header)
 
         time_row = QHBoxLayout()
@@ -215,6 +221,7 @@ class SessionPage(QWidget):
             self.subtitle.setText("홈에서 목표와 모드를 정하고 세션을 시작하세요.")
             self.badge.set_state(None)
             self.timeline.set_segments(())
+            self.camera_stop.hide()
             return
 
         cfg = snap.config
@@ -262,6 +269,7 @@ class SessionPage(QWidget):
         camera_on = snap.camera_status in (CameraStatus.RUNNING, CameraStatus.STARTING)
         flag = "● 데모 카메라 센서 (실제 카메라 꺼짐)" if self.ctx.demo else "● 카메라 사용 중"
         self.camera_flag.setText(flag if camera_on else "")
+        self.camera_stop.setVisible(camera_on and active)
         if not cfg.camera_enabled:
             self.camera_status.setText("이 세션은 카메라 없이 PC 활동만 사용합니다.")
         else:
