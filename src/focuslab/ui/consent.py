@@ -1,4 +1,4 @@
-"""Separate, explicit consent prompts for PC activity and camera observation."""
+"""Separate, explicit consent prompts for automatic recording, PC activity and camera."""
 
 from PySide6.QtWidgets import QMessageBox, QWidget
 
@@ -9,6 +9,15 @@ ACTIVITY_TEXT = (
     "• 화면 잠금 여부\n\n"
     "창 제목, 문서 이름, URL, 키 입력 내용, 화면은 읽거나 저장하지 않습니다.\n"
     "동의하지 않으면 PC 활동 없이 (카메라만으로) 관찰하며 대부분 '판단 불가'로 표시됩니다."
+)
+
+RECORDING_TEXT = (
+    "FocusLab이 실행 중인 동안 세션을 시작하지 않아도 PC 사용 기록을 자동으로 남깁니다.\n\n"
+    "• 맨 앞 프로그램의 실행 파일 이름과 제품 이름 (예: code.exe, Visual Studio Code)\n"
+    "• 프로그램을 쓰기 시작·끝낸 시각과 전환 횟수\n"
+    "• 화면 잠금 여부\n\n"
+    "창 제목, 실행 파일 경로, 문서 이름, URL, 키 입력 내용, 화면은 읽거나 저장하지 않습니다.\n"
+    "기록은 이 PC에만 저장되며 설정에서 언제든 끄고 삭제할 수 있습니다."
 )
 
 CAMERA_TEXT = (
@@ -39,3 +48,7 @@ def ask_activity_consent(parent: QWidget) -> bool:
 
 def ask_camera_consent(parent: QWidget) -> bool:
     return ask(parent, "카메라 관찰 동의", CAMERA_TEXT)
+
+
+def ask_recording_consent(parent: QWidget) -> bool:
+    return ask(parent, "자동 활동 기록 동의", RECORDING_TEXT)

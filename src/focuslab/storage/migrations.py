@@ -62,6 +62,36 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        2,
+        # Always-on activity recording: one row per executable identity and a timeline of
+        # non-overlapping spans in UTC epoch ms. Unobserved time has no row.
+        """
+        CREATE TABLE app (
+            id INTEGER PRIMARY KEY,
+            exe_name TEXT NOT NULL UNIQUE,
+            display_name TEXT,
+            first_seen_utc TEXT NOT NULL
+        );
+        CREATE TABLE activity_span (
+            id INTEGER PRIMARY KEY,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('ACTIVE', 'IDLE', 'LOCKED')),
+            app_id INTEGER REFERENCES app(id),
+            CHECK (end_ms >= start_ms)
+        );
+        CREATE INDEX activity_span_start ON activity_span(start_ms);
+        CREATE INDEX activity_span_end ON activity_span(end_ms);
+        CREATE TABLE system_event (
+            id INTEGER PRIMARY KEY,
+            at_ms INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            detail TEXT
+        );
+        CREATE INDEX system_event_at ON system_event(at_ms);
+        """,
+    ),
 ]
 
 

@@ -21,19 +21,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from focuslab.activity.recorder import RecorderState
 from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig, face_model_path
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
 from focuslab.services.export_service import delete_all, export_csv, export_json
 from focuslab.ui.calibration_dialog import CalibrationDialog
-from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
+from focuslab.ui.consent import (
+    ask_activity_consent,
+    ask_camera_consent,
+    ask_recording_consent,
+)
 from focuslab.ui.context import AppContext
 
 COLLECTED = (
     "<b>저장하는 것</b>: 세션 목표·모드·시간, 1초 단위 추정 상태와 근거 코드,"
-    " 맨 앞 앱의 프로세스 이름,"
+    " 맨 앞 앱의 프로세스 이름, (자동 기록 동의 시) 프로그램별 사용 구간과 제품 이름,"
     " 사용자가 입력한 정정·자기보고, 설정값.<br>"
     "<b>저장하지 않는 것</b>: 카메라 영상·사진, 얼굴 좌표, 음성, 키 입력 내용,"
-    " 창 제목, URL, 스크린샷.<br>"
+    " 창 제목, 실행 파일 경로, URL, 스크린샷.<br>"
     "모든 데이터는 이 PC에만 있으며 FocusLab은 서버로 아무것도 보내지 않습니다."
 )
 
@@ -84,6 +89,11 @@ class SettingsPage(QWidget):
         info = QLabel(COLLECTED, wordWrap=True)
         info.setStyleSheet("font-weight:400;")
         form.addRow(info)
+
+        self.recording_state = QLabel(wordWrap=True)
+        self.recording_button = QPushButton()
+        self.recording_button.clicked.connect(self._toggle_recording)
+        form.addRow("자동 활동 기록", _row(self.recording_state, self.recording_button))
 
         self.activity_state = QLabel()
         self.activity_button = QPushButton()
@@ -160,6 +170,7 @@ class SettingsPage(QWidget):
 
     # refresh ----------------------------------------------------------------------
     def refresh(self) -> None:
+        self._refresh_recording()
         activity = self.ctx.activity_consent
         consent_text = {None: "아직 묻지 않음", True: "동의함", False: "동의 안 함"}
         self.activity_state.setText(consent_text[activity])
@@ -193,6 +204,23 @@ class SettingsPage(QWidget):
             self.calib_state.setText(self.calib_state.text() + " · 카메라 동의 후 보정 가능")
         self.calib_button.setEnabled(model is not None and self.ctx.camera_consent)
 
+    def _refresh_recording(self) -> None:
+        recorder = self.ctx.recorder
+        status = recorder.status() if recorder else None
+        if not self.ctx.recording_consent:
+            text = "꺼짐 (동의 안 함)"
+        elif status is None or status.state is RecorderState.STOPPED:
+            text = "동의함 · 기록 중지됨" if not self.ctx.demo else "데모 모드에서는 기록하지 않음"
+        elif status.state is RecorderState.PAUSED:
+            text = "일시정지됨"
+        else:
+            current = status.current
+            name = (current.display_name or current.exe_name) if current else None
+            text = "기록 중" + (f" · 현재: {name}" if name else "")
+        self.recording_state.setText(text)
+        self.recording_button.setText("끄기" if self.ctx.recording_consent else "켜기")
+        self.recording_button.setEnabled(not self.ctx.demo)
+
     def set_session_active(self, active: bool) -> None:
         self.calib_button.setEnabled(
             not active and face_model_path() is not None and self.ctx.camera_consent
@@ -200,6 +228,15 @@ class SettingsPage(QWidget):
         self.delete_all_button.setEnabled(not active)
 
     # actions ----------------------------------------------------------------------
+    def _toggle_recording(self) -> None:
+        if self.ctx.recording_consent:
+            self.ctx.set_flag("consent.recording", False)
+            self.ctx.stop_recording()
+        elif ask_recording_consent(self):
+            self.ctx.set_flag("consent.recording", True)
+            self.ctx.start_recording()
+        self.refresh()
+
     def _toggle_activity(self) -> None:
         if self.ctx.activity_consent:
             self.ctx.set_flag("consent.activity", False)

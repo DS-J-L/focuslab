@@ -104,3 +104,36 @@ def test_settings(repo):
     assert repo.get_setting("x") == "2"
     repo.delete_setting("x")
     assert repo.get_setting("x") is None
+
+
+def test_upgrade_from_v1_keeps_existing_sessions(tmp_path, monkeypatch):
+    from focuslab.storage import migrations
+
+    path = tmp_path / "old.db"
+    monkeypatch.setattr(migrations, "MIGRATIONS", MIGRATIONS[:1])
+    conn = connect(path)
+    Repository(conn).create_session(CONFIG, "rules-0.1")
+    conn.close()
+    monkeypatch.undo()
+    conn = connect(path)
+    assert current_version(conn) == MIGRATIONS[-1][0]
+    assert [s.goal for s in Repository(conn).list_sessions()] == ["알고리즘"]
+    conn.close()
+
+
+def test_activity_repository_dedupes_programs_and_queries_overlaps(tmp_path):
+    from focuslab.domain.activity import ActivitySpan, SpanKind
+    from focuslab.storage.activity_repository import ActivityRepository
+
+    conn = connect(tmp_path / "a.db")
+    repo = ActivityRepository(conn)
+    first = repo.app_id("code.exe")
+    assert repo.app_id("code.exe", "Visual Studio Code") == first
+    repo.insert_span(ActivitySpan(0, 10, SpanKind.ACTIVE, "code.exe"))
+    repo.insert_span(ActivitySpan(10, 20, SpanKind.LOCKED))
+    repo.insert_span(ActivitySpan(20, 30, SpanKind.ACTIVE, "code.exe"))
+    assert [s.start_ms for s in repo.spans_between(5, 21)] == [0, 10, 20]
+    assert repo.spans_between(5, 21)[0].display_name == "Visual Studio Code"
+    assert repo.last_span().end_ms == 30
+    assert conn.execute("SELECT COUNT(*) FROM app").fetchone()[0] == 1
+    conn.close()

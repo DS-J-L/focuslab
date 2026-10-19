@@ -1,6 +1,8 @@
 """SQLite connection with foreign keys, WAL and migrations applied."""
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from focuslab.storage.migrations import migrate
@@ -19,3 +21,15 @@ def connect(path: Path | str, *, check_same_thread: bool = True) -> sqlite3.Conn
     conn.execute("PRAGMA synchronous = NORMAL")
     migrate(conn)
     return conn
+
+
+@contextmanager
+def transaction(conn: sqlite3.Connection) -> Iterator[None]:
+    """Explicit transaction for an ``isolation_level=None`` connection."""
+    conn.execute("BEGIN")
+    try:
+        yield
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    conn.execute("COMMIT")
