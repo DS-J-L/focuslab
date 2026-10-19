@@ -294,6 +294,7 @@ class ActivityRecorder:
             if span.span_id is not None:
                 self._deleted.append(span.span_id)
             return
+        self._mark(span)  # its final end must reach the database even if already flushed
         self._prev = span
 
     def _mark(self, span: _Span) -> None:

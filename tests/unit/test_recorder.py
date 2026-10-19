@@ -276,3 +276,17 @@ def test_threaded_recorder_starts_and_stops_cleanly(tmp_path):
     rec.stop()
     assert probe.calls >= 2
     assert not [t for t in threading.enumerate() if t.name == "focuslab-recorder"]
+
+
+def test_switch_after_a_flush_persists_the_final_end(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make(flush_s=1)  # every tick flushes, so the closing span is already written
+    rec.tick()
+    run(rec, 5)
+    probe.current = app("chrome.exe")
+    run(rec, 3)
+    rec.stop()
+    spans, _ = stored()
+    assert rel(spans) == [
+        (0, 6, SpanKind.ACTIVE, "code.exe"), (6, 8, SpanKind.ACTIVE, "chrome.exe")
+    ]
