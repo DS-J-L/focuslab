@@ -24,6 +24,11 @@ jobs:
         run: uv run pytest
         env:
           QT_QPA_PLATFORM: offscreen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser extension tests
+        run: node --test "browser_extension/test/*.test.js"
       - name: CLI smoke (headless, no sensors)
         run: uv run focuslab --check
       - name: Build wheel and source distribution

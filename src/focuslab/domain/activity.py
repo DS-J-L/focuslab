@@ -63,6 +63,7 @@ class ActivitySpan:
     exe_name: str | None = None
     display_name: str | None = None
     span_id: int | None = None
+    domain: str | None = None  # active tab hostname while a browser is in front, if reported
 
     @property
     def duration_ms(self) -> int:

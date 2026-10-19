@@ -92,6 +92,24 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX system_event_at ON system_event(at_ms);
         """,
     ),
+    (
+        3,
+        # Browser extension bridge: the latest state per browser profile (written by the native
+        # messaging host, read by the recorder) and the site hostname of browser spans.
+        """
+        CREATE TABLE browser_state (
+            browser TEXT NOT NULL,
+            instance TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            focused INTEGER NOT NULL,
+            domain TEXT,
+            updated_ms INTEGER NOT NULL,
+            PRIMARY KEY (browser, instance)
+        );
+        ALTER TABLE activity_span ADD COLUMN domain TEXT;
+        CREATE INDEX activity_span_domain ON activity_span(domain) WHERE domain IS NOT NULL;
+        """,
+    ),
 ]
 
 

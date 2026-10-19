@@ -20,6 +20,15 @@ RECORDING_TEXT = (
     "기록은 이 PC에만 저장되며 설정에서 언제든 끄고 삭제할 수 있습니다."
 )
 
+BROWSER_TEXT = (
+    "Chrome·Edge에 FocusLab 확장 프로그램을 설치하면, 브라우저가 맨 앞에 있을 때 활성 탭의\n"
+    "사이트 이름(예: github.com)만 이 PC의 FocusLab으로 보냅니다.\n\n"
+    "• 전체 주소·경로·검색어·페이지 내용·방문 기록은 보내거나 저장하지 않습니다.\n"
+    "• 백그라운드 탭과 InPrivate·시크릿 창은 기록하지 않습니다.\n"
+    "• 확장 프로그램과 FocusLab은 Native Messaging으로만 통신하며 네트워크를 쓰지 않습니다.\n\n"
+    "동의를 철회하면 브라우저 상태 수신을 멈추고 저장된 현재 상태를 지웁니다."
+)
+
 CAMERA_TEXT = (
     "카메라는 직접 시작한 세션 동안에만 켜지고, 일시정지·종료 시 즉시 해제됩니다.\n\n"
     "• 영상은 메모리에서만 처리되며 저장·전송되지 않습니다.\n"
@@ -48,6 +57,10 @@ def ask_activity_consent(parent: QWidget) -> bool:
 
 def ask_camera_consent(parent: QWidget) -> bool:
     return ask(parent, "카메라 관찰 동의", CAMERA_TEXT)
+
+
+def ask_browser_consent(parent: QWidget) -> bool:
+    return ask(parent, "브라우저 사이트 기록 동의", BROWSER_TEXT)
 
 
 def ask_recording_consent(parent: QWidget) -> bool:

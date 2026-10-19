@@ -1,6 +1,8 @@
 """Settings: consent, data location/retention/export/delete, camera device, model, calibration."""
 
+import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QUrl, Signal
@@ -24,12 +26,20 @@ from PySide6.QtWidgets import (
 
 from focuslab import autostart
 from focuslab.activity.recorder import RecorderState
-from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig, face_model_path
+from focuslab.browser import install as browser_install
+from focuslab.config import (
+    EXTENSION_DIR,
+    MODE_PROFILES,
+    RULE_VERSION,
+    RuleConfig,
+    face_model_path,
+)
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
 from focuslab.services.export_service import delete_all, export_csv, export_json
 from focuslab.ui.calibration_dialog import CalibrationDialog
 from focuslab.ui.consent import (
     ask_activity_consent,
+    ask_browser_consent,
     ask_camera_consent,
     ask_recording_consent,
 )
@@ -79,6 +89,7 @@ class SettingsPage(QWidget):
         root.setSpacing(14)
         root.addWidget(QLabel("설정", objectName="PageTitle"))
         root.addWidget(self._privacy_box())
+        root.addWidget(self._browser_box())
         root.addWidget(self._camera_box())
         root.addWidget(self._rules_box())
         root.addStretch()
@@ -149,6 +160,70 @@ class SettingsPage(QWidget):
         form.addRow("내보내기·삭제", _row(exp_json, exp_csv, self.delete_all_button))
         return box
 
+    def _browser_box(self) -> QGroupBox:
+        box = QGroupBox("브라우저 사이트 기록 (Chrome · Edge, 선택)")
+        form = QFormLayout(box)
+        self.browser_state = QLabel(wordWrap=True)
+        self.browser_button = QPushButton()
+        self.browser_button.clicked.connect(self._toggle_browser)
+        form.addRow("동의", _row(self.browser_state, self.browser_button))
+        self.host_state = QLabel(wordWrap=True)
+        self.host_install = QPushButton("연결 설치")
+        self.host_install.clicked.connect(self._install_host)
+        self.host_remove = QPushButton("연결 제거")
+        self.host_remove.clicked.connect(self._remove_host)
+        form.addRow("본체 연결", _row(self.host_state, self.host_install, self.host_remove))
+        open_ext = QPushButton("확장 프로그램 폴더 열기")
+        open_ext.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(EXTENSION_DIR)))
+        )
+        guide = QLabel(
+            "chrome://extensions 또는 edge://extensions → 개발자 모드 → '압축해제된 확장"
+            " 프로그램 로드'에서 이 폴더를 선택하세요."
+            " 확장이 없어도 프로그램 기록은 정상 동작합니다.",
+            wordWrap=True, objectName="Muted",
+        )
+        form.addRow("확장 프로그램", _row(open_ext))
+        form.addRow(guide)
+        return box
+
+    def _refresh_browser(self) -> None:
+        consent = self.ctx.browser_consent
+        last = self.ctx.browser_last_report_ms()
+        seen = (
+            f" · 마지막 수신 {datetime.fromtimestamp(last / 1000):%m/%d %H:%M:%S}"
+            if last else " · 아직 수신 없음"
+        )
+        self.browser_state.setText(("동의함" + seen) if consent else "동의 안 함")
+        self.browser_button.setText("철회" if consent else "동의")
+        registered = browser_install.registered()
+        names = [name.title() for name, ok in registered.items() if ok]
+        self.host_state.setText(("연결됨: " + ", ".join(names)) if names else "설치 안 됨")
+        windows = sys.platform == "win32" and not self.ctx.demo
+        self.host_install.setEnabled(windows)
+        self.host_remove.setEnabled(windows and bool(names))
+        self.browser_button.setEnabled(not self.ctx.demo)
+
+    def _toggle_browser(self) -> None:
+        if self.ctx.browser_consent:
+            self.ctx.set_browser_consent(False)
+        elif ask_browser_consent(self):
+            self.ctx.set_browser_consent(True)
+            if not any(browser_install.registered().values()):
+                self._install_host()
+        self.refresh()
+
+    def _install_host(self) -> None:
+        try:
+            browser_install.install(self.ctx.data_dir)
+        except OSError as exc:
+            QMessageBox.warning(self, "브라우저 연결", f"설치하지 못했습니다: {exc}")
+        self.refresh()
+
+    def _remove_host(self) -> None:
+        browser_install.uninstall(self.ctx.data_dir)
+        self.refresh()
+
     def _camera_box(self) -> QGroupBox:
         box = QGroupBox("카메라")
         form = QFormLayout(box)
@@ -194,6 +269,7 @@ class SettingsPage(QWidget):
     # refresh ----------------------------------------------------------------------
     def refresh(self) -> None:
         self._refresh_recording()
+        self._refresh_browser()
         activity = self.ctx.activity_consent
         consent_text = {None: "아직 묻지 않음", True: "동의함", False: "동의 안 함"}
         self.activity_state.setText(consent_text[activity])

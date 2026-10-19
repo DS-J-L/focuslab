@@ -18,6 +18,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from focuslab.browser import BROWSER_EXES, STATE_TTL_MS
 from focuslab.domain.activity import ActivitySpan, ProbeSample, SpanKind, SystemEvent
 from focuslab.domain.protocols import Clock, MonotonicClock
 from focuslab.storage.activity_repository import ActivityRepository
@@ -101,14 +102,16 @@ class _Span:
     kind: SpanKind
     exe_name: str | None
     display_name: str | None
+    domain: str | None = None
     span_id: int | None = None
 
-    def same(self, kind: SpanKind, exe_name: str | None) -> bool:
-        return self.kind is kind and self.exe_name == exe_name
+    def same(self, kind: SpanKind, exe_name: str | None, domain: str | None) -> bool:
+        return self.kind is kind and self.exe_name == exe_name and self.domain == domain
 
     def frozen(self) -> ActivitySpan:
         return ActivitySpan(
-            self.start_ms, self.end_ms, self.kind, self.exe_name, self.display_name, self.span_id
+            self.start_ms, self.end_ms, self.kind, self.exe_name, self.display_name,
+            self.span_id, self.domain,
         )
 
 
@@ -139,6 +142,7 @@ class ActivityRecorder:
         self._repo: ActivityRepository | None = None
         self._state = RecorderState.STOPPED
         self._error: str | None = None
+        self._browser_tracking = False
         self._reset_timeline()
 
     def _reset_timeline(self) -> None:
@@ -225,6 +229,11 @@ class ActivityRecorder:
             self._prev = None
             self._event(SystemEvent.RESUME)
         self._wake.set()
+
+    def set_browser_tracking(self, on: bool) -> None:
+        """Attach the site reported by the browser extension to browser spans."""
+        with self._lock:
+            self._browser_tracking = on
 
     def set_idle_threshold(self, seconds: float) -> None:
         with self._lock:
@@ -328,8 +337,9 @@ class ActivityRecorder:
         kind = self._kind(sample)
         app = sample.app if kind is SpanKind.ACTIVE else None
         exe = app.exe_name if app else None
+        domain = self._domain(exe, wall)
         span = self._open
-        if span and span.same(kind, exe):
+        if span and span.same(kind, exe, domain):
             span.end_ms = max(span.end_ms, wall)
             self._mark(span)
             return
@@ -341,13 +351,22 @@ class ActivityRecorder:
         if span:
             self._close(at)
         prev = self._prev
-        if prev and prev.end_ms == at and prev.same(kind, exe):
+        if prev and prev.end_ms == at and prev.same(kind, exe, domain):
             prev.end_ms = wall  # A, short blip, A -> one span of A
             self._open, self._prev = prev, None
             self._mark(prev)
             return
-        self._open = _Span(at, wall, kind, exe, app.display_name if app else None)
+        self._open = _Span(at, wall, kind, exe, app.display_name if app else None, domain)
         self._mark(self._open)
+
+    def _domain(self, exe: str | None, wall: int) -> str | None:
+        browser = BROWSER_EXES.get(exe or "")
+        if not (browser and self._browser_tracking):
+            return None
+        try:
+            return self._repo.browser_domain(browser, wall - STATE_TTL_MS)
+        except sqlite3.Error:  # the host is writing; the next sample will see it
+            return None
 
     def _close_open(self) -> None:
         if self._open:

@@ -407,3 +407,52 @@ def test_switch_after_a_flush_persists_the_final_end(rig, clock):
     assert rel(spans) == [
         (0, 6, SpanKind.ACTIVE, "code.exe"), (6, 8, SpanKind.ACTIVE, "chrome.exe")
     ]
+
+
+def test_browser_spans_carry_the_reported_site_only_while_fresh(rig, clock):
+    from focuslab.browser.protocol import BrowserState
+    from focuslab.browser.store import BrowserStateStore
+    from focuslab.storage.repository import Repository
+
+    probe, wall, make, run, stored = rig
+    rec = make()
+    rec.set_browser_tracking(True)
+    conn = rec._repo.conn
+    settings = Repository(conn)
+    settings.set_setting("consent.recording", "1")
+    settings.set_setting("consent.browser", "1")
+    host = BrowserStateStore(conn)
+    host.apply(BrowserState("chrome", "w", 1, 0, True, "github.com"), wall())
+    probe.current = app("chrome.exe")
+    rec.tick()
+    run(rec, 5)
+    host.apply(BrowserState("chrome", "w", 2, 0, True, "youtube.com"), wall())
+    run(rec, 5)
+    probe.current = app("code.exe")  # the browser is in the background now
+    run(rec, 3)
+    probe.current = app("chrome.exe")
+    run(rec, 80)  # no heartbeat for 80 s: the site is no longer known
+    rec.set_browser_tracking(False)
+    run(rec, 2)
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.exe_name, s.domain) for s in spans] == [
+        ("chrome.exe", "github.com"), ("chrome.exe", "youtube.com"), ("code.exe", None),
+        ("chrome.exe", "youtube.com"), ("chrome.exe", None),
+    ]
+    assert [s.duration_ms // 1000 for s in spans[:3]] == [6, 5, 3]
+    for a, b in zip(spans, spans[1:], strict=False):  # switches leave no holes
+        assert a.end_ms == b.start_ms
+
+
+def test_backdated_idle_end_is_persisted_after_a_flush(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make(flush_s=1, idle_threshold_s=60)  # every tick flushes
+    rec.tick()
+    run(rec, 10)
+    for idle in range(1, 70):
+        probe.current = app("code.exe", idle=idle)
+        run(rec, 1)  # flushes happen while the active span is still open
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.kind, (s.end_ms - T0) // 1000) for s in spans][0] == (SpanKind.ACTIVE, 10)
