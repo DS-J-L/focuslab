@@ -54,3 +54,31 @@ def test_event_thread_hooks_and_unhooks():
     events.stop()
     assert not events.running
     assert not [t for t in threading.enumerate() if t.name == "focuslab-winevents"]
+
+
+def test_hidden_window_translates_session_power_and_shutdown_messages():
+    import ctypes
+
+    from focuslab.activity import win_events as we
+
+    received = []
+    events = we.WindowsEventThread(received.append)
+    events.start()
+    try:
+        assert events.session_events and events.hwnd
+        send = ctypes.windll.user32.SendMessageW
+        send.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+        send(events.hwnd, we.WM_WTSSESSION_CHANGE, 0x7, 0)  # lock
+        send(events.hwnd, we.WM_WTSSESSION_CHANGE, 0x8, 0)  # unlock
+        send(events.hwnd, we.WM_POWERBROADCAST, we.PBT_APMSUSPEND, 0)
+        send(events.hwnd, we.WM_POWERBROADCAST, we.PBT_APMRESUMEAUTOMATIC, 0)
+        send(events.hwnd, we.WM_POWERBROADCAST, we.PBT_APMRESUMESUSPEND, 0)  # same wake
+        setting = we.POWERBROADCAST_SETTING(we.GUID_CONSOLE_DISPLAY_STATE, 4, 0)
+        send(events.hwnd, we.WM_POWERBROADCAST, we.PBT_POWERSETTINGCHANGE,
+             ctypes.addressof(setting))
+        assert send(events.hwnd, we.WM_QUERYENDSESSION, 0, 0) == 1  # never blocks shutdown
+        send(events.hwnd, we.WM_ENDSESSION, 1, 0)
+    finally:
+        events.stop()
+    named = [e for e in received if e != "foreground"]
+    assert named == ["lock", "unlock", "suspend", "wake", "display_off", "session_end"]
