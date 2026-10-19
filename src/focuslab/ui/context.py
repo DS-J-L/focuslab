@@ -13,6 +13,7 @@ from focuslab.activity.recorder import (
 )
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
+from focuslab.browser.store import BrowserStateStore
 from focuslab.camera.calibration import Calibration
 from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
 from focuslab.domain.models import ActivityObservation, SessionConfig, SessionMode
@@ -74,6 +75,22 @@ class AppContext:
     @property
     def recording_consent(self) -> bool:
         return self.flag("consent.recording")
+
+    @property
+    def browser_consent(self) -> bool:
+        return self.flag("consent.browser")
+
+    def set_browser_consent(self, on: bool) -> None:
+        self.set_flag("consent.browser", on)
+        if not on:  # forget the last reported site right away
+            with self.service.lock:
+                BrowserStateStore(self.service.repository.conn).clear_all()
+        if self.recorder:
+            self.recorder.set_browser_tracking(on)
+
+    def browser_last_report_ms(self) -> int | None:
+        with self.service.lock:
+            return BrowserStateStore(self.service.repository.conn).last_report_ms()
 
     @property
     def idle_threshold_s(self) -> float:
@@ -142,6 +159,7 @@ class AppContext:
                 self.db_path, WindowsProbe(), events=WindowsEventThread,
                 config=RecorderConfig(idle_threshold_s=self.idle_threshold_s),
             )
+        self.recorder.set_browser_tracking(self.browser_consent)
         # A pause chosen by the user survives restarts: nothing is read until resumed.
         self.recorder.start(paused=self.flag("activity.paused"))
         return True

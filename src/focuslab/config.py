@@ -13,6 +13,8 @@ APP_NAME = "FocusLab"
 RULE_VERSION = "rules-0.1"
 FACE_MODEL_FILENAME = "face_landmarker.task"
 REPO_MODEL_DIR = Path(__file__).resolve().parents[2] / "assets" / "models"
+# Unpacked Chrome/Edge extension (loaded by the user in developer mode).
+EXTENSION_DIR = Path(__file__).resolve().parents[2] / "browser_extension"
 # Foreground process label reported while FocusLab itself has focus.
 SELF_NAME = "focuslab"
 

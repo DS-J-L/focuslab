@@ -1,0 +1,7 @@
+{
+  "name": "focuslab-activity-bridge",
+  "private": true,
+  "type": "module",
+  "description": "Only used by the tests: `npm test` in browser_extension/. Chrome ignores this file.",
+  "scripts": {"test": "node --test test/*.test.js"}
+}
