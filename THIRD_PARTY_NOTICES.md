@@ -1,15 +1,27 @@
 # Third-party dependencies and assets
 
-Current application runtime dependencies: none. No Qt, OpenCV, MediaPipe runtime or ML model is bundled in this scaffold. Development/build dependencies are recorded in pyproject.toml and uv.lock and retain their respective licenses.
+Apache-2.0 applies to original FocusLab code; it does not relicense dependencies, models or trademarks.
+Exact versions are pinned in `uv.lock`. This table records the licenses as declared by each project
+and must be re-verified before shipping binaries (PR-13).
 
-## Required review before adding dependencies or shipping binaries
+## Runtime dependencies (declared in pyproject.toml)
 
-| Planned component | Required review |
-| --- | --- |
-| PySide6 / Qt | Verify the exact packages, LGPLv3/GPLv3/commercial terms, distribution and relinking obligations. |
-| OpenCV | Verify the chosen package version and bundled third-party notices. |
-| MediaPipe | Check source/package licensing separately from every model asset. |
-| .task / .tflite model files | Record original source, exact version, license, redistribution permission and SHA256. |
-| pywin32 / psutil / NumPy | Record exact package licenses and applicable notices. |
+| Component | Locked version | Declared license | Notes |
+| --- | --- | --- | --- |
+| PySide6 / Qt for Python | 6.10.3 | LGPLv3 / GPLv3 / commercial | Used as unmodified dynamic libraries. Binary distribution must preserve LGPL relinking rights and ship Qt notices. |
+| OpenCV (`opencv-contrib-python`) | 5.0.0.93 | Apache-2.0 | Also required by MediaPipe; wheels bundle FFmpeg and other third-party notices that must be carried along. |
+| MediaPipe | 0.10.35 | Apache-2.0 | Pulls matplotlib (PSF-style), sounddevice (MIT), absl-py, flatbuffers (Apache-2.0). |
+| NumPy | 2.4.6 | BSD-3-Clause | |
+| psutil | 7.2.2 | BSD-3-Clause | |
+| pywin32 | 312 | PSF-2.0 | Windows only. |
 
-Apache-2.0 applies to original FocusLab code; it does not relicense dependencies, models or trademarks. Do not commit or distribute a model until its review is recorded here.
+Development-only: pytest (MIT), pytest-qt (MIT), ruff (MIT), hatchling (MIT).
+
+## Model assets (not committed to the repository)
+
+| Asset | Source | SHA256 | License status |
+| --- | --- | --- | --- |
+| `face_landmarker.task` (float16, v1) | `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` | `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` | Published by Google MediaPipe; the model card lists Apache-2.0. Confirm redistribution terms before bundling it in an installer. |
+
+The model is downloaded only when the user runs `focuslab --fetch-models` (or the settings button)
+and is verified against the SHA256 above. `assets/models/*.task` is git-ignored.

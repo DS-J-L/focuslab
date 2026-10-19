@@ -1,4 +1,34 @@
-"""센서, 저장소, 규칙 엔진 인터페이스.
+"""Sensor and clock interfaces. Sensors publish observations; they never decide states."""
 
-PR-00 후속에서 구현. 아직 기능을 제공하지 않는 구조용 모듈.
-"""
+import time
+from typing import Protocol
+
+from focuslab.domain.models import ActivityObservation, CameraStatus, FaceObservation
+
+
+class Clock(Protocol):
+    def monotonic_ms(self) -> int: ...
+
+
+class MonotonicClock:
+    def monotonic_ms(self) -> int:
+        return time.monotonic_ns() // 1_000_000
+
+
+class FaceSource(Protocol):
+    """Camera + face pipeline. ``start``/``stop`` must acquire/release the device."""
+
+    @property
+    def status(self) -> CameraStatus: ...
+
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def latest(self) -> FaceObservation | None: ...
+
+
+class ActivitySource(Protocol):
+    """Foreground app and OS idle time, sampled on the session tick."""
+
+    def sample(self, now_ms: int) -> ActivityObservation: ...
