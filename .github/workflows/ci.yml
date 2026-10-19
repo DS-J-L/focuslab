@@ -20,9 +20,11 @@ jobs:
         run: uv sync --locked
       - name: Lint
         run: uv run ruff check .
-      - name: Test
+      - name: Test (GUI tests run off-screen)
         run: uv run pytest
-      - name: CLI smoke
-        run: uv run focuslab
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: CLI smoke (headless, no sensors)
+        run: uv run focuslab --check
       - name: Build wheel and source distribution
         run: uv build

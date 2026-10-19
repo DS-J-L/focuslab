@@ -4,20 +4,31 @@ build-backend = "hatchling.build"
 
 [project]
 name = "focuslab"
-version = "0.0.1"
-description = "Local-first Windows work-pattern observation app (initial scaffold)"
+version = "0.1.0"
+description = "Local-first Windows work-pattern observation app (v0.1 prototype)"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 license = "Apache-2.0"
 authors = [{name = "FocusLab contributors"}]
-classifiers = ["Development Status :: 1 - Planning", "Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3.11"]
-dependencies = []
+classifiers = ["Development Status :: 2 - Pre-Alpha", "Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3.11"]
+dependencies = [
+    "mediapipe>=0.10.14,<0.11",
+    "numpy>=1.26,<3",
+    "opencv-contrib-python>=4.10,<6",
+    "psutil>=6,<8",
+    "pyside6>=6.8,<6.11",
+    "pywin32>=308 ; sys_platform == 'win32'",
+]
 
 [project.scripts]
 focuslab = "focuslab.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8,<9", "ruff>=0.9,<1"]
+dev = [
+    "pytest>=8,<9",
+    "pytest-qt>=4.4,<5",
+    "ruff>=0.9,<1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/focuslab"]
