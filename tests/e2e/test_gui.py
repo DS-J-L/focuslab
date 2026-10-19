@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QMessageBox
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.services.session_service import Lifecycle
 from focuslab.ui.context import AppContext
-from focuslab.ui.main_window import REPORT, SESSION, MainWindow
+from focuslab.ui.main_window import REPORT, SESSION, SETTINGS, MainWindow
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def test_report_correction_and_delete(window, qtbot):
 
 
 def test_settings_page_renders(window):
-    window.go(3)
+    window.go(SETTINGS)
     assert window.settings.activity_state.text()
     window.settings.refresh()
 

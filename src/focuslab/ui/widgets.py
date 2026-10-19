@@ -1,7 +1,8 @@
-"""Reusable widgets: state timeline, weekly chart, stat cards, state badge, camera preview."""
+"""Reusable widgets: timelines, stacked bar charts, stat cards, state badge, camera preview."""
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 
 import numpy as np
@@ -86,63 +87,83 @@ class StateBadge(QLabel):
 
 
 class Legend(QWidget):
-    def __init__(self) -> None:
+    """Colored dots with labels; defaults to the focus states."""
+
+    def __init__(self, items: Sequence[tuple[str, str]] | None = None) -> None:
         super().__init__()
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
-        for state in FocusState:
+        if items is None:
+            items = [(STATE_COLORS[s], SHORT_LABELS[s]) for s in FocusState]
+        for color, text in items:
             dot = QLabel()
             dot.setFixedSize(10, 10)
-            dot.setStyleSheet(f"background:{STATE_COLORS[state]}; border-radius:5px;")
+            dot.setStyleSheet(f"background:{color}; border-radius:5px;")
             layout.addWidget(dot)
-            label = QLabel(SHORT_LABELS[state], objectName="Muted")
-            layout.addWidget(label)
+            layout.addWidget(QLabel(text, objectName="Muted"))
         layout.addStretch()
 
 
-class TimelineWidget(QWidget):
-    """Horizontal state timeline. Corrected segments show the corrected state and a marker."""
+@dataclass(frozen=True)
+class Bar:
+    """One colored interval on a ``BarTimeline``; ``key`` is emitted when it is clicked."""
 
-    segmentClicked = Signal(object)  # StateSegment
+    start: float
+    end: float
+    color: str
+    key: object = None
+    tooltip: str = ""
+    marked: bool = False  # small triangle above the bar (e.g. corrected by the user)
+
+
+class BarTimeline(QWidget):
+    """Horizontal timeline of colored intervals over ``[start, end)`` with optional ticks."""
+
+    itemClicked = Signal(object)
 
     def __init__(self, height: int = 34) -> None:
         super().__init__()
         self.setMinimumHeight(height)
         self.setMouseTracking(True)
-        self._segments: tuple[StateSegment, ...] = ()
-        self._total = 1
-        self._selected: int | None = None
+        self._bars: tuple[Bar, ...] = ()
+        self._start, self._end = 0.0, 1.0
+        self._selected: object = None
+        self._ticks: tuple[tuple[float, str], ...] = ()
 
-    def set_segments(
-        self, segments: Sequence[StateSegment], total_s: int | None = None,
-        selected_event: int | None = None,
+    def set_bars(
+        self, bars: Sequence[Bar], start: float, end: float, selected: object = None,
+        ticks: Sequence[tuple[float, str]] = (),
     ) -> None:
-        self._segments = tuple(segments)
-        end = self._segments[-1].end_s if self._segments else 0
-        self._total = max(1, total_s or 0, end)
-        self._selected = selected_event
+        self._bars = tuple(bars)
+        self._start, self._end = start, max(end, start + 1)
+        self._selected = selected
+        self._ticks = tuple(ticks)
         self.update()
 
-    def _x(self, seconds: float) -> float:
-        return seconds / self._total * self.width()
+    def select(self, key: object) -> None:
+        self._selected = key
+        self.update()
+
+    def _x(self, value: float) -> float:
+        return (value - self._start) / (self._end - self._start) * self.width()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(0, 6, self.width(), self.height() - 12)
+        bottom = 18 if self._ticks else 6
+        rect = QRectF(0, 6, self.width(), self.height() - 6 - bottom)
         clip = QPainterPath()
         clip.addRoundedRect(rect, 6, 6)
         p.fillPath(clip, QColor("#EEF0F3"))
         p.setClipPath(clip)
-        for seg in self._segments:
-            x0, x1 = self._x(seg.start_s), self._x(seg.end_s)
-            p.fillRect(QRectF(x0, rect.top(), max(1.0, x1 - x0), rect.height()),
-                       QColor(STATE_COLORS[seg.effective_state]))
+        for bar in self._bars:
+            x0, x1 = self._x(bar.start), self._x(bar.end)
+            p.fillRect(QRectF(x0, rect.top(), max(1.0, x1 - x0), rect.height()), QColor(bar.color))
         p.setClipping(False)
-        for seg in self._segments:
-            x0, x1 = self._x(seg.start_s), self._x(seg.end_s)
-            if seg.corrected_label:
+        for bar in self._bars:
+            x0, x1 = self._x(bar.start), self._x(bar.end)
+            if bar.marked:
                 p.setBrush(QColor("#1F2430"))
                 p.setPen(Qt.PenStyle.NoPen)
                 mid = (x0 + x1) / 2
@@ -152,81 +173,132 @@ class TimelineWidget(QWidget):
                 path.lineTo(mid, 6)
                 path.closeSubpath()
                 p.drawPath(path)
-            if self._selected is not None and seg.event_id == self._selected:
+            if self._selected is not None and bar.key == self._selected:
                 p.setBrush(Qt.BrushStyle.NoBrush)
                 p.setPen(QColor("#1F2430"))
                 p.drawRect(QRectF(x0, rect.top(), max(2.0, x1 - x0), rect.height()))
+        p.setPen(QColor("#6B7385"))
+        for value, text in self._ticks:
+            x = self._x(value)
+            p.drawLine(int(x), int(rect.bottom()), int(x), int(rect.bottom()) + 3)
+            left = min(max(0.0, x - 30), self.width() - 60.0)  # keep edge labels visible
+            p.drawText(QRectF(left, rect.bottom() + 2, 60, 14), Qt.AlignmentFlag.AlignCenter,
+                       text)
         p.end()
 
-    def _segment_at(self, x: float) -> StateSegment | None:
-        seconds = x / max(1, self.width()) * self._total
-        for seg in self._segments:
-            if seg.start_s <= seconds < seg.end_s:
-                return seg
+    def bar_at(self, x: float) -> Bar | None:
+        value = self._start + x / max(1, self.width()) * (self._end - self._start)
+        for bar in self._bars:
+            if bar.start <= value < bar.end:
+                return bar
         return None
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        seg = self._segment_at(event.position().x())
-        if seg is None:
+        bar = self.bar_at(event.position().x())
+        if bar is None or not bar.tooltip:
             QToolTip.hideText()
             return
-        lines = [
-            f"{clock_text(seg.start_s)}–{clock_text(seg.end_s)}"
-            f" ({format_duration(seg.duration_s)})",
-            STATE_LABELS[seg.state],
-        ]
-        if seg.corrected_label:
-            lines.append(f"정정됨 → {STATE_LABELS[seg.corrected_label]}")
-        lines += [f"· {text}" for text in describe(seg.reason_codes)]
-        if seg.app_names:
-            lines.append("앱: " + ", ".join(seg.app_names))
-        QToolTip.showText(event.globalPosition().toPoint(), "\n".join(lines), self)
+        QToolTip.showText(event.globalPosition().toPoint(), bar.tooltip, self)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        seg = self._segment_at(event.position().x())
-        if seg is not None:
-            self.segmentClicked.emit(seg)
+        bar = self.bar_at(event.position().x())
+        if bar is not None:
+            self.itemClicked.emit(bar.key)
 
 
-class WeekChart(QWidget):
-    """Stacked minutes per state for each day."""
+def _segment_tooltip(seg: StateSegment) -> str:
+    lines = [
+        f"{clock_text(seg.start_s)}–{clock_text(seg.end_s)} ({format_duration(seg.duration_s)})",
+        STATE_LABELS[seg.state],
+    ]
+    if seg.corrected_label:
+        lines.append(f"정정됨 → {STATE_LABELS[seg.corrected_label]}")
+    lines += [f"· {text}" for text in describe(seg.reason_codes)]
+    if seg.app_names:
+        lines.append("앱: " + ", ".join(seg.app_names))
+    return "\n".join(lines)
 
-    def __init__(self) -> None:
+
+class TimelineWidget(BarTimeline):
+    """State timeline of a focus session. Corrected segments show the corrected state."""
+
+    segmentClicked = Signal(object)  # StateSegment
+
+    def __init__(self, height: int = 34) -> None:
+        super().__init__(height)
+        self.itemClicked.connect(self.segmentClicked)
+
+    def set_segments(
+        self, segments: Sequence[StateSegment], total_s: int | None = None,
+        selected_event: int | None = None,
+    ) -> None:
+        bars = [
+            Bar(seg.start_s, seg.end_s, STATE_COLORS[seg.effective_state], seg,
+                _segment_tooltip(seg), bool(seg.corrected_label))
+            for seg in segments
+        ]
+        end = segments[-1].end_s if segments else 0
+        selected = next((s for s in segments if s.event_id == selected_event), None)
+        self.set_bars(bars, 0, max(1, total_s or 0, end), selected)
+
+
+class StackedBars(QWidget):
+    """Vertical stacked bars: one column per label, stacked in ``order`` with ``colors``."""
+
+    def __init__(
+        self, order: Sequence[object], colors: Mapping[object, str],
+        value_text: Callable[[float], str] = lambda seconds: f"{round(seconds / 60)}분",
+        label_every: int = 1, height: int = 150,
+    ) -> None:
         super().__init__()
-        self.setMinimumHeight(150)
-        self._days: list[tuple[date, Counter[FocusState]]] = []
+        self.setMinimumHeight(height)
+        self._order, self._colors = tuple(order), dict(colors)
+        self._value_text, self.label_every = value_text, label_every
+        self._columns: list[tuple[str, Mapping[object, float]]] = []
 
-    def set_days(self, days: list[tuple[date, Counter[FocusState]]]) -> None:
-        self._days = days
+    def set_columns(self, columns: Sequence[tuple[str, Mapping[object, float]]]) -> None:
+        self._columns = list(columns)
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if not self._days:
+        if not self._columns:
             p.end()
             return
         top, bottom_pad = 18, 22
         h = self.height() - top - bottom_pad
-        peak = max((sum(c.values()) for _, c in self._days), default=0) or 1
-        slot = self.width() / len(self._days)
+        peak = max((sum(c.values()) for _, c in self._columns), default=0) or 1
+        slot = self.width() / len(self._columns)
         bar_w = min(38.0, slot * 0.55)
         p.setPen(QColor("#6B7385"))
-        for i, (day, counts) in enumerate(self._days):
+        for i, (label, values) in enumerate(self._columns):
             x = i * slot + (slot - bar_w) / 2
             y = top + h
-            for state in FocusState:
-                seconds = counts.get(state, 0)
-                if not seconds:
+            for key in self._order:
+                value = values.get(key, 0)
+                if not value:
                     continue
-                bar_h = seconds / peak * h
+                bar_h = value / peak * h
                 y -= bar_h
-                p.fillRect(QRectF(x, y, bar_w, bar_h), QColor(STATE_COLORS[state]))
-            total = sum(counts.values())
-            label_rect = QRectF(i * slot, top + h + 4, slot, 16)
-            p.drawText(label_rect, Qt.AlignmentFlag.AlignCenter,
-                       f"{day.month}/{day.day}({_WEEKDAYS[day.weekday()]})")
-            if total:
+                p.fillRect(QRectF(x, y, bar_w, bar_h), QColor(self._colors[key]))
+            if i % self.label_every == 0:
+                p.drawText(QRectF(i * slot - slot, top + h + 4, slot * 3, 16),
+                           Qt.AlignmentFlag.AlignCenter, label)
+            total = sum(values.values())
+            if total and self.label_every == 1:
                 p.drawText(QRectF(i * slot, y - 16, slot, 14), Qt.AlignmentFlag.AlignCenter,
-                           f"{round(total / 60)}분")
+                           self._value_text(total))
         p.end()
+
+
+class WeekChart(StackedBars):
+    """Stacked minutes per focus state for each day."""
+
+    def __init__(self) -> None:
+        super().__init__(list(FocusState), STATE_COLORS)
+
+    def set_days(self, days: list[tuple[date, Counter[FocusState]]]) -> None:
+        self.set_columns(
+            [(f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})", counts) for d, counts in days]
+        )
