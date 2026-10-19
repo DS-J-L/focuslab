@@ -393,3 +393,17 @@ def test_unclean_shutdown_is_reported_on_next_start(rig, clock):
     make().stop()
     _, events = stored()
     assert events == [SystemEvent.START, SystemEvent.RECOVERED, SystemEvent.START, SystemEvent.STOP]
+
+
+def test_switch_after_a_flush_persists_the_final_end(rig, clock):
+    probe, _, make, run, stored = rig
+    rec = make(flush_s=1)  # every tick flushes, so the closing span is already written
+    rec.tick()
+    run(rec, 5)
+    probe.current = app("chrome.exe")
+    run(rec, 3)
+    rec.stop()
+    spans, _ = stored()
+    assert rel(spans) == [
+        (0, 6, SpanKind.ACTIVE, "code.exe"), (6, 8, SpanKind.ACTIVE, "chrome.exe")
+    ]
