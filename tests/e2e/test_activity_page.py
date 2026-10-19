@@ -84,3 +84,15 @@ def test_empty_day_and_navigation(window):
     assert "기록이 없습니다" in page.category_legend.text()
     page.show_day(page.day + timedelta(days=30))  # never beyond today
     assert page.day == datetime.now().astimezone().date()
+
+
+def test_page_does_not_depend_on_a_korean_system_locale(window):
+    import locale
+
+    previous = locale.setlocale(locale.LC_ALL)
+    locale.setlocale(locale.LC_ALL, "C")  # e.g. an English Windows (the CI runner)
+    try:
+        window.activity.refresh()
+        assert window.activity.timeline._ticks[0][1].endswith("시")
+    finally:
+        locale.setlocale(locale.LC_ALL, previous)

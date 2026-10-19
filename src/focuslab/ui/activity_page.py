@@ -322,7 +322,8 @@ class ActivityPage(QWidget):
         bars = [Bar(i.span.start_ms, i.span.end_ms, CATEGORY_COLORS[i.label.category], i,
                     self._tooltip(i)) for i in items]
         step = 3_600_000 if end - start <= 12 * 3_600_000 else 2 * 3_600_000
-        ticks = [(t, datetime.fromtimestamp(t / 1000).strftime("%H시"))
+        # No strftime with Korean text: it fails under a non-Korean Windows locale.
+        ticks = [(t, f"{datetime.fromtimestamp(t / 1000).hour:02d}시")
                  for t in range(start, end + 1, step)]
         self.timeline.set_bars(bars, start, end, ticks=ticks)
 
