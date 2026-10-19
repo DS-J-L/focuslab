@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest a scoped improvement.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: User problem and proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy, performance and roadmap impact

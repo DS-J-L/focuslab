@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a reproducible problem without personal data.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and reproduction steps
+      description: Remove recordings, personal observations, window titles, URLs and secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows version, Python version, FocusLab revision, and sanitized logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior

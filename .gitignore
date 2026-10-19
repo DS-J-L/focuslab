@@ -1,0 +1,39 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+build/
+dist/
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+# User observations, recordings, databases and diagnostics
+*.db
+*.db-*
+*.sqlite*
+*.log
+*.mp4
+*.avi
+*.mov
+*.mkv
+data/
+exports/
+logs/
+# Large model files: add only after license and checksum review
+assets/models/*.task
+assets/models/*.tflite
+assets/models/*.onnx
+# Operating systems
+Thumbs.db
+Desktop.ini
+.DS_Store
