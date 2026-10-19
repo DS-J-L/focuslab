@@ -19,6 +19,11 @@ log = logging.getLogger(__name__)
 _DESKTOP_SWITCHDESKTOP = 0x0100
 # UWP apps are drawn inside a frame window owned by this host; the real app owns a child.
 _UWP_FRAME_HOST = "applicationframehost.exe"
+# Executables installed by game launchers; only this yes/no hint is kept, never the path.
+_GAME_FOLDERS = (
+    "\\steamapps\\common\\", "\\epic games\\", "\\riot games\\", "\\xboxgames\\",
+    "\\battle.net\\",
+)
 
 
 def normalize(name: str) -> str:
@@ -102,7 +107,12 @@ def process_identity(pid: int) -> ForegroundApp | None:
         return ForegroundApp(None)
     if not name:
         return ForegroundApp(None)
-    return ForegroundApp(normalize(name), exe_display_name(path) if path else None)
+    folder = path.lower()
+    return ForegroundApp(
+        normalize(name),
+        exe_display_name(path) if path else None,
+        game_library=any(marker in folder for marker in _GAME_FOLDERS),
+    )
 
 
 def _uwp_app_pid(hwnd: int, host_pid: int) -> int | None:

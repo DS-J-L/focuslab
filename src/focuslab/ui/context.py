@@ -2,6 +2,8 @@
 
 import json
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from focuslab import autostart
 from focuslab.activity.probe import WindowsProbe
@@ -13,14 +15,17 @@ from focuslab.activity.recorder import (
 )
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
+from focuslab.browser import BROWSER_EXES
 from focuslab.browser.store import BrowserStateStore
 from focuslab.camera.calibration import Calibration
 from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
+from focuslab.domain.activity import ActivitySpan, Category
 from focuslab.domain.models import ActivityObservation, SessionConfig, SessionMode
 from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.services.session_service import SessionService
 from focuslab.services.worker_manager import CameraFaceSource
+from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
 
 
@@ -176,6 +181,48 @@ class AppContext:
         self.set_flag("activity.paused", paused)
         if self.recorder:
             (self.recorder.pause if paused else self.recorder.resume)()
+
+    # classification -------------------------------------------------------------------
+    @contextmanager
+    def activity_repo(self) -> Iterator[ActivityRepository]:
+        """Activity data on the shared UI connection (the recorder has its own)."""
+        with self.service.lock:
+            yield ActivityRepository(self.service.repository.conn)
+
+    @staticmethod
+    def rule_target(span: ActivitySpan) -> tuple[str, str] | None:
+        """What an "always" correction applies to: the site, else a non-browser program."""
+        if span.domain:
+            return "site", span.domain
+        if span.exe_name and span.exe_name not in BROWSER_EXES:
+            return "app", span.exe_name
+        return None
+
+    def correct_span(self, span: ActivitySpan, category: Category, always: bool = False) -> None:
+        with self.activity_repo() as repo:
+            repo.set_span_category(span.span_id, category)
+            target = self.rule_target(span) if always else None
+            if target:
+                repo.set_rule(*target, category)
+        self._rules_changed()
+
+    def clear_span_correction(self, span: ActivitySpan) -> None:
+        with self.activity_repo() as repo:
+            repo.clear_span_category(span.span_id)
+
+    def delete_rule(self, match_type: str, pattern: str) -> None:
+        with self.activity_repo() as repo:
+            repo.delete_rule(match_type, pattern)
+        self._rules_changed()
+
+    def set_exclusions(self, apps, sites) -> None:
+        with self.activity_repo() as repo:
+            repo.set_exclusions(apps, sites)
+        self._rules_changed()
+
+    def _rules_changed(self) -> None:
+        if self.recorder:
+            self.recorder.reload_rules()
 
     # first run ------------------------------------------------------------------------
     @property

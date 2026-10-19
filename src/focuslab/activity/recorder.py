@@ -18,6 +18,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from focuslab.activity.classifier import Classification, UserRules, classify, is_excluded
 from focuslab.browser import BROWSER_EXES, STATE_TTL_MS
 from focuslab.domain.activity import ActivitySpan, ProbeSample, SpanKind, SystemEvent
 from focuslab.domain.protocols import Clock, MonotonicClock
@@ -103,15 +104,23 @@ class _Span:
     exe_name: str | None
     display_name: str | None
     domain: str | None = None
+    excluded: bool = False
+    label: Classification | None = None  # decided when the span starts
     span_id: int | None = None
 
-    def same(self, kind: SpanKind, exe_name: str | None, domain: str | None) -> bool:
-        return self.kind is kind and self.exe_name == exe_name and self.domain == domain
+    def same(self, kind: SpanKind, exe: str | None, domain: str | None, excluded: bool) -> bool:
+        return (self.kind, self.exe_name, self.domain, self.excluded) == (
+            kind, exe, domain, excluded
+        )
 
     def frozen(self) -> ActivitySpan:
+        label = self.label
         return ActivitySpan(
             self.start_ms, self.end_ms, self.kind, self.exe_name, self.display_name,
             self.span_id, self.domain,
+            category=label and label.category, confidence=label and label.confidence,
+            reason=label and label.reason, source=label and label.source,
+            excluded=self.excluded,
         )
 
 
@@ -143,6 +152,8 @@ class ActivityRecorder:
         self._state = RecorderState.STOPPED
         self._error: str | None = None
         self._browser_tracking = False
+        self._user_rules = UserRules.empty()
+        self._excluded: tuple[frozenset[str], frozenset[str]] = (frozenset(), frozenset())
         self._reset_timeline()
 
     def _reset_timeline(self) -> None:
@@ -170,6 +181,7 @@ class ActivityRecorder:
                 return
             self._repo = ActivityRepository(connect(self._db_path, check_same_thread=False))
             self._reset_timeline()
+            self._load_rules()
             last = self._repo.last_span()
             self._floor_ms = last.end_ms if last else 0
             self._state = RecorderState.RUNNING
@@ -234,6 +246,19 @@ class ActivityRecorder:
         """Attach the site reported by the browser extension to browser spans."""
         with self._lock:
             self._browser_tracking = on
+
+    def reload_rules(self) -> None:
+        """Pick up new user rules and exclusions; spans started from now on use them."""
+        with self._lock:
+            if self._repo is not None:
+                self._load_rules()
+
+    def _load_rules(self) -> None:
+        try:
+            self._user_rules = self._repo.user_rules()
+            self._excluded = self._repo.exclusions()
+        except sqlite3.Error as exc:
+            log.warning("could not load classification rules: %s", exc)
 
     def set_idle_threshold(self, seconds: float) -> None:
         with self._lock:
@@ -338,8 +363,14 @@ class ActivityRecorder:
         app = sample.app if kind is SpanKind.ACTIVE else None
         exe = app.exe_name if app else None
         domain = self._domain(exe, wall)
+        app_out, site_out = is_excluded(exe, domain, *self._excluded)
+        if app_out:  # neither the program nor its site is stored, only that time passed
+            app, exe, domain = None, None, None
+        elif site_out:
+            domain = None
+        excluded = app_out or site_out
         span = self._open
-        if span and span.same(kind, exe, domain):
+        if span and span.same(kind, exe, domain, excluded):
             span.end_ms = max(span.end_ms, wall)
             self._mark(span)
             return
@@ -351,12 +382,18 @@ class ActivityRecorder:
         if span:
             self._close(at)
         prev = self._prev
-        if prev and prev.end_ms == at and prev.same(kind, exe, domain):
+        if prev and prev.end_ms == at and prev.same(kind, exe, domain, excluded):
             prev.end_ms = wall  # A, short blip, A -> one span of A
             self._open, self._prev = prev, None
             self._mark(prev)
             return
-        self._open = _Span(at, wall, kind, exe, app.display_name if app else None, domain)
+        label = classify(
+            kind, exe, domain, game_library=bool(app and app.game_library), excluded=excluded,
+            user=self._user_rules,
+        )
+        self._open = _Span(
+            at, wall, kind, exe, app.display_name if app else None, domain, excluded, label
+        )
         self._mark(self._open)
 
     def _domain(self, exe: str | None, wall: int) -> str | None:
@@ -424,7 +461,7 @@ class ActivityRecorder:
                     repo.conn.execute("DELETE FROM activity_span WHERE id = ?", (span_id,))
                 for span in dirty:
                     if span.span_id is None:
-                        span.span_id = repo.insert_span(span.frozen())
+                        span.span_id = repo.insert_span(span.frozen(), self._wall())
                         inserted.append(span)
                     else:
                         repo.update_span_end(span.span_id, span.end_ms)

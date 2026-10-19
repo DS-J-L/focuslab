@@ -110,6 +110,33 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX activity_span_domain ON activity_span(domain) WHERE domain IS NOT NULL;
         """,
     ),
+    (
+        4,
+        # Classification stored with each span, rules the user created from corrections and
+        # per-span corrections (one per span, like ``feedback`` for state segments).
+        """
+        ALTER TABLE activity_span ADD COLUMN category TEXT;
+        ALTER TABLE activity_span ADD COLUMN confidence REAL;
+        ALTER TABLE activity_span ADD COLUMN reason TEXT;
+        ALTER TABLE activity_span ADD COLUMN source TEXT;
+        ALTER TABLE activity_span ADD COLUMN classified_ms INTEGER;
+        ALTER TABLE activity_span ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE classification_rule (
+            id INTEGER PRIMARY KEY,
+            match_type TEXT NOT NULL CHECK (match_type IN ('app', 'site')),
+            pattern TEXT NOT NULL,
+            category TEXT NOT NULL,
+            created_at_utc TEXT NOT NULL,
+            UNIQUE (match_type, pattern)
+        );
+        CREATE TABLE activity_feedback (
+            id INTEGER PRIMARY KEY,
+            span_id INTEGER NOT NULL UNIQUE REFERENCES activity_span(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            created_at_utc TEXT NOT NULL
+        );
+        """,
+    ),
 ]
 
 

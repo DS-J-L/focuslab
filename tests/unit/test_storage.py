@@ -137,3 +137,27 @@ def test_activity_repository_dedupes_programs_and_queries_overlaps(tmp_path):
     assert repo.last_span().end_ms == 30
     assert conn.execute("SELECT COUNT(*) FROM app").fetchone()[0] == 1
     conn.close()
+
+
+def test_span_corrections_and_rules_roundtrip(tmp_path):
+    from focuslab.domain.activity import ActivitySpan, Category, SpanKind
+    from focuslab.storage.activity_repository import ActivityRepository
+
+    conn = connect(tmp_path / "c.db")
+    repo = ActivityRepository(conn)
+    sid = repo.insert_span(ActivitySpan(0, 10, SpanKind.ACTIVE, "chrome.exe", domain="a.com"))
+    repo.set_span_category(sid, Category.STUDY)
+    repo.set_span_category(sid, Category.RESEARCH)  # replaces
+    assert repo.spans_between(0, 10)[0].user_category is Category.RESEARCH
+    repo.clear_span_category(sid)
+    assert repo.spans_between(0, 10)[0].user_category is None
+    repo.set_rule("site", " A.com ", Category.STUDY)
+    repo.set_rule("site", "a.com", Category.DEVELOPMENT)
+    assert repo.user_rules().sites == {"a.com": Category.DEVELOPMENT}
+    repo.delete_rule("site", "a.com")
+    assert repo.user_rules().sites == {}
+    repo.set_exclusions([" KeePass.exe ", ""], ["bank.com"])
+    assert repo.exclusions() == (frozenset({"keepass.exe"}), frozenset({"bank.com"}))
+    conn.execute("DELETE FROM activity_span")
+    assert conn.execute("SELECT COUNT(*) FROM activity_feedback").fetchone()[0] == 0
+    conn.close()

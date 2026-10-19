@@ -14,6 +14,44 @@ class SpanKind(StrEnum):
     LOCKED = "LOCKED"  # workstation locked or the secure desktop is shown
 
 
+class Category(StrEnum):
+    DEVELOPMENT = "DEVELOPMENT"
+    STUDY = "STUDY"
+    DOCUMENTATION = "DOCUMENTATION"
+    RESEARCH = "RESEARCH"
+    COMMUNICATION = "COMMUNICATION"
+    ENTERTAINMENT = "ENTERTAINMENT"
+    GAMING = "GAMING"
+    PRODUCTIVITY = "PRODUCTIVITY"
+    BREAK = "BREAK"
+    UNKNOWN = "UNKNOWN"
+
+
+class ClassSource(StrEnum):
+    RULE = "rule"  # built-in rule
+    USER_RULE = "user_rule"  # rule the user created from a correction
+    USER = "user"  # the user corrected this span
+    SYSTEM = "system"  # observed state (idle, locked)
+
+
+class ClassReason(StrEnum):
+    APP_RULE = "APP_RULE"
+    SITE_RULE = "SITE_RULE"
+    GAME_LIBRARY = "GAME_LIBRARY"
+    AMBIGUOUS_APP = "AMBIGUOUS_APP"
+    AMBIGUOUS_SITE = "AMBIGUOUS_SITE"
+    BROWSER_NO_SITE = "BROWSER_NO_SITE"
+    NEUTRAL_SHELL = "NEUTRAL_SHELL"
+    UNREADABLE_APP = "UNREADABLE_APP"
+    NO_RULE = "NO_RULE"
+    IDLE = "IDLE"
+    LOCKED = "LOCKED"
+    USER_APP_RULE = "USER_APP_RULE"
+    USER_SITE_RULE = "USER_SITE_RULE"
+    USER_CORRECTION = "USER_CORRECTION"
+    EXCLUDED = "EXCLUDED"
+
+
 class SystemEvent(StrEnum):
     START = "START"  # recorder started
     STOP = "STOP"  # recorder stopped cleanly
@@ -46,6 +84,7 @@ class ForegroundApp:
 
     exe_name: str | None
     display_name: str | None = None
+    game_library: bool = False  # path under a Steam/Epic/Riot/Xbox games folder (not stored)
 
 
 @dataclass(frozen=True)
@@ -64,6 +103,13 @@ class ActivitySpan:
     display_name: str | None = None
     span_id: int | None = None
     domain: str | None = None  # active tab hostname while a browser is in front, if reported
+    # classification stored when the span was recorded (None for rows from before v4)
+    category: Category | None = None
+    confidence: float | None = None
+    reason: ClassReason | None = None
+    source: ClassSource | None = None
+    excluded: bool = False  # the program or site is on the user's exclusion list
+    user_category: Category | None = None  # the user's correction of this span
 
     @property
     def duration_ms(self) -> int:
