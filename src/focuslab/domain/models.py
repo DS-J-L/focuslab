@@ -83,6 +83,7 @@ class ActivityObservation:
     idle_seconds: float | None
     available: bool
     screen_locked: bool = False
+    domain: str | None = None  # browser site from the extension, if known
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,7 @@ class StateSample:
     confidence: float
     reason_codes: tuple[str, ...] = ()
     app_name: str | None = None
+    at_ms: int | None = None  # UTC epoch ms of this second (None for gap fills, pre-v5 rows)
 
 
 @dataclass(frozen=True)

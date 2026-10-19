@@ -22,8 +22,9 @@ def test_windows_source_reports_process_name_and_idle_only():
     assert obs.idle_seconds is not None and obs.idle_seconds >= 0
     assert set(vars(obs)) == {
         "timestamp_ms", "process_name", "is_allowed_app", "idle_seconds", "available",
-        "screen_locked",
+        "screen_locked", "domain",  # hostname from the browser extension only
     }
+    assert obs.domain is None  # no recorder, no site
 
 
 def test_mock_activity_script_plays_in_order():
@@ -34,3 +35,29 @@ def test_mock_activity_script_plays_in_order():
     assert [o.process_name for o in obs] == ["code.exe"] * 2 + ["game.exe"] * 4
     assert [o.is_allowed_app for o in obs[:3]] == [True, True, False]
     assert obs[3].idle_seconds == 1.0
+
+
+def test_site_entries_restrict_browsers_only_when_the_site_is_known():
+    allowed = ("code.exe", "chrome.exe", "github.com")
+    assert allowed_status("chrome.exe", allowed, "github.com") is True
+    assert allowed_status("chrome.exe", allowed, "gist.github.com") is True
+    assert allowed_status("chrome.exe", allowed, "youtube.com") is False
+    assert allowed_status("chrome.exe", allowed, None) is True  # no extension: as before
+    assert allowed_status("msedge.exe", ("code.exe", "github.com"), "github.com") is True
+    assert allowed_status("chrome.exe", ("code.exe", "chrome.exe"), "youtube.com") is True
+    assert allowed_status("code.exe", allowed, "github.com") is True
+
+
+def test_known_site_removes_the_browser_detail_unknown_reason():
+    from focuslab.domain.models import ActivityObservation, SessionMode
+    from focuslab.focus.fusion import fuse
+    from focuslab.focus.reasons import Reason
+    from focuslab.focus.rules import RuleEngine
+
+    def decide(domain):
+        obs = ActivityObservation(0, "chrome.exe", True, 1.0, True, domain=domain)
+        frame = fuse(0, None, obs, camera_enabled=False)
+        return RuleEngine(SessionMode.CODING).evaluate(frame).reason_codes
+
+    assert Reason.BROWSER_DETAIL_UNKNOWN in decide(None)
+    assert Reason.BROWSER_DETAIL_UNKNOWN not in decide("github.com")

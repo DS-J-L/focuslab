@@ -7,10 +7,10 @@ import logging
 import ntpath
 import os
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from focuslab.activity.idle_monitor import idle_seconds
-from focuslab.config import APP_NAME, LOCK_APPS, NEUTRAL_APPS, SELF_NAME
+from focuslab.config import APP_NAME, BROWSERS, LOCK_APPS, NEUTRAL_APPS, SELF_NAME
 from focuslab.domain.activity import ForegroundApp
 from focuslab.domain.models import ActivityObservation
 
@@ -30,14 +30,31 @@ def normalize(name: str) -> str:
     return name.strip().lower()
 
 
-def allowed_status(process_name: str | None, allowed_apps: Iterable[str]) -> bool | None:
-    """True/False for allowed/unrelated apps; None for neutral apps or no foreground app."""
+def is_site_entry(entry: str) -> bool:
+    """Allow-list entries like ``github.com`` name sites; ``code.exe`` names programs."""
+    entry = normalize(entry)
+    return "." in entry and not entry.endswith(".exe")
+
+
+def allowed_status(
+    process_name: str | None, allowed_apps: Iterable[str], domain: str | None = None
+) -> bool | None:
+    """True/False for allowed/unrelated apps; None for neutral apps or no foreground app.
+
+    When the allow-list names sites and the browser extension reports the current site, a
+    browser counts as allowed only on those sites (subdomains included). Without a reported
+    site the browser is judged by its program name as before.
+    """
     if not process_name:
         return None
     name = normalize(process_name)
     if name in NEUTRAL_APPS:
         return None
-    return name in {normalize(a) for a in allowed_apps}
+    allowed = {normalize(a) for a in allowed_apps}
+    sites = {a for a in allowed if is_site_entry(a)}
+    if domain and sites and name in BROWSERS:
+        return any(domain == s or domain.endswith("." + s) for s in sites)
+    return name in allowed
 
 
 def is_screen_locked() -> bool:
@@ -188,8 +205,14 @@ def visible_window_apps() -> list[str]:
 class WindowsActivitySource:
     """Samples the foreground app and idle time on each session tick (microseconds of work)."""
 
-    def __init__(self, allowed_apps: Iterable[str]) -> None:
+    def __init__(
+        self,
+        allowed_apps: Iterable[str],
+        domain_of: Callable[[str], str | None] | None = None,
+    ) -> None:
         self._allowed = tuple(allowed_apps)
+        # Current site of a browser, from the always-on recorder (no extra OS reads).
+        self._domain_of = domain_of or (lambda exe: None)
 
     def sample(self, now_ms: int) -> ActivityObservation:
         if sys.platform != "win32":
@@ -202,7 +225,9 @@ class WindowsActivitySource:
             log.warning("activity sample failed", exc_info=True)
             return ActivityObservation(now_ms, None, None, None, available=False)
         locked = locked or bool(name and normalize(name) in LOCK_APPS)
-        allowed = None if locked else allowed_status(name, self._allowed)
+        domain = None if locked or not name else self._domain_of(normalize(name))
+        allowed = None if locked else allowed_status(name, self._allowed, domain)
         return ActivityObservation(
-            now_ms, None if locked else name, allowed, idle, available=True, screen_locked=locked
+            now_ms, None if locked else name, allowed, idle, available=True,
+            screen_locked=locked, domain=domain,
         )

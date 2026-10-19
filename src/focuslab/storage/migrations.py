@@ -137,6 +137,30 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        5,
+        # Automatic sessions (derived from activity_span, rebuilt on demand) and the wall time
+        # of focus-session samples so camera observations line up with the activity timeline.
+        """
+        CREATE TABLE auto_session (
+            id INTEGER PRIMARY KEY,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            active_ms INTEGER NOT NULL,
+            interrupted_ms INTEGER NOT NULL,
+            switches INTEGER NOT NULL,
+            detours INTEGER NOT NULL,
+            return_ms TEXT NOT NULL DEFAULT '',
+            apps TEXT NOT NULL DEFAULT '{}',
+            manual_session_id INTEGER REFERENCES session(id) ON DELETE SET NULL,
+            CHECK (end_ms >= start_ms)
+        );
+        CREATE INDEX auto_session_start ON auto_session(start_ms);
+        ALTER TABLE state_sample ADD COLUMN at_ms INTEGER;
+        CREATE INDEX state_sample_at ON state_sample(at_ms) WHERE at_ms IS NOT NULL;
+        """,
+    ),
 ]
 
 

@@ -113,11 +113,13 @@ class SessionService:
         rule_config: RuleConfig | None = None,
         calibration: Callable[[], Calibration] = Calibration,
         auto_tick: bool = True,
+        wall: Callable[[], int] | None = None,
     ) -> None:
         self._repo = Repository(connect(db_path, check_same_thread=False))
         self._face_factory = face_factory
         self._activity_factory = activity_factory
         self._clock = clock or MonotonicClock()
+        self._wall = wall or (lambda: time.time_ns() // 1_000_000)
         self._cfg = rule_config or RuleConfig()
         self._calibration_provider = calibration
         self._auto_tick = auto_tick
@@ -330,11 +332,13 @@ class SessionService:
             decision = self._engine.evaluate(frame, dt_s=elapsed)
             if config.planned_minutes:
                 elapsed = min(elapsed, config.planned_minutes * 60 - self._active_s)
-            for _ in range(elapsed):  # a tick one second late covers both seconds
+            now_wall = self._wall()
+            for i in range(elapsed):  # a tick one second late covers both seconds
                 self._record(
                     StateSample(
                         self._active_s, decision.state, decision.confidence,
                         decision.reason_codes, frame.app_name,
+                        now_wall - (elapsed - i) * 1000,  # start of that second
                     )
                 )
             self._last_decision = decision

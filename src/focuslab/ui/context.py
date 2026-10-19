@@ -152,7 +152,15 @@ class AppContext:
             return MockActivitySource(config.allowed_apps)
         if not self.activity_consent:
             return NoActivitySource()
-        return WindowsActivitySource(config.allowed_apps)
+        return WindowsActivitySource(config.allowed_apps, domain_of=self._current_domain)
+
+    def _current_domain(self, exe_name: str) -> str | None:
+        """The site the recorder attached to the foreground browser right now, if any."""
+        status = self.recorder.status() if self.recorder else None
+        current = status.current if status else None
+        if current and current.exe_name == exe_name:
+            return current.domain
+        return None
 
     # always-on recording -------------------------------------------------------------
     def start_recording(self) -> bool:

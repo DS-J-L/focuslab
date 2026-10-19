@@ -127,8 +127,11 @@ class HomePage(QWidget):
         apps_col = QVBoxLayout()
         apps_col.addWidget(self.apps)
         apps_col.addLayout(app_buttons)
-        note = QLabel("프로세스 이름만 비교합니다. 브라우저는 사이트까지 구분하지 못합니다.",
-                      objectName="Muted")
+        note = QLabel(
+            "프로세스 이름(예: code.exe)을 비교합니다. 브라우저 확장을 연결했다면 github.com처럼"
+            " 사이트를 넣어 브라우저를 그 사이트에서만 허용할 수 있습니다.",
+            objectName="Muted",
+        )
         note.setWordWrap(True)
         apps_col.addWidget(note)
         form.addRow("허용 앱", apps_col)

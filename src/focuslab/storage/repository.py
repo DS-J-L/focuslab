@@ -20,6 +20,11 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def epoch_ms(iso_utc: str) -> int:
+    """Stored ISO timestamp (``utc_now``) to UTC epoch milliseconds."""
+    return int(datetime.fromisoformat(iso_utc).timestamp() * 1000)
+
+
 def _join(values: tuple[str, ...]) -> str:
     return ",".join(values)
 
@@ -135,10 +140,11 @@ class Repository:
     def add_sample(self, session_id: int, sample: StateSample) -> None:
         self.conn.execute(
             "INSERT OR REPLACE INTO state_sample (session_id, second_offset, state, confidence,"
-            " reason_codes, app_name) VALUES (?, ?, ?, ?, ?, ?)",
+            " reason_codes, app_name, at_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 session_id, sample.second_offset, sample.state.value,
                 round(sample.confidence, 3), _join(sample.reason_codes), sample.app_name,
+                sample.at_ms,
             ),
         )
 
@@ -150,7 +156,7 @@ class Repository:
         return [
             StateSample(
                 r["second_offset"], FocusState(r["state"]), r["confidence"],
-                _split(r["reason_codes"]), r["app_name"],
+                _split(r["reason_codes"]), r["app_name"], r["at_ms"],
             )
             for r in rows
         ]
