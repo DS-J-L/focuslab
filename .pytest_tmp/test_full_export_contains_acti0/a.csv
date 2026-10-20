@@ -1,0 +1,6 @@
+﻿start_utc,end_utc,duration_s,kind,program,product_name,site,category,confidence,reason,source,stored_category,user_category,excluded
+2026-10-19T00:00:00+00:00,2026-10-19T00:30:00+00:00,1800.0,ACTIVE,code.exe,Code,,DEVELOPMENT,0.9,APP_RULE,rule,DEVELOPMENT,,False
+2026-10-19T00:30:00+00:00,2026-10-19T00:40:00+00:00,600.0,ACTIVE,chrome.exe,Chrome,github.com,DEVELOPMENT,0.85,SITE_RULE,rule,DEVELOPMENT,,False
+2026-10-19T00:40:00+00:00,2026-10-19T00:50:00+00:00,600.0,ACTIVE,chrome.exe,Chrome,youtube.com,UNKNOWN,0.3,AMBIGUOUS_SITE,rule,UNKNOWN,,False
+2026-10-19T00:50:00+00:00,2026-10-19T01:00:00+00:00,600.0,IDLE,,,,BREAK,1.0,IDLE,system,BREAK,,False
+2026-10-19T01:00:00+00:00,2026-10-19T01:20:00+00:00,1200.0,ACTIVE,code.exe,Code,,DEVELOPMENT,0.9,APP_RULE,rule,DEVELOPMENT,,False

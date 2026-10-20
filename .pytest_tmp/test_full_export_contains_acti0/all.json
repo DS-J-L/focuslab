@@ -1,0 +1,150 @@
+{
+  "format": "focuslab-export",
+  "app_version": "0.1.0",
+  "note": "관찰 가능한 행동의 추정치이며 집중력·의학적 상태의 측정값이 아닙니다.",
+  "sessions": [],
+  "activity": {
+    "spans": [
+      {
+        "start_utc": "2026-10-19T00:00:00+00:00",
+        "end_utc": "2026-10-19T00:30:00+00:00",
+        "duration_s": 1800.0,
+        "kind": "ACTIVE",
+        "program": "code.exe",
+        "product_name": "Code",
+        "site": null,
+        "category": "DEVELOPMENT",
+        "confidence": 0.9,
+        "reason": "APP_RULE",
+        "source": "rule",
+        "stored_category": "DEVELOPMENT",
+        "user_category": null,
+        "excluded": false
+      },
+      {
+        "start_utc": "2026-10-19T00:30:00+00:00",
+        "end_utc": "2026-10-19T00:40:00+00:00",
+        "duration_s": 600.0,
+        "kind": "ACTIVE",
+        "program": "chrome.exe",
+        "product_name": "Chrome",
+        "site": "github.com",
+        "category": "DEVELOPMENT",
+        "confidence": 0.85,
+        "reason": "SITE_RULE",
+        "source": "rule",
+        "stored_category": "DEVELOPMENT",
+        "user_category": null,
+        "excluded": false
+      },
+      {
+        "start_utc": "2026-10-19T00:40:00+00:00",
+        "end_utc": "2026-10-19T00:50:00+00:00",
+        "duration_s": 600.0,
+        "kind": "ACTIVE",
+        "program": "chrome.exe",
+        "product_name": "Chrome",
+        "site": "youtube.com",
+        "category": "UNKNOWN",
+        "confidence": 0.3,
+        "reason": "AMBIGUOUS_SITE",
+        "source": "rule",
+        "stored_category": "UNKNOWN",
+        "user_category": null,
+        "excluded": false
+      },
+      {
+        "start_utc": "2026-10-19T00:50:00+00:00",
+        "end_utc": "2026-10-19T01:00:00+00:00",
+        "duration_s": 600.0,
+        "kind": "IDLE",
+        "program": null,
+        "product_name": null,
+        "site": null,
+        "category": "BREAK",
+        "confidence": 1.0,
+        "reason": "IDLE",
+        "source": "system",
+        "stored_category": "BREAK",
+        "user_category": null,
+        "excluded": false
+      },
+      {
+        "start_utc": "2026-10-19T01:00:00+00:00",
+        "end_utc": "2026-10-19T01:20:00+00:00",
+        "duration_s": 1200.0,
+        "kind": "ACTIVE",
+        "program": "code.exe",
+        "product_name": "Code",
+        "site": null,
+        "category": "DEVELOPMENT",
+        "confidence": 0.9,
+        "reason": "APP_RULE",
+        "source": "rule",
+        "stored_category": "DEVELOPMENT",
+        "user_category": null,
+        "excluded": false
+      }
+    ],
+    "automatic_sessions": [
+      {
+        "category": "DEVELOPMENT",
+        "active_ms": 2400000,
+        "interrupted_ms": 0,
+        "switches": 1,
+        "detours": 0,
+        "return_ms": [],
+        "apps": {
+          "Code": 1800000,
+          "Chrome · github.com": 600000
+        },
+        "manual_session_id": null,
+        "start_utc": "2026-10-19T00:00:00+00:00",
+        "end_utc": "2026-10-19T00:40:00+00:00"
+      },
+      {
+        "category": "UNKNOWN",
+        "active_ms": 600000,
+        "interrupted_ms": 0,
+        "switches": 0,
+        "detours": 0,
+        "return_ms": [],
+        "apps": {
+          "Chrome · youtube.com": 600000
+        },
+        "manual_session_id": null,
+        "start_utc": "2026-10-19T00:40:00+00:00",
+        "end_utc": "2026-10-19T00:50:00+00:00"
+      },
+      {
+        "category": "DEVELOPMENT",
+        "active_ms": 1200000,
+        "interrupted_ms": 0,
+        "switches": 0,
+        "detours": 0,
+        "return_ms": [],
+        "apps": {
+          "Code": 1200000
+        },
+        "manual_session_id": null,
+        "start_utc": "2026-10-19T01:00:00+00:00",
+        "end_utc": "2026-10-19T01:20:00+00:00"
+      }
+    ],
+    "system_events": [
+      {
+        "at_utc": "2026-10-19T00:00:00+00:00",
+        "type": "START",
+        "detail": null
+      },
+      {
+        "at_utc": "2026-10-19T01:20:00+00:00",
+        "type": "STOP",
+        "detail": null
+      }
+    ],
+    "classification_rules": [],
+    "excluded_programs": [],
+    "excluded_sites": []
+  }
+}
