@@ -1,5 +1,6 @@
 import pytest
 
+from focuslab.config import RuleConfig
 from focuslab.domain.models import (
     CameraStatus,
     FocusState,
@@ -330,3 +331,39 @@ def test_session_relevance_uses_the_order_of_activities(make_service, clock):
     svc.resume()
     tick(svc, clock, 2)  # after a pause the lecture no longer vouches for the notes
     assert svc.snapshot().relevance.level is RelevanceLevel.UNCERTAIN
+
+
+# task relevance in the focus decision ------------------------------------------------
+
+
+def test_gameplay_on_an_allowed_browser_becomes_possibly_off_task(make_service, clock):
+    svc = make_service(
+        activity_script=((3600, "chrome.exe", "active", "youtube.com", "게임 플레이 모음"),)
+    )
+    svc.start(SessionConfig("증강현실 공부", SessionMode.LECTURE, 0, ("chrome.exe",), False))
+    limit = int(RuleConfig().unrelated_page_s)
+    states = [d.state for d in tick(svc, clock, limit + 5)]
+    assert FocusState.POSSIBLY_OFF_TASK not in states[: limit - 1]
+    assert states[-1] is FocusState.POSSIBLY_OFF_TASK
+
+
+def test_a_related_lecture_counts_even_with_an_empty_allow_list(make_service, clock):
+    svc = make_service(
+        activity_script=((3600, "chrome.exe", "active", "youtube.com", "Unity AR 기초 강의"),)
+    )
+    svc.start(SessionConfig("증강현실 공부", SessionMode.CUSTOM, 0, (), False))
+    assert tick(svc, clock, 30)[-1].state is FocusState.ON_TASK
+
+
+def test_a_failing_relevance_engine_never_stops_the_session(make_service, clock, monkeypatch):
+    from focuslab.relevance.engine import RelevanceEngine
+
+    def broken(self, data, now_ms=None):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(RelevanceEngine, "evaluate", broken)
+    svc = make_service()
+    svc.start(SessionConfig("공부", SessionMode.CODING, 0, ("code.exe",), True))
+    decisions = tick(svc, clock, 5)
+    assert decisions[-1].state is FocusState.ON_TASK
+    assert svc.snapshot().relevance is None
