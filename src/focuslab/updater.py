@@ -120,18 +120,26 @@ def download(
     return dest
 
 
+def _long(path: Path) -> Path:
+    """Extended-length form on Windows: the bundle's deepest files (numpy licenses) pass
+    260 characters while unpacking in a deep folder unless long paths are enabled."""
+    if sys.platform != "win32" or str(path).startswith("\\\\?\\"):
+        return path
+    return Path("\\\\?\\" + str(path.resolve()))
+
+
 def stage(zip_path: Path, target: Path) -> Path:
     """Unpack the zip's FocusLab folder next to the install folder (same volume, so the
     later swap is two renames). Returns the unpacked folder that holds FocusLab.exe."""
     staged = target.with_name(f".{target.name}-update")
-    shutil.rmtree(staged, ignore_errors=True)
-    with tempfile.TemporaryDirectory(dir=target.parent) as unpack:
+    shutil.rmtree(_long(staged), ignore_errors=True)
+    with tempfile.TemporaryDirectory(dir=_long(target.parent)) as unpack:
         with zipfile.ZipFile(zip_path) as archive:
             archive.extractall(unpack)  # extractall drops absolute and '..' member paths
         roots = [p.parent for p in Path(unpack).rglob(EXE_NAME)]
         if len(roots) != 1 or not (roots[0] / "_internal").is_dir():
             raise ValueError("the package does not contain one FocusLab folder")
-        roots[0].replace(staged)
+        roots[0].replace(_long(staged))
     return staged
 
 
@@ -164,7 +172,7 @@ if ($ok) {{ Remove-Item -LiteralPath $old -Recurse -Force }}
 
 def launch_swap(staged: Path, target: Path, pid: int) -> None:
     """Start the swap helper detached; the caller must quit right after."""
-    shutil.rmtree(target.with_name(f"{target.name}.old"), ignore_errors=True)
+    shutil.rmtree(_long(target.with_name(f"{target.name}.old")), ignore_errors=True)
     subprocess.Popen(
         [
             "powershell.exe",
