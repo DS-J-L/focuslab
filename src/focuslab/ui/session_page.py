@@ -70,7 +70,7 @@ class SessionPage(QWidget):
         title_col = QVBoxLayout()
         self.title = QLabel(tr("No session in progress"), objectName="PageTitle")
         self.subtitle = QLabel(
-            tr("Choose a goal and mode on Home to start a session."), objectName="Muted"
+            tr("Press + on Home to start a session."), objectName="Muted"
         )
         title_col.addWidget(self.title)
         title_col.addWidget(self.subtitle)
@@ -237,7 +237,7 @@ class SessionPage(QWidget):
             w.setEnabled(active)
         if snap.config is None:
             self.title.setText(tr("No session in progress"))
-            self.subtitle.setText(tr("Choose a goal and mode on Home to start a session."))
+            self.subtitle.setText(tr("Press + on Home to start a session."))
             self.badge.set_state(None)
             self.timeline.set_segments(())
             self.camera_stop.hide()

@@ -6,9 +6,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QTimer
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QFocusEvent
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -31,6 +32,7 @@ from focuslab.ui.activity_page import ActivityPage
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
+from focuslab.ui.new_session_dialog import NewSessionDialog
 from focuslab.ui.onboarding import OnboardingDialog
 from focuslab.ui.overlay import SessionOverlay
 from focuslab.ui.report_page import ReportPage
@@ -39,10 +41,25 @@ from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
 from focuslab.ui.theme import SELF_REPORT_LABELS, apply_theme
 from focuslab.ui.tray import Tray, make_icon
+from focuslab.ui.widgets import clock_text
 
-HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)
+HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)  # stack pages
+# Sidebar rows. The live session has no row: it opens from Home's (+) and is reached again
+# through the "session in progress" card under the menu.
+NAV_PAGES = (HOME, ACTIVITY, REPORT, SETTINGS)
 ACTIVITY_REFRESH_MS = 30_000
 UPDATE_CHECK_DELAY_MS = 5_000
+
+
+class NavList(QListWidget):
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """With no row selected (the live session is shown), Qt would select the first row on
+        keyboard focus and so leave the session; focus alone must not navigate."""
+        if self.currentRow() < 0:
+            QFrame.focusInEvent(self, event)
+            self.viewport().update()
+        else:
+            super().focusInEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -67,11 +84,16 @@ class MainWindow(QMainWindow):
             tr("Know your workflow,\nnot just your screen time."), objectName="BrandSub"
         )
         side.addWidget(tagline)
-        self.nav = QListWidget()
-        self.nav.addItems(
-            [tr("Home"), tr("Activity"), tr("Sessions"), tr("Reports"), tr("Settings")]
-        )
+        self.nav = NavList()
+        self.nav.addItems([tr("Home"), tr("Activity"), tr("Reports"), tr("Settings")])
         side.addWidget(self.nav, 1)
+        self.session_return = QPushButton(objectName="SessionReturn")
+        self.session_return.clicked.connect(lambda: self.go(SESSION))
+        self.session_return.setVisible(False)
+        return_row = QHBoxLayout()
+        return_row.setContentsMargins(12, 0, 12, 8)
+        return_row.addWidget(self.session_return)
+        side.addLayout(return_row)
         self.update_button = QPushButton(objectName="Primary")
         self.update_button.clicked.connect(lambda: self.go(SETTINGS))
         self.update_button.setVisible(False)
@@ -101,7 +123,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.nav.currentRowChanged.connect(self._navigate)
-        self.home.startRequested.connect(self.start_session)
+        self.home.newSessionRequested.connect(self.new_session)
+        self.home.returnToSession.connect(lambda: self.go(SESSION))
         self.home.openReport.connect(self.open_report)
         self.home.openActivity.connect(lambda: self.go(ACTIVITY))
         self.session.pauseRequested.connect(self.toggle_pause)
@@ -138,8 +161,12 @@ class MainWindow(QMainWindow):
         self.home.refresh()
 
     # navigation ---------------------------------------------------------------------
-    def _navigate(self, index: int) -> None:
+    def _navigate(self, row: int) -> None:
+        if row < 0:  # cleared while the live session is shown
+            return
+        index = NAV_PAGES[row]
         self.stack.setCurrentIndex(index)
+        self._mark_session_return()
         if index == HOME:
             self.home.refresh()
         elif index == ACTIVITY:
@@ -157,7 +184,15 @@ class MainWindow(QMainWindow):
             self.home.refresh_activity()
 
     def go(self, index: int) -> None:
-        self.nav.setCurrentRow(index)
+        if index in NAV_PAGES:
+            self.nav.setCurrentRow(NAV_PAGES.index(index))
+            return
+        # The session page has no menu row: clear the selection so any row navigates again.
+        self.nav.blockSignals(True)
+        self.nav.setCurrentRow(-1)
+        self.nav.blockSignals(False)
+        self.stack.setCurrentIndex(index)
+        self._mark_session_return()
 
     def open_report(self, session_id: int) -> None:
         self.go(REPORT)
@@ -175,8 +210,20 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     # session flow -------------------------------------------------------------------
+    def new_session(self) -> None:
+        "Home's (+): ask for the session settings in a popup, then start."
+        if self.ctx.service.snapshot().lifecycle in ACTIVE:
+            self.go(SESSION)
+            return
+        dialog = NewSessionDialog(self.ctx, self)
+        if dialog.exec() == NewSessionDialog.DialogCode.Accepted:
+            self.start_session(dialog.config())
+
     def start_session(self, config: SessionConfig) -> None:
         ctx = self.ctx
+        if ctx.service.snapshot().lifecycle in ACTIVE:  # one session at a time
+            self.go(SESSION)
+            return
         if not ctx.demo and ctx.activity_consent is None:
             ctx.set_flag("consent.activity", ask_activity_consent(self))
         if config.camera_enabled and not ctx.demo:
@@ -237,6 +284,7 @@ class MainWindow(QMainWindow):
         snap = self.ctx.service.snapshot()
         self.session.refresh(snap)
         self.overlay.refresh(snap)
+        self._refresh_session_return(snap)
         health = self.ctx.recording_health()
         self.tray.update_state(snap, self.ctx.recording_state, health)
         if self.stack.currentIndex() == ACTIVITY:
@@ -247,6 +295,26 @@ class MainWindow(QMainWindow):
             self._last_lifecycle = snap.lifecycle
             self._on_finished(snap)
         self._last_lifecycle = snap.lifecycle
+
+    def _refresh_session_return(self, snap: LiveSnapshot) -> None:
+        "The sidebar card back to the live session: shown only while one is in progress."
+        active = snap.lifecycle in ACTIVE
+        if active:
+            state = (
+                tr("Paused")
+                if snap.lifecycle is Lifecycle.PAUSED
+                else clock_text(snap.active_s)
+            )
+            self.session_return.setText(tr("Session in progress\n{p0} · Return", p0=state))
+        self.session_return.setVisible(active)
+
+    def _mark_session_return(self) -> None:
+        "Styled as the current place while the session page is shown (no menu row is)."
+        current = self.stack.currentIndex() == SESSION
+        if self.session_return.property("current") != current:
+            self.session_return.setProperty("current", current)
+            self.session_return.style().unpolish(self.session_return)
+            self.session_return.style().polish(self.session_return)
 
     def _on_finished(self, snap: LiveSnapshot) -> None:
         self.home.set_running(False)

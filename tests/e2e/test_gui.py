@@ -33,9 +33,10 @@ def snapshot(win):
 
 
 def test_full_session_flow(window, qtbot):
-    window.home.startRequested.emit(config())
+    window.start_session(config())
     assert window.stack.currentIndex() == SESSION
-    assert not window.home.start_button.isEnabled()
+    assert window.home.fab.text() == "진행 중인 세션으로 돌아가기"
+    assert window.session_return.isVisibleTo(window)
     qtbot.waitUntil(lambda: snapshot(window).active_s >= 2, timeout=6000)
     window.poll()
     assert window.session.badge.text() != "대기 중"
@@ -53,7 +54,8 @@ def test_full_session_flow(window, qtbot):
     window.finish_session()
     assert snapshot(window).lifecycle is Lifecycle.FINISHED
     assert window.stack.currentIndex() == REPORT
-    assert window.home.start_button.isEnabled()
+    assert window.home.fab.text() == "+"
+    assert not window.session_return.isVisibleTo(window)
     report = window.report._report
     assert report is not None and report.record.goal == "GUI 테스트"
     assert report.metrics.corrected_segments == 1
@@ -61,7 +63,7 @@ def test_full_session_flow(window, qtbot):
 
 
 def test_report_correction_and_delete(window, qtbot):
-    window.home.startRequested.emit(config())
+    window.start_session(config())
     qtbot.waitUntil(lambda: snapshot(window).active_s >= 1, timeout=6000)
     window.finish_session()
     page = window.report
@@ -138,7 +140,7 @@ def test_quit_releases_all_workers(qtbot, monkeypatch):
     ctx = AppContext(demo=True)
     win = MainWindow(ctx)
     qtbot.addWidget(win)
-    win.home.startRequested.emit(config())
+    win.start_session(config())
     qtbot.waitUntil(lambda: snapshot(win).active_s >= 1, timeout=6000)
     win.quit_app()
     assert snapshot(win).lifecycle is Lifecycle.FINISHED
@@ -150,7 +152,7 @@ def test_no_timer_tick_reaches_the_database_after_close_down(qtbot, monkeypatch)
     ctx = AppContext(demo=True)
     win = MainWindow(ctx)
     qtbot.addWidget(win)
-    win.home.startRequested.emit(config())
+    win.start_session(config())
     qtbot.waitUntil(lambda: snapshot(win).active_s >= 1, timeout=6000)
     win.close_down()
     qtbot.wait(1200)  # longer than the 500 ms poll interval

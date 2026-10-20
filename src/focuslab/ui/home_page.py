@@ -1,66 +1,47 @@
 """Home: today's automatic recording and manual focus sessions side by side (each card says
-which one it comes from), new session form (goal, mode, time, allowed apps, camera), recents."""
+which one it comes from), recent sessions, and a floating (+) button that opens a new session
+(or returns to the one in progress)."""
 
 from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
-    QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMenu,
-    QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from focuslab.activity.camera_overlay import session_samples
 from focuslab.activity.stats import local_day_bounds
-from focuslab.activity.windows_tracker import normalize, visible_window_apps
-from focuslab.config import MODE_LABELS, NEUTRAL_APPS
-from focuslab.domain.models import FocusState, SessionConfig, SessionMode
+from focuslab.config import MODE_LABELS
+from focuslab.domain.models import FocusState
 from focuslab.focus.metrics import compute_metrics, format_duration, format_ratio
-from focuslab.i18n import LocalizedMapping, tr
+from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
 from focuslab.ui.report_worker import ActivityReporter
-from focuslab.ui.theme import style_form
 from focuslab.ui.widgets import StatCard
 
-MODE_HINTS = LocalizedMapping(
-    {
-        SessionMode.CODING: (
-            "IDE, terminal, and documentation. Looking away alone does not establish task "
-            "deviation."
-        ),
-        SessionMode.LECTURE: "Video lectures. No keyboard or mouse input is expected.",
-        SessionMode.READING_WRITING: (
-            "Paper books and notes. Looking down is treated as work, with a longer wait "
-            "before estimating time away."
-        ),
-        SessionMode.CUSTOM: "Choose allowed apps yourself.",
-    }
-)
 TODAY = "home.today"  # ActivityReporter key
 # Card tags; translated where shown, since the language is chosen after import.
 AUTO = "Automatic recording"
 MANUAL = "Manual focus sessions"
+FAB_SIZE = 56
+FAB_MARGIN = 28
 
 
 class HomePage(QWidget):
-    startRequested = Signal(object)  # SessionConfig
+    newSessionRequested = Signal()
+    returnToSession = Signal()
     openReport = Signal(int)
     openActivity = Signal()
 
@@ -71,14 +52,14 @@ class HomePage(QWidget):
         reporter.ready.connect(self._report_ready)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()  # two rows of cards and the form: scroll on small windows
+        scroll = QScrollArea()  # two rows of cards and the recents: scroll on small windows
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         outer.addWidget(scroll)
         content = QWidget(objectName="PageContent")
         scroll.setWidget(content)
         root = QVBoxLayout(content)
-        root.setContentsMargins(28, 24, 28, 24)
+        root.setContentsMargins(28, 24, 28, FAB_SIZE + FAB_MARGIN)  # clear of the (+)
         root.setSpacing(20)
         head = QHBoxLayout()
         head.addWidget(QLabel(tr("Today"), objectName="PageTitle"))
@@ -138,172 +119,63 @@ class HomePage(QWidget):
             cards.setColumnStretch(column, 1)
         root.addLayout(cards)
 
-        body = QHBoxLayout()
-        body.setSpacing(20)
-        body.addWidget(self._build_form(), 3)
         recent_box = QGroupBox(tr("Recent sessions"))
         recent_layout = QVBoxLayout(recent_box)
         self.recent = QListWidget()
         self.recent.setWordWrap(True)
+        self.recent.setMinimumHeight(280)
         self.recent.itemClicked.connect(self._open_recent)
         recent_layout.addWidget(self.recent)
-        body.addWidget(recent_box, 2)
-        root.addLayout(body, 1)
+        root.addWidget(recent_box, 1)
+
+        # Floats over the scroll area (a child of the page, not of the scrolled content), so it
+        # stays in the bottom-right corner while the page scrolls.
+        self.fab = QPushButton(self, objectName="Fab")
+        self.fab.clicked.connect(self._fab_clicked)
+        self._running = False
+        self.set_running(False)
+
+    # floating button ------------------------------------------------------------------
+    def set_running(self, running: bool) -> None:
+        "Idle: a round (+) for a new session. In progress: a wide button back to that session."
+        self._running = running
+        self.fab.setProperty("running", running)
+        if running:
+            self.fab.setText(tr("Back to session in progress"))
+            self.fab.setToolTip("")
+            self.fab.setAccessibleName(self.fab.text())
+            self.fab.setMinimumWidth(0)
+            self.fab.setMaximumWidth(16777215)
+            self.fab.setFixedHeight(FAB_SIZE)
+        else:
+            self.fab.setText("+")
+            self.fab.setToolTip(tr("New session"))
+            self.fab.setAccessibleName(tr("New session"))
+            self.fab.setFixedSize(FAB_SIZE, FAB_SIZE)
+        self.fab.style().unpolish(self.fab)
+        self.fab.style().polish(self.fab)
+        self._place_fab()
+
+    def _fab_clicked(self) -> None:
+        (self.returnToSession if self._running else self.newSessionRequested).emit()
+
+    def _place_fab(self) -> None:
+        if self._running:
+            self.fab.resize(self.fab.sizeHint().width(), FAB_SIZE)
+        self.fab.move(
+            self.width() - self.fab.width() - FAB_MARGIN,
+            self.height() - self.fab.height() - FAB_MARGIN,
+        )
+        self.fab.raise_()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._place_fab()
 
     def _open_recent(self, item: QListWidgetItem) -> None:
         session_id = item.data(Qt.ItemDataRole.UserRole)
         if session_id is not None:
             self.openReport.emit(session_id)
-
-    # form -------------------------------------------------------------------------
-    def _build_form(self) -> QGroupBox:
-        box = QGroupBox(tr("New session"))
-        outer = QVBoxLayout(box)
-        outer.setSpacing(16)
-        form = QFormLayout()
-        style_form(form)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
-        form.setVerticalSpacing(10)
-        outer.addLayout(form)
-        outer.addStretch()
-        self.goal = QLineEdit(self.ctx.setting("last.goal", "") or "")
-        self.goal.setPlaceholderText(tr("For example: solve algorithm problems"))
-        form.addRow(tr("Goal"), self.goal)
-
-        self.mode = QComboBox()
-        for mode in SessionMode:
-            self.mode.addItem(MODE_LABELS[mode], mode)
-        last_mode = self.ctx.setting("last.mode", SessionMode.CODING.value)
-        self.mode.setCurrentIndex(max(0, self.mode.findData(SessionMode(last_mode))))
-        self.mode_hint = QLabel(objectName="Muted")
-        self.mode_hint.setWordWrap(True)
-        form.addRow(tr("Work mode"), self.mode)
-        form.addRow("", self.mode_hint)
-
-        self.minutes = QSpinBox()
-        self.minutes.setRange(0, 240)
-        self.minutes.setSingleStep(5)
-        self.minutes.setSuffix(tr(" min"))
-        self.minutes.setSpecialValueText(tr("No time limit"))
-        self.minutes.setValue(int(self.ctx.setting("last.minutes", "25") or 25))
-        form.addRow(tr("Target time"), self.minutes)
-
-        self.apps = QListWidget()
-        self.apps.setMinimumHeight(90)
-        self.apps.setMaximumHeight(130)
-        self.apps.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        app_buttons = QHBoxLayout()
-        app_buttons.setSpacing(8)
-        add = QPushButton(tr("Add manually…"))
-        add.clicked.connect(self._add_app_manual)
-        self.add_open = QPushButton(tr("Add from open apps…"))
-        self.add_open.clicked.connect(self._add_app_from_open)
-        remove = QPushButton(tr("Remove selected"))
-        remove.clicked.connect(self._remove_apps)
-        reset = QPushButton(tr("Defaults"))
-        reset.clicked.connect(self._reset_apps)
-        for b in (add, self.add_open, remove, reset):
-            app_buttons.addWidget(b)
-        app_buttons.addStretch()
-        apps_col = QVBoxLayout()
-        apps_col.setSpacing(10)
-        apps_col.addWidget(self.apps)
-        apps_col.addLayout(app_buttons)
-        note = QLabel(
-            tr(
-                "Matches process names (for example, code.exe). With the "
-                "browser extension connected, add a site such as "
-                "github.com to allow the browser only on that site."
-            ),
-            objectName="Muted",
-        )
-        note.setWordWrap(True)
-        apps_col.addWidget(note)
-        form.addRow(tr("Allowed apps"), apps_col)
-
-        self.camera = QCheckBox(tr("Observe face presence and head pose with a webcam (optional)"))
-        self.camera.setChecked(self.ctx.flag("last.camera", False))
-        form.addRow(tr("Camera"), self.camera)
-
-        self.start_button = QPushButton(tr("Start focus session"), objectName="Primary")
-        self.start_button.clicked.connect(self._start)
-        form.addRow("", self.start_button)
-
-        self.mode.currentIndexChanged.connect(self._mode_changed)
-        self._mode_changed()
-        return box
-
-    def current_mode(self) -> SessionMode:
-        return SessionMode(self.mode.currentData())
-
-    def _mode_changed(self) -> None:
-        mode = self.current_mode()
-        self.mode_hint.setText(MODE_HINTS[mode])
-        self._set_apps(self.ctx.allowed_apps(mode))
-
-    def _set_apps(self, apps) -> None:
-        self.apps.clear()
-        for app in sorted(set(map(normalize, apps))):
-            self.apps.addItem(app)
-
-    def _current_apps(self) -> tuple[str, ...]:
-        return tuple(self.apps.item(i).text() for i in range(self.apps.count()))
-
-    def _save_apps(self) -> None:
-        self.ctx.set_allowed_apps(self.current_mode(), self._current_apps())
-
-    def _add(self, name: str) -> None:
-        name = normalize(name)
-        if name and name not in self._current_apps():
-            self.apps.addItem(name)
-            self.apps.sortItems()
-            self._save_apps()
-
-    def _add_app_manual(self) -> None:
-        name, ok = QInputDialog.getText(
-            self, tr("Add allowed app"), tr("Process name (for example, code.exe)")
-        )
-        if ok:
-            self._add(name)
-
-    def _add_app_from_open(self) -> None:
-        menu = QMenu(self)
-        names = [n for n in visible_window_apps() if normalize(n) not in NEUTRAL_APPS]
-        for name in names:
-            menu.addAction(name, lambda n=name: self._add(n))
-        if not names:
-            menu.addAction(tr("No open apps found")).setEnabled(False)
-        menu.exec(self.add_open.mapToGlobal(self.add_open.rect().bottomLeft()))
-
-    def _remove_apps(self) -> None:
-        for item in self.apps.selectedItems():
-            self.apps.takeItem(self.apps.row(item))
-        self._save_apps()
-
-    def _reset_apps(self) -> None:
-        self.ctx.set_allowed_apps(self.current_mode(), None)
-        self._set_apps(self.ctx.allowed_apps(self.current_mode()))
-
-    def _start(self) -> None:
-        apps = self._current_apps()
-        if not apps:
-            answer = QMessageBox.question(
-                self,
-                tr("No allowed apps"),
-                tr("With an empty allow list, every app will be treated as not allowed. Continue?"),
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
-        goal = self.goal.text().strip() or tr("Focus session")
-        self.ctx.set_setting("last.goal", goal)
-        self.ctx.set_setting("last.mode", self.current_mode().value)
-        self.ctx.set_setting("last.minutes", str(self.minutes.value()))
-        self.ctx.set_flag("last.camera", self.camera.isChecked())
-        self.startRequested.emit(
-            SessionConfig(
-                goal, self.current_mode(), self.minutes.value(), apps, self.camera.isChecked()
-            )
-        )
 
     # summary ----------------------------------------------------------------------
     def refresh(self) -> None:
@@ -331,7 +203,9 @@ class HomePage(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, s.id)
             self.recent.addItem(item)
         if not sessions:
-            self.recent.addItem(tr("No sessions recorded yet."))
+            self.recent.addItem(
+                tr("No sessions recorded yet. Start one with the + button at the bottom right.")
+            )
 
     def refresh_activity(self) -> None:
         "Today's automatic recording, computed on the report worker (never on this thread)."
@@ -351,9 +225,3 @@ class HomePage(QWidget):
         self.recording_status.setText(health.text)
         self.recording_status.setStyleSheet(WARNING_STYLE if health.saving_failed else "")
         self.recording_status.setToolTip(health.detail)
-
-    def set_running(self, running: bool) -> None:
-        self.start_button.setEnabled(not running)
-        self.start_button.setText(
-            tr("Session in progress") if running else tr("Start focus session")
-        )
