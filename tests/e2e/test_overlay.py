@@ -240,3 +240,26 @@ def test_overlay_parrots_react_to_estimated_off_task_time(window):
     assert not window.ctx.mascot_reactions
     assert at(40, FocusState.POSSIBLY_OFF_TASK) is Mood.CALM
     assert at(100, FocusState.POSSIBLY_OFF_TASK) is Mood.CALM
+
+
+def test_frames_slow_down_while_the_parrots_only_breathe(window):
+    from focuslab.ui.overlay import FRAME_MS, RESTING_FRAME_MS
+
+    window.settings.mascot_motion.setCurrentIndex(window.settings.mascot_motion.findData("minimal"))
+    overlay = window.overlay
+    start(window)
+    perch = overlay.perch
+    t = [100.0]
+    perch.clock = lambda: t[0]
+    image = perch.grab()  # paints a frame
+    assert perch.director.resting and perch._timer.interval() == RESTING_FRAME_MS
+    QApplication.sendEvent(overlay.pause_button, QEvent(QEvent.Type.Enter))
+    t[0] += 0.05
+    perch.grab()
+    assert not perch.director.resting and perch._timer.interval() == FRAME_MS
+    QApplication.sendEvent(overlay.pause_button, QEvent(QEvent.Type.Leave))
+    for _ in range(40):  # settles back within a second or so
+        t[0] += 0.05
+        perch.grab()
+    assert perch._timer.interval() == RESTING_FRAME_MS
+    assert not image.isNull()

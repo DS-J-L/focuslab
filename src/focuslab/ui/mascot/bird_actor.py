@@ -37,6 +37,7 @@ class BirdActor:
         self._glance = 0.0  # smoothed toward
         self._up = 0.0
         self._emote_since = 0.0
+        self.resting = True
         self.behavior: Behavior | None = None
         self._started = 0.0
         self._side = 1
@@ -79,9 +80,16 @@ class BirdActor:
         toward = a.toward
         if a == CALM and now < self._watch_until:
             toward = self._watch
-        self._perk = approach(self._perk, 1.0 if a.hovered else 0.0, dt, HOVER_S)
+        perk, up = (1.0 if a.hovered else 0.0), (1.0 if a.up else 0.0)
+        self._perk = approach(self._perk, perk, dt, HOVER_S)
         self._glance = approach(self._glance, toward, dt, HOVER_S * 2.5)
-        self._up = approach(self._up, 1.0 if a.up else 0.0, dt, HOVER_S * 1.5)
+        self._up = approach(self._up, up, dt, HOVER_S * 1.5)
+        # Only breathing and blinking: the view can then draw fewer frames.
+        self.resting = (
+            self.behavior is None
+            and a.emote is None
+            and max(abs(self._perk - perk), abs(self._glance - toward), abs(self._up - up)) < 0.01
+        )
 
         breath = math.sin(now * math.tau / 3.4 + self._phase)
         pose = replace(

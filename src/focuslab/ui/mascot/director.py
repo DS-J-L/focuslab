@@ -134,6 +134,11 @@ class Director:
         poses = [actor.pose(now) for actor in self.actors]
         return [replace(p, alpha=0.0) if i in self.away else p for i, p in enumerate(poses)]
 
+    @property
+    def resting(self) -> bool:
+        "Every parrot is only breathing and blinking (as of the last ``poses``)."
+        return all(actor.resting for actor in self.actors)
+
     def _idle(self, i: int, now: float) -> bool:
         return i not in self.away and self.hover != i and not self.actors[i].busy(now)
 
