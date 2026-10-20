@@ -1,4 +1,5 @@
 import hashlib
+import sys
 import zipfile
 
 import pytest
@@ -74,6 +75,22 @@ def test_stage_unpacks_next_to_the_install_folder(tmp_path):
     assert staged == install.with_name(".FocusLab-update")
     assert (staged / "FocusLab.exe").read_bytes() == b"new exe"
     assert sorted(p.name for p in install.parent.iterdir()) == [".FocusLab-update", "FocusLab"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="MAX_PATH is a Windows limit")
+def test_stage_handles_paths_past_max_path(tmp_path):
+    deep = "_internal/" + "/".join(["d" * 20] * 4) + "/LICENSE.txt"  # ~100 characters
+    zip_path = tmp_path / "pkg.zip"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("FocusLab/FocusLab.exe", b"new exe")
+        archive.writestr(f"FocusLab/{deep}", "license")
+    # Pad the install folder to ~200 characters (still creatable without long paths).
+    parent = tmp_path.joinpath(*["p" * 30] * max(1, (200 - len(str(tmp_path))) // 31))
+    install = parent / "FocusLab"
+    (install / "_internal").mkdir(parents=True)
+    assert len(str(install.with_name(".FocusLab-update") / deep)) > 260
+    staged = updater.stage(zip_path, install)
+    assert (updater._long(staged) / deep).read_text() == "license"
 
 
 def test_stage_rejects_a_package_without_focuslab(tmp_path):
