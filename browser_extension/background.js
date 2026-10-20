@@ -52,10 +52,17 @@ function scheduleReconnect() {
   }, delay);
 }
 
-async function currentState() {
+// focusedWindowId comes from windows.onFocusChanged. That event is the authority on focus:
+// on Windows the window's own `focused` flag can still show the old value while it runs, so
+// reading it there made every switch to or from another program look unchanged.
+async function currentState(focusedWindowId) {
+  if (focusedWindowId === chrome.windows.WINDOW_ID_NONE) return { focused: false, domain: null };
   let window = null;
   try {
-    window = await chrome.windows.getLastFocused({ populate: false });
+    window =
+      focusedWindowId === undefined
+        ? await chrome.windows.getLastFocused({ populate: false })
+        : { ...(await chrome.windows.get(focusedWindowId)), focused: true };
   } catch {
     return { focused: false, domain: null };
   }
@@ -64,8 +71,8 @@ async function currentState() {
   return stateOf(window, tab);
 }
 
-export async function report(reason) {
-  const state = await currentState();
+export async function report(reason, focusedWindowId) {
+  const state = await currentState(focusedWindowId);
   if (reason !== "heartbeat" && reason !== "reconnect" && sameState(state, last)) return;
   const target = connect();
   if (!target) return;
@@ -85,7 +92,7 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   if (tab.active && (change.url || change.status === "complete")) void report("navigate");
 });
 chrome.tabs.onRemoved.addListener(() => void report("tab-closed"));
-chrome.windows.onFocusChanged.addListener(() => void report("focus"));
+chrome.windows.onFocusChanged.addListener((windowId) => void report("focus", windowId));
 chrome.windows.onRemoved.addListener(() => void report("window-closed"));
 chrome.alarms.create("focuslab-heartbeat", { periodInMinutes: HEARTBEAT_MINUTES });
 chrome.alarms.onAlarm.addListener((alarm) => {
