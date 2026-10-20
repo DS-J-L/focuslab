@@ -11,7 +11,8 @@ from focuslab.storage.repository import utc_now
 from focuslab.storage.sqlite_db import transaction
 
 _SPAN_SELECT = (
-    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, s.page_title, s.category, s.confidence, s.reason,"
+    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, s.page_title,"
+    " s.category, s.confidence, s.reason,"
     " s.source, s.excluded, a.exe_name, a.display_name, f.category AS user_category"
     " FROM activity_span s LEFT JOIN app a ON a.id = s.app_id"
     " LEFT JOIN activity_feedback f ON f.span_id = s.id"
@@ -76,7 +77,8 @@ class ActivityRepository:
     def insert_span(self, span: ActivitySpan, classified_ms: int | None = None) -> int:
         app = self.app_id(span.exe_name, span.display_name) if span.exe_name else None
         cur = self.conn.execute(
-            "INSERT INTO activity_span (start_ms, end_ms, kind, app_id, domain, page_title, category,"
+            "INSERT INTO activity_span "
+            "(start_ms, end_ms, kind, app_id, domain, page_title, category,"
             " confidence, reason, source, classified_ms, excluded)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (

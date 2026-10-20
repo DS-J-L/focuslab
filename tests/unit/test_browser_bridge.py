@@ -186,8 +186,8 @@ def test_titles_are_optional_and_strictly_validated():
 
 
 def test_title_storage_requires_separate_opt_in_and_withdrawal_scrubs_history(store):
-    from focuslab.storage.activity_repository import ActivityRepository
     from focuslab.domain.activity import ActivitySpan, SpanKind
+    from focuslab.storage.activity_repository import ActivityRepository
 
     st, repo = store
     assert st.apply(BrowserState("chrome", "x", 1, 0, True, "youtube.com", "AR Basics"), 1000)

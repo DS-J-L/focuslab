@@ -52,8 +52,8 @@ from focuslab.ui.calibration_dialog import CalibrationDialog
 from focuslab.ui.consent import (
     ask_activity_consent,
     ask_browser_consent,
-    ask_page_titles_consent,
     ask_camera_consent,
+    ask_page_titles_consent,
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
@@ -233,7 +233,13 @@ class SettingsPage(QWidget):
         self.page_titles_check = QCheckBox(tr("Save active page titles (optional)"))
         self.page_titles_check.toggled.connect(self._toggle_page_titles)
         form.addRow(tr("Page details"), self.page_titles_check)
-        form.addRow(QLabel(tr("Off by default. Saved only on this PC; turning off deletes saved titles."), wordWrap=True, objectName="Muted"))
+        form.addRow(
+            QLabel(
+                tr("Off by default. Saved only on this PC; turning off deletes saved titles."),
+                wordWrap=True,
+                objectName="Muted",
+            )
+        )
         self.host_state = QLabel(wordWrap=True)
         self.host_install = QPushButton(tr("Install connection"))
         self.host_install.clicked.connect(self._install_host)

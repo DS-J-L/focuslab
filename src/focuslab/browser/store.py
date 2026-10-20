@@ -24,7 +24,10 @@ class BrowserStateStore:
 
     def title_allowed(self) -> bool:
         """Separate opt-in; the host never stores unsolicited titles."""
-        return self.collection_allowed() and self._settings.get_setting("consent.page_titles") == "1"
+        return (
+            self.collection_allowed()
+            and self._settings.get_setting("consent.page_titles") == "1"
+        )
 
     def clear_titles(self) -> None:
         self.conn.execute("UPDATE browser_state SET page_title = NULL")
@@ -53,13 +56,15 @@ class BrowserStateStore:
         ))
         title = state.title if self.title_allowed() and not site_blocked else None
         self.conn.execute(
-            "INSERT INTO browser_state (browser, instance, seq, focused, domain, page_title, updated_ms)"
+            "INSERT INTO browser_state "
+            "(browser, instance, seq, focused, domain, page_title, updated_ms)"
             " VALUES (?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(browser, instance) DO UPDATE SET seq = excluded.seq,"
             " focused = excluded.focused, domain = excluded.domain,"
             " page_title = excluded.page_title,"
             " updated_ms = excluded.updated_ms WHERE excluded.seq > browser_state.seq",
-            (state.browser, state.instance, state.seq, int(state.focused), state.domain, title, now_ms),
+            (state.browser, state.instance, state.seq, int(state.focused),
+             state.domain, title, now_ms),
         )
         return True
 

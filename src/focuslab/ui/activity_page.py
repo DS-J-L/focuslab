@@ -525,7 +525,10 @@ class ActivityPage(QWidget):
                     _hm(span.end_ms),
                     _dur(span.duration_ms),
                     name,
-                    (f"{span.page_title} ({span.domain})" if span.page_title else span.domain or ""),
+                    (
+                        f"{span.page_title} ({span.domain})"
+                        if span.page_title else span.domain or ""
+                    ),
                     CATEGORY_LABELS[label.category],
                     f"{label.confidence:.0%}",
                     f"{CLASS_REASON_TEXT[label.reason]} · {SOURCE_TEXT[label.source]}",
