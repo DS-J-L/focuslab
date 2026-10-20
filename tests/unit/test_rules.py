@@ -1,5 +1,7 @@
 """Synthetic scenarios for the mode-aware rule engine (PR-06: at least 25 cases)."""
 
+from dataclasses import replace
+
 import pytest
 
 from focuslab.domain.models import FocusState, SessionMode
@@ -274,3 +276,32 @@ def test_confidence_is_lower_without_camera(coding):
     with_camera = RuleEngine(SessionMode.CODING).evaluate(frame(idle=1))
     without = coding.evaluate(frame(face=FaceEvidence.OFF, idle=1, reasons=(Reason.CAMERA_OFF,)))
     assert without.confidence < with_camera.confidence
+
+
+def test_possibly_related_app_is_unknown_and_never_off_task(coding):
+    settle_on_task(coding)
+    notes = replace(
+        frame(app=AppRelation.POSSIBLY_RELATED, name="notepad.exe"),
+        support=Reason.NOTE_TAKING_POSSIBLE,
+    )
+    out = run(coding, [notes] * 300)
+    assert out[1].state is ON  # a brief switch keeps the previous state
+    assert all(d.state is not OFF for d in out)
+    assert out[-1].state is UNKNOWN
+    assert Reason.NOTE_TAKING_POSSIBLE in out[-1].reason_codes
+
+
+def test_facing_the_camera_does_not_confirm_a_possibly_related_app(coding):
+    out = run(coding, [frame(app=AppRelation.POSSIBLY_RELATED, face=FaceEvidence.FORWARD)] * 30)
+    assert all(d.state is UNKNOWN for d in out)
+
+
+def test_allowed_browser_without_site_is_unknown_not_on_task(coding):
+    out = run(coding, [frame(name="chrome.exe", browser=True)] * 30)
+    assert all(d.state is UNKNOWN for d in out)
+    assert Reason.BROWSER_DETAIL_UNKNOWN in out[-1].reason_codes
+
+
+def test_allowed_browser_with_known_site_is_on_task(coding):
+    known = replace(frame(name="chrome.exe", browser=True), domain="github.com")
+    assert coding.evaluate(known).state is ON

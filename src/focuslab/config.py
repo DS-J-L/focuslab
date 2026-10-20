@@ -12,7 +12,7 @@ from focuslab.domain.models import SessionMode
 from focuslab.i18n import LocalizedMapping
 
 APP_NAME = "FocusLab"
-RULE_VERSION = "rules-0.1"
+RULE_VERSION = "rules-0.2"
 FACE_MODEL_FILENAME = "face_landmarker.task"
 # Bundled files live under sys._MEIPASS (dist/FocusLab/_internal) in a PyInstaller build,
 # and at the repository root in a source checkout.

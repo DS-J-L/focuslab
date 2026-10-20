@@ -283,6 +283,12 @@ AMBIGUOUS_SITES = frozenset(
 )
 _AMBIGUOUS = dict.fromkeys(AMBIGUOUS_SITES)
 
+# AI assistants: asking about a concept can be study or anything else.
+AI_APPS = frozenset({"claude.exe", "chatgpt.exe", "copilot.exe", "perplexity.exe"})
+AI_SITES = dict.fromkeys(
+    ("claude.ai", "chatgpt.com", "perplexity.ai", "gemini.google.com", "copilot.microsoft.com")
+)
+
 
 def suffix_match(domain: str, table: Mapping[str, object]) -> str | None:
     "Longest suffix of ``domain`` that is a key of ``table`` (``a.b.c`` -> ``b.c`` -> ``c``)."

@@ -1,15 +1,19 @@
 """Merge the latest face and activity observations into one per-second frame.
 
 Each observation has a TTL; an expired observation becomes UNKNOWN instead of
-silently repeating the last value.
+silently repeating the last value. An app missing from the allow list is only UNRELATED
+when nothing suggests it could serve the task: a note-taking app, an AI assistant or
+another work tool is POSSIBLY_RELATED and needs the user's confirmation instead.
 """
 
 from dataclasses import dataclass
 from enum import StrEnum
 
+from focuslab.activity.classifier import AI_APPS, AI_SITES, classify, suffix_match
 from focuslab.activity.windows_tracker import normalize
 from focuslab.camera.calibration import Calibration
 from focuslab.config import BROWSERS, RuleConfig
+from focuslab.domain.activity import Category, SpanKind
 from focuslab.domain.models import (
     ActivityObservation,
     CameraStatus,
@@ -21,6 +25,7 @@ from focuslab.focus.reasons import Reason
 class AppRelation(StrEnum):
     ALLOWED = "ALLOWED"
     UNRELATED = "UNRELATED"
+    POSSIBLY_RELATED = "POSSIBLY_RELATED"  # not allowed, but may serve the task
     NEUTRAL = "NEUTRAL"
     UNKNOWN = "UNKNOWN"
 
@@ -46,18 +51,45 @@ class FusedFrame:
     user_break: bool = False
     is_browser: bool = False
     domain: str | None = None
+    support: str | None = None  # why a POSSIBLY_RELATED app may serve the task
+
+
+_WORK_CATEGORIES = {Category.DEVELOPMENT, Category.STUDY, Category.RESEARCH, Category.PRODUCTIVITY}
+
+
+def possible_support(process_name: str | None, domain: str | None = None) -> str | None:
+    """Reason an app or site outside the allow list may still serve the task, else None.
+
+    Only the kind of tool is known, never what the user did with it, so this is a hint
+    to confirm, not evidence of work.
+    """
+    if not process_name:
+        return None
+    name = normalize(process_name)
+    if name in AI_APPS or (domain and suffix_match(domain, AI_SITES)):
+        return Reason.AI_ASSISTANT_POSSIBLE
+    category = classify(SpanKind.ACTIVE, name, domain).category
+    if category is Category.DOCUMENTATION:
+        return Reason.NOTE_TAKING_POSSIBLE
+    if category in _WORK_CATEGORIES:
+        return Reason.WORK_TOOL_POSSIBLE
+    return None
 
 
 def _activity(
     now_ms: int, obs: ActivityObservation | None, cfg: RuleConfig
-) -> tuple[AppRelation, str | None]:
+) -> tuple[AppRelation, str | None, str | None]:
+    """(relation, why the input is missing, why a not-allowed app may serve the task)."""
     if obs is None or not obs.available:
-        return AppRelation.UNKNOWN, Reason.ACTIVITY_UNAVAILABLE
+        return AppRelation.UNKNOWN, Reason.ACTIVITY_UNAVAILABLE, None
     if now_ms - obs.timestamp_ms > cfg.activity_ttl_ms:
-        return AppRelation.UNKNOWN, Reason.ACTIVITY_STALE
+        return AppRelation.UNKNOWN, Reason.ACTIVITY_STALE, None
     if obs.is_allowed_app is None:
-        return AppRelation.NEUTRAL, None
-    return (AppRelation.ALLOWED if obs.is_allowed_app else AppRelation.UNRELATED), None
+        return AppRelation.NEUTRAL, None, None
+    if obs.is_allowed_app:
+        return AppRelation.ALLOWED, None, None
+    support = possible_support(obs.process_name, obs.domain)
+    return (AppRelation.POSSIBLY_RELATED if support else AppRelation.UNRELATED), None, support
 
 
 def _face(
@@ -98,7 +130,7 @@ def fuse(
     user_break: bool = False,
 ) -> FusedFrame:
     cfg = cfg or RuleConfig()
-    app, app_reason = _activity(now_ms, activity, cfg)
+    app, app_reason, support = _activity(now_ms, activity, cfg)
     face_ev, face_reason = _face(
         now_ms, face, camera_enabled, camera_status, calibration or Calibration(), cfg
     )
@@ -115,4 +147,5 @@ def fuse(
         user_break=user_break,
         is_browser=bool(name and normalize(name) in BROWSERS),
         domain=activity.domain if activity and fresh else None,
+        support=support,
     )

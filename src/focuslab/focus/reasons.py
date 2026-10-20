@@ -13,6 +13,9 @@ class Reason(StrEnum):
     UNRELATED_APP = "UNRELATED_APP"
     NEUTRAL_APP = "NEUTRAL_APP"
     BROWSER_DETAIL_UNKNOWN = "BROWSER_DETAIL_UNKNOWN"
+    NOTE_TAKING_POSSIBLE = "NOTE_TAKING_POSSIBLE"
+    AI_ASSISTANT_POSSIBLE = "AI_ASSISTANT_POSSIBLE"
+    WORK_TOOL_POSSIBLE = "WORK_TOOL_POSSIBLE"
     ACTIVITY_UNAVAILABLE = "ACTIVITY_UNAVAILABLE"
     ACTIVITY_STALE = "ACTIVITY_STALE"
     USER_ACTIVE = "USER_ACTIVE"
@@ -40,6 +43,13 @@ REASON_TEXT = LocalizedMapping(
         Reason.UNRELATED_APP: "App is not on the allow list",
         Reason.NEUTRAL_APP: "Neutral app (desktop, FocusLab, etc.)",
         Reason.BROWSER_DETAIL_UNKNOWN: "Browser activity details unavailable",
+        Reason.NOTE_TAKING_POSSIBLE: "Not on the allow list, but may be note-taking (unconfirmed)",
+        Reason.AI_ASSISTANT_POSSIBLE: (
+            "Not on the allow list, but may be asking an AI assistant about the task (unconfirmed)"
+        ),
+        Reason.WORK_TOOL_POSSIBLE: (
+            "Not on the allow list, but a work or study tool that may serve the task (unconfirmed)"
+        ),
         Reason.ACTIVITY_UNAVAILABLE: "PC activity unavailable",
         Reason.ACTIVITY_STALE: "PC activity observation is stale",
         Reason.USER_ACTIVE: "Keyboard or mouse input detected",
