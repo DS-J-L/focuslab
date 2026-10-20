@@ -26,6 +26,14 @@ LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
 EXE_NAME = "FocusLab.exe"
 TIMEOUT_S = 15
+CHUNK = 256 * 1024  # small enough for a smooth progress bar and a prompt cancel
+
+Progress = Callable[[int, int], None]  # (done, total) bytes; total 0 when unknown
+Cancelled = Callable[[], bool]
+
+
+class UpdateCancelled(Exception):
+    "The user stopped the update; nothing was installed and no partial files are kept."
 
 
 @dataclass(frozen=True)
@@ -86,8 +94,16 @@ def can_self_update() -> bool:
     return (folder / EXE_NAME).is_file() and (folder / "_internal").is_dir()
 
 
+def _check(cancelled: Cancelled | None) -> None:
+    if cancelled is not None and cancelled():
+        raise UpdateCancelled
+
+
 def download(
-    release: Release, dest_dir: Path, progress: Callable[[int], None] | None = None
+    release: Release,
+    dest_dir: Path,
+    progress: Progress | None = None,
+    cancelled: Cancelled | None = None,
 ) -> Path:
     """Download the release zip into dest_dir and verify it against the published SHA256."""
     if not (release.zip_url and release.sha256_url):
@@ -103,12 +119,13 @@ def download(
             with _open(release.zip_url) as response:
                 total = int(response.headers.get("Content-Length") or 0)
                 done = 0
-                for chunk in iter(lambda: response.read(1 << 20), b""):
+                for chunk in iter(lambda: response.read(CHUNK), b""):
+                    _check(cancelled)
                     tmp.write(chunk)
                     digest.update(chunk)
                     done += len(chunk)
-                    if progress and total:
-                        progress(done * 100 // total)
+                    if progress:
+                        progress(done, total)
         except BaseException:
             tmp.close()
             tmp_path.unlink(missing_ok=True)
@@ -128,19 +145,37 @@ def _long(path: Path) -> Path:
     return Path("\\\\?\\" + str(path.resolve()))
 
 
-def stage(zip_path: Path, target: Path) -> Path:
+def stage(
+    zip_path: Path,
+    target: Path,
+    progress: Progress | None = None,
+    cancelled: Cancelled | None = None,
+) -> Path:
     """Unpack the zip's FocusLab folder next to the install folder (same volume, so the
     later swap is two renames). Returns the unpacked folder that holds FocusLab.exe."""
     staged = target.with_name(f".{target.name}-update")
     shutil.rmtree(_long(staged), ignore_errors=True)
     with tempfile.TemporaryDirectory(dir=_long(target.parent)) as unpack:
         with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(unpack)  # extractall drops absolute and '..' member paths
+            members = archive.infolist()
+            total = sum(m.file_size for m in members)
+            done = 0
+            for member in members:
+                _check(cancelled)
+                archive.extract(member, unpack)  # drops absolute and '..' member paths
+                done += member.file_size
+                if progress:
+                    progress(done, total)
         roots = [p.parent for p in Path(unpack).rglob(EXE_NAME)]
         if len(roots) != 1 or not (roots[0] / "_internal").is_dir():
             raise ValueError("the package does not contain one FocusLab folder")
         roots[0].replace(_long(staged))
     return staged
+
+
+def discard(staged: Path) -> None:
+    "Remove an unpacked update that will not be installed."
+    shutil.rmtree(_long(staged), ignore_errors=True)
 
 
 def _ps(text: str | Path) -> str:

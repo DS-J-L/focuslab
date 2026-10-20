@@ -36,7 +36,6 @@ from focuslab.config import (
     MODE_PROFILES,
     RULE_VERSION,
     RuleConfig,
-    data_dir,
     face_model_path,
 )
 from focuslab.domain.activity import Category
@@ -58,6 +57,7 @@ from focuslab.ui.consent import (
 )
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import CATEGORY_LABELS, style_form
+from focuslab.ui.update_dialog import UpdateDialog
 
 COLLECTED = (
     "<b>Saved</b>: session goals, modes and times; per-second estimated states and "
@@ -72,8 +72,6 @@ COLLECTED = (
 class _Signals(QObject):
     modelFetched = Signal(str)
     updateChecked = Signal(object)  # Release, None (nothing published yet) or an exception
-    updateProgress = Signal(int)
-    updateStaged = Signal(object)  # unpacked folder or an exception
 
 
 def camera_names() -> list[str]:
@@ -95,14 +93,11 @@ class SettingsPage(QWidget):
         self.ctx = ctx
         self._release: updater.Release | None = None
         self._staged: Path | None = None  # unpacked update waiting for a restart
+        self._update_dialog: UpdateDialog | None = None
         self._quiet_check = False
         self._signals = _Signals()
         self._signals.modelFetched.connect(self._model_fetched)
         self._signals.updateChecked.connect(self._update_checked)
-        self._signals.updateProgress.connect(
-            lambda pct: self.update_state.setText(tr("Downloading… {p0}%", p0=pct))
-        )
-        self._signals.updateStaged.connect(self._update_staged)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -512,7 +507,7 @@ class SettingsPage(QWidget):
         self.update_check = QPushButton(tr("Check now"))
         self.update_check.clicked.connect(lambda: self.check_updates())
         self.update_button = QPushButton(tr("Update"), objectName="Primary")
-        self.update_button.clicked.connect(self._start_update)
+        self.update_button.clicked.connect(self.start_update)
         self.update_button.setVisible(False)
         form.addRow(tr("Check"), _row(self.update_auto, self.update_check, self.update_button))
         self.update_state = QLabel(wordWrap=True)
@@ -800,9 +795,10 @@ class SettingsPage(QWidget):
         else:
             self.update_state.setText(tr("You have the latest version."))
 
-    def _start_update(self) -> None:
+    def start_update(self) -> None:
+        "One click: download, verify and unpack with a progress window, then restart."
         release = self._release
-        if release is None:
+        if release is None or self._update_dialog is not None:
             return
         if self._staged is not None and self._staged.is_dir():  # restart declined earlier
             self.restartForUpdate.emit(self._staged)
@@ -811,47 +807,28 @@ class SettingsPage(QWidget):
             # Source checkouts (and releases without a Windows package) update by hand.
             QDesktopServices.openUrl(QUrl(release.page_url))
             return
-        answer = QMessageBox.question(
-            self,
-            tr("Update FocusLab"),
-            tr(
-                "Download FocusLab {p0} from GitHub and verify its SHA256?\n"
-                "FocusLab restarts to finish the update; your records and settings are kept.",
-                p0=release.version,
-            ),
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
         self.update_button.setEnabled(False)
         self.update_check.setEnabled(False)
         self.update_state.setText(tr("Downloading…"))
+        dialog = UpdateDialog(release, self.window())
+        dialog.ready.connect(self._update_ready)
+        dialog.failed.connect(
+            lambda exc: self.update_state.setText(tr("Could not update: {p0}", p0=exc))
+        )
+        dialog.cancelled.connect(lambda: self.update_state.setText(tr("Update cancelled.")))
+        dialog.finished.connect(self._update_dialog_closed)
+        self._update_dialog = dialog
+        dialog.start()
 
-        def work() -> None:
-            try:
-                downloads = data_dir() / "updates"
-                package = updater.download(release, downloads, self._signals.updateProgress.emit)
-                try:
-                    staged = updater.stage(package, updater.install_dir())
-                finally:
-                    package.unlink(missing_ok=True)
-                self._signals.updateStaged.emit(staged)
-            except Exception as exc:  # network/checksum/disk errors are shown to the user
-                self._signals.updateStaged.emit(exc)
-
-        threading.Thread(target=work, daemon=True).start()
-
-    def _update_staged(self, result: object) -> None:
+    def _update_dialog_closed(self) -> None:
+        self._update_dialog = None
         self.update_button.setEnabled(True)
         self.update_check.setEnabled(True)
-        if isinstance(result, Exception):
-            self.update_state.setText("")
-            QMessageBox.warning(
-                self, tr("Update FocusLab"), tr("Could not update: {p0}", p0=result)
-            )
-            return
-        self._staged = result
+
+    def _update_ready(self, staged: Path) -> None:
+        self._staged = staged
         self.update_state.setText(tr("Update ready. FocusLab restarts to finish it."))
-        self.restartForUpdate.emit(result)
+        self.restartForUpdate.emit(staged)
 
     def _calibrate(self) -> None:
         dialog = CalibrationDialog(self.ctx.camera_index, self)

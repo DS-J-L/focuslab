@@ -467,8 +467,6 @@
   "FocusLab {p0} is available.": "FocusLab {p0}을(를) 사용할 수 있습니다.",
   "You have the latest version.": "최신 버전입니다.",
   "Update FocusLab": "FocusLab 업데이트",
-  "Download FocusLab {p0} from GitHub and verify its SHA256?\nFocusLab restarts to finish the update; your records and settings are kept.": "GitHub에서 FocusLab {p0}을(를) 받아 SHA256을 확인할까요?\n업데이트를 마치려면 FocusLab이 다시 시작되며, 기록과 설정은 유지됩니다.",
-  "Downloading… {p0}%": "받는 중… {p0}%",
   "Could not update: {p0}": "업데이트하지 못했습니다: {p0}",
   "Update ready. FocusLab restarts to finish it.": "업데이트 준비 완료. FocusLab을 다시 시작해 마무리합니다.",
   "Update to v{p0}": "v{p0}(으)로 업데이트",
@@ -484,5 +482,16 @@
   "Show overlay": "오버레이 표시",
   "Show the session time on top of other programs.": "다른 프로그램 위에 세션 시간을 표시합니다.",
   "Show the overlay when a session starts": "세션 시작 시 오버레이 표시",
-  "Session overlay": "세션 오버레이"
+  "Session overlay": "세션 오버레이",
+  "FocusLab {p0} → {p1}": "FocusLab {p0} → {p1}",
+  "FocusLab restarts to finish the update; your records and settings are kept.": "업데이트를 마치려면 FocusLab이 다시 시작되며, 기록과 설정은 유지됩니다.",
+  "{p0} MB/s": "{p0} MB/s",
+  "{p0} / {p1} MB · {p2}": "{p0} / {p1} MB · {p2}",
+  "{p0} MB · {p1}": "{p0} MB · {p1}",
+  "Preparing the update…": "업데이트 준비 중…",
+  "Unpacking files": "파일 압축 푸는 중",
+  "Nothing was installed. You can try again in Settings.": "아무것도 설치되지 않았습니다. 설정에서 다시 시도할 수 있습니다.",
+  "Close": "닫기",
+  "Cancelling…": "취소하는 중…",
+  "Update cancelled.": "업데이트를 취소했습니다."
 }

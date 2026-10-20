@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         return_row.addWidget(self.session_return)
         side.addLayout(return_row)
         self.update_button = QPushButton(objectName="Primary")
-        self.update_button.clicked.connect(lambda: self.go(SETTINGS))
+        self.update_button.clicked.connect(self._update_now)
         self.update_button.setVisible(False)
         update_row = QHBoxLayout()
         update_row.setContentsMargins(12, 0, 12, 8)
@@ -381,6 +381,11 @@ class MainWindow(QMainWindow):
     def _show_update(self, version: str) -> None:
         self.update_button.setText(tr("Update to v{p0}", p0=version))
         self.update_button.setVisible(True)
+
+    def _update_now(self) -> None:
+        "Sidebar 'Update to vX': open Settings > Updates and start right away."
+        self.go(SETTINGS)
+        self.settings.start_update()
 
     def _restart_for_update(self, staged: Path) -> None:
         """Quit, then let the helper swap the unpacked folder in and start the new exe."""
