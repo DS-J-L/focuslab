@@ -30,7 +30,7 @@ uv build
 
 For changes that users expect in the desktop app or the browser extension, also follow
 [user-visible delivery verification](docs/merge-policy.md#user-visible-delivery-verification).
-A green PR only updates the source. It does not replace an already installed \`FocusLab.exe\`
+A green PR only updates the source. It does not replace an already installed `FocusLab.exe`
 or reload an unpacked Chrome/Edge extension. Identify when an independently approved
 versioned release, a fresh source run, or an extension reload is needed.
 

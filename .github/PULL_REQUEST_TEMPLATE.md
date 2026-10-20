@@ -25,7 +25,7 @@
 - [ ] Packaged EXE impact: **none / rebuild required / new versioned release requested separately**.
 - [ ] Browser extension impact: **none / extension source changed; user reload required**.
 - [ ] Consent / migration / i18n impact and opt-in procedure, if applicable.
-- [ ] User instructions distinguish \`git pull\` from updating a downloaded \`FocusLab.exe\`.
+- [ ] User instructions distinguish `git pull` from updating a downloaded `FocusLab.exe`.
 - [ ] A GitHub Release will **not** be created as part of this PR unless explicitly requested.
 
 ## Privacy and performance impact

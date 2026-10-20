@@ -74,17 +74,17 @@ This creates `dist\FocusLab\FocusLab.exe` (no console window, about 340 MB folde
 
 ### Source changes versus installed-app updates
 
-A GitHub PR merged into \`main\` updates the source tree only. **It does not automatically update
-a downloaded or already-running \`FocusLab.exe\` or reload Chrome/Edge extensions.** If
-\`git pull\` prints "Already up to date", compare \`git rev-parse HEAD\` to the
-latest \`main\` commit; to run the new source, use \`uv sync --locked\` and
-\`uv run focuslab\`. The previously downloaded EXE stays unchanged.
+A GitHub PR merged into `main` updates the source tree only. **It does not automatically update
+a downloaded or already-running `FocusLab.exe` or reload Chrome/Edge extensions.** If
+`git pull` prints "Already up to date", compare `git rev-parse HEAD` to the
+latest `main` commit; to run the new source, use `uv sync --locked` and
+`uv run focuslab`. The previously downloaded EXE stays unchanged.
 
 GitHub Releases are deliberately versioned separately; **the latest release may predate the
 latest main commit**. To update the packaged app, use a newer published release after its
-tagged build succeeds. Changes in \`browser_extension/\` require refreshing the installed
-extension folder and selecting **Reload** at \`chrome://extensions\` or
-\`edge://extensions\`. New optional privacy features may also need additional consent in
+tagged build succeeds. Changes in `browser_extension/` require refreshing the installed
+extension folder and selecting **Reload** at `chrome://extensions` or
+`edge://extensions`. New optional privacy features may also need additional consent in
 Settings. See [PR and delivery policy](docs/merge-policy.md#user-visible-delivery-verification).
 
 ### Updates
