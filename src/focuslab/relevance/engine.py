@@ -4,8 +4,7 @@ Missing input (no goal, no activity, locked screen, idle, no permitted title) is
 never POSSIBLY_UNRELATED.
 """
 
-from focuslab.activity.windows_tracker import normalize
-from focuslab.config import BROWSERS
+from focuslab.relevance import rules
 from focuslab.relevance.models import (
     RelevanceInput,
     RelevanceReason,
@@ -13,7 +12,7 @@ from focuslab.relevance.models import (
     uncertain,
 )
 
-RELEVANCE_VERSION = "relevance-0.1"
+RELEVANCE_VERSION = "relevance-0.2"
 
 
 class RelevanceEngine:
@@ -26,9 +25,7 @@ class RelevanceEngine:
             return uncertain(RelevanceReason.NO_ACTIVITY)
         if data.inactive:
             return uncertain(RelevanceReason.INACTIVE)
-        if not data.page_title and (data.domain or normalize(data.process_name) in BROWSERS):
-            return uncertain(RelevanceReason.TITLE_UNAVAILABLE)
-        return uncertain(RelevanceReason.NO_EVIDENCE)
+        return rules.judge(data)
 
     def forget_titles(self) -> None:
         """Drop anything derived from page titles (consent withdrawn)."""
