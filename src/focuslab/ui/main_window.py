@@ -3,7 +3,7 @@
 import sys
 from dataclasses import replace
 
-from PySide6.QtCore import QLockFile, Qt, QTimer
+from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
