@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from focuslab.browser import EXTENSION_ORIGIN, HOST_NAME
+from focuslab.browser import EXTENSION_ORIGINS, HOST_NAME
 from focuslab.config import data_dir
 
 REGISTRY_KEYS = {
@@ -35,7 +35,7 @@ def manifest(executable: Path) -> dict:
         "description": "FocusLab activity bridge (receives the active tab hostname only)",
         "path": str(executable),
         "type": "stdio",
-        "allowed_origins": [EXTENSION_ORIGIN],
+        "allowed_origins": list(EXTENSION_ORIGINS),
     }
 
 

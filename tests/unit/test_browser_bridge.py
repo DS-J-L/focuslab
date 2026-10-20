@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from focuslab.browser import EXTENSION_ID, EXTENSION_ORIGIN
+from focuslab.browser import EXTENSION_ID, EXTENSION_ORIGINS
 from focuslab.browser.protocol import (
     MAX_MESSAGE_BYTES,
     BrowserState,
@@ -133,7 +133,7 @@ def test_install_registers_both_browsers_and_binds_the_data_folder(tmp_path):
     try:
         path = install.install(tmp_path, keys)
         manifest = json.loads(path.read_text("utf-8"))
-        assert manifest["allowed_origins"] == [EXTENSION_ORIGIN]
+        assert manifest["allowed_origins"] == list(EXTENSION_ORIGINS)
         assert manifest["type"] == "stdio" and Path(manifest["path"]).is_file()
         assert install.registered(keys) == {"chrome": True, "edge": True}
         assert install.bound_data_dir(keys) == tmp_path
@@ -149,3 +149,25 @@ def test_install_registers_both_browsers_and_binds_the_data_folder(tmp_path):
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, sub)
             except OSError:
                 pass
+
+
+def test_stage_extension_copies_only_what_the_browser_loads(tmp_path):
+    from focuslab.browser import extension
+
+    (tmp_path / extension.STAGED_FOLDER).mkdir()
+    (tmp_path / extension.STAGED_FOLDER / "stale.js").write_text("old")
+    folder = extension.stage_extension(tmp_path)
+    names = {p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()}
+    assert {"manifest.json", "background.js", "logic.js", "icons/icon128.png"} <= names
+    assert not any(n.startswith("test/") or n in ("package.json", "stale.js") for n in names)
+    manifest = json.loads((folder / "manifest.json").read_text("utf-8"))
+    assert all((folder / icon).is_file() for icon in manifest["icons"].values())
+
+
+def test_store_url_only_once_a_listing_exists(monkeypatch):
+    from focuslab.browser import extension
+
+    monkeypatch.setitem(extension.STORE_IDS, "chrome", "")
+    assert extension.store_url("chrome") is None
+    monkeypatch.setitem(extension.STORE_IDS, "chrome", "abc")
+    assert extension.store_url("chrome") == "https://chromewebstore.google.com/detail/abc"

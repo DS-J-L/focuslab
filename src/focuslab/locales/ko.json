@@ -342,8 +342,6 @@
   "Install connection": "연결 설치",
   "Remove connection": "연결 제거",
   "Desktop connection": "본체 연결",
-  "Open extension folder": "확장 프로그램 폴더 열기",
-  "Open chrome://extensions or edge://extensions, enable Developer mode, choose 'Load unpacked', and select this folder. Program recording works even without the extension.": "chrome://extensions 또는 edge://extensions → 개발자 모드 → '압축해제된 확장 프로그램 로드'에서 이 폴더를 선택하세요. 확장이 없어도 프로그램 기록은 정상 동작합니다.",
   "Extension": "확장 프로그램",
   " · Last received {p0:%m/%d %H:%M:%S}": " · 마지막 수신 {p0:%m/%d %H:%M:%S}",
   " · No reports received yet": " · 아직 수신 없음",
@@ -449,5 +447,10 @@
   "Restart FocusLab to apply the selected language. Your session continues.": "선택한 언어를 적용하려면 FocusLab을 다시 실행하세요. 현재 세션은 계속됩니다.",
   "Uses your system language on first launch. Changes apply after restarting.": "첫 실행 시 시스템 언어를 사용합니다. 변경은 앱을 다시 실행하면 적용됩니다.",
   "Language": "언어",
-  "Pause": "일시정지"
+  "Pause": "일시정지",
+  "Install in Chrome": "Chrome에 설치",
+  "Install in Edge": "Edge에 설치",
+  "One click asks for consent if needed, installs the desktop connection, and opens the browser with the extension folder and short steps. Program recording works even without the extension.": "한 번 누르면 필요한 경우 동의를 받고, 데스크톱 연결을 설치한 뒤 브라우저와 확장 폴더를 열고 짧은 안내를 보여 줍니다. 확장이 없어도 프로그램 기록은 정상 동작합니다.",
+  "Install the extension": "확장 프로그램 설치",
+  "A browser window and the extension folder are now open.\n\n1. In the browser's address bar press Ctrl+V, then Enter ({p0} is already copied).\n2. Turn on Developer mode on that page.\n3. Drag the selected 'browser-extension' folder from Explorer onto the page.\n4. When 'FocusLab Activity Bridge' appears, you are done. 'Last received' here updates once you browse.": "브라우저 창과 확장 폴더를 열었습니다.\n\n1. 브라우저 주소창에서 Ctrl+V를 누르고 Enter를 누르세요 ({p0} 주소가 이미 복사돼 있습니다).\n2. 그 페이지에서 '개발자 모드'를 켜세요.\n3. 탐색기에 선택된 'browser-extension' 폴더를 그 페이지로 끌어다 놓으세요.\n4. 'FocusLab Activity Bridge'가 보이면 끝입니다. 웹을 사용하면 이 화면의 '마지막 수신' 시간이 갱신됩니다."
 }
