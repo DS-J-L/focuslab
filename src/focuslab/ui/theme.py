@@ -87,9 +87,15 @@ CATEGORY_COLORS = {
 
 ACCENT = "#3B5BDB"
 
+# A light-only design: run_app pins Qt to the light color scheme so a dark OS theme cannot
+# give native surfaces (dialogs, menus, popups) a dark background under this dark text.
 STYLESHEET = f"""
 QWidget {{ color: #1F2430; }}
-QMainWindow, QStackedWidget > QWidget, #PageContent {{ background: #F5F6F8; }}
+QMainWindow, QStackedWidget > QWidget, #PageContent, QDialog, QMessageBox {{
+    background: #F5F6F8; }}
+QComboBox QAbstractItemView {{ background: white; selection-background-color: #EEF1F6;
+                               selection-color: #1F2430; }}
+QToolTip {{ background: white; color: #1F2430; border: 1px solid #D5D9E0; }}
 #Sidebar {{ background: #1F2430; border: none; }}
 #Sidebar QListWidget {{ background: transparent; border: none; color: #C9CED8; font-size: 14px;
                         outline: 0; }}

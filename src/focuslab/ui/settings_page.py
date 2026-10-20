@@ -132,7 +132,7 @@ class SettingsPage(QWidget):
         self.language_notice.setText(
             tr("Restart FocusLab to apply the selected language. Your session continues.")
             if self.ctx.language != get_language()
-            else tr("Uses your system language on first launch. Changes apply after restarting.")
+            else tr("Changes apply after restarting.")
         )
 
     def _privacy_box(self) -> QGroupBox:

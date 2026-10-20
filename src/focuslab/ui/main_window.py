@@ -3,7 +3,7 @@
 import sys
 from dataclasses import replace
 
-from PySide6.QtCore import QLockFile, QTimer
+from PySide6.QtCore import QLockFile, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -304,6 +304,7 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("FocusLab")
     app.setQuitOnLastWindowClosed(False)
+    app.styleHints().setColorScheme(Qt.ColorScheme.Light)  # the stylesheet is light-only
     app.setStyleSheet(STYLESHEET)
     if sys.platform == "win32":
         app.setFont(QFont("Malgun Gothic", 10))
