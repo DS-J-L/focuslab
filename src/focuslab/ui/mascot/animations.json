@@ -1,0 +1,114 @@
+{
+  "_comment": "Parrot behaviors. Times are 0..1 of the duration; track values are absolute pose values (see Pose). 'waves' add a sine (amplitude, Hz) faded in and out. 'mirror' channels flip sign when the behavior is aimed at the left neighbour. 'random': false behaviors are only played by the director on purpose (moods, flight).",
+  "behaviors": {
+    "doze": {
+      "duration": 7.0, "cooldown": 25, "audience": true,
+      "weight": {"red": 4, "blue": 1, "yellow": 1},
+      "tracks": {
+        "eye_open": [[0, 1], [0.12, 0.45], [0.2, 0.1], [0.88, 0.1], [1, 1]],
+        "head_tilt": [[0, 0], [0.2, -9], [0.55, -12], [0.88, -9], [1, 0]],
+        "squash": [[0, 1], [0.2, 0.95], [0.88, 0.95], [1, 1]],
+        "y": [[0, 0], [0.2, 1.5], [0.88, 1.5], [1, 0]]
+      },
+      "emotes": [[0.22, "zzz"], [0.86, null]]
+    },
+    "sing": {
+      "duration": 4.5, "cooldown": 15, "audience": true,
+      "weight": {"red": 1, "blue": 1, "yellow": 5},
+      "tracks": {
+        "eyes": [[0, "happy"], [1, "happy"]],
+        "head_tilt": [[0, 0], [0.25, 8], [0.5, -8], [0.75, 8], [1, 0]],
+        "look_y": [[0, 0], [0.1, -0.6], [0.9, -0.6], [1, 0]]
+      },
+      "waves": {"beak_open": [0.45, 2.4, 0.4], "crest": [8, 1.2, 0]},
+      "emotes": [[0.05, "note"], [0.95, null]]
+    },
+    "head_turn": {
+      "duration": 3.0, "cooldown": 8,
+      "weight": {"red": 2, "blue": 2, "yellow": 2},
+      "tracks": {
+        "turn": [[0, 0], [0.2, -0.9], [0.45, -0.9], [0.65, 0.9], [0.85, 0.9], [1, 0]],
+        "look_x": [[0, 0], [0.2, -1], [0.45, -1], [0.65, 1], [0.85, 1], [1, 0]],
+        "head_tilt": [[0, 0], [0.3, -4], [0.75, 4], [1, 0]]
+      }
+    },
+    "stretch": {
+      "duration": 2.6, "cooldown": 30,
+      "weight": {"red": 1, "blue": 2, "yellow": 2},
+      "tracks": {
+        "wing_l": [[0, 0], [0.3, 100], [0.7, 100], [1, 0]],
+        "wing_r": [[0, 0], [0.3, 100], [0.7, 100], [1, 0]],
+        "squash": [[0, 1], [0.3, 1.1], [0.7, 1.1], [1, 1]],
+        "eye_open": [[0, 1], [0.3, 0.2], [0.7, 0.2], [1, 1]],
+        "puff": [[0, 0], [0.4, 0.5], [0.7, 0.5], [1, 0]]
+      },
+      "waves": {"wing_l": [10, 3, 0], "wing_r": [10, 3, 0]}
+    },
+    "yawn": {
+      "duration": 2.4, "cooldown": 40,
+      "weight": {"red": 2, "blue": 1, "yellow": 1},
+      "tracks": {
+        "beak_open": [[0, 0], [0.3, 1], [0.7, 1], [1, 0]],
+        "eye_open": [[0, 1], [0.25, 0.1], [0.75, 0.1], [1, 1]],
+        "squash": [[0, 1], [0.35, 1.06], [0.7, 1.06], [1, 1]],
+        "head_tilt": [[0, 0], [0.4, 6], [1, 0]]
+      }
+    },
+    "preen": {
+      "duration": 3.4, "cooldown": 20, "mirror": ["turn", "head_tilt", "look_x"],
+      "weight": {"red": 1, "blue": 4, "yellow": 1},
+      "tracks": {
+        "turn": [[0, 0], [0.2, 1], [0.85, 1], [1, 0]],
+        "head_tilt": [[0, 0], [0.2, 18], [0.85, 18], [1, 0]],
+        "look_x": [[0, 0], [0.2, 1], [0.85, 1], [1, 0]],
+        "look_y": [[0, 0], [0.2, 1], [0.85, 1], [1, 0]],
+        "wing_r": [[0, 0], [0.2, 25], [0.85, 25], [1, 0]]
+      },
+      "waves": {"head_tilt": [5, 4, 0]},
+      "emotes": [[0.3, "sparkle"], [0.8, null]]
+    },
+    "stare": {
+      "duration": 5.0, "cooldown": 20,
+      "weight": {"red": 1, "blue": 4, "yellow": 1},
+      "tracks": {
+        "eye_open": [[0, 1], [0.1, 0.6], [0.9, 0.6], [1, 1]],
+        "look_y": [[0, 0], [0.1, -0.5], [0.9, -0.5], [1, 0]],
+        "look_x": [[0, 0], [0.1, 0.4], [0.9, 0.4], [1, 0]]
+      },
+      "emotes": [[0.15, "dots"], [0.85, null]]
+    },
+    "dance": {
+      "duration": 3.6, "cooldown": 25, "audience": true,
+      "weight": {"red": 1, "blue": 0, "yellow": 4},
+      "tracks": {"eyes": [[0, "happy"], [1, "happy"]]},
+      "waves": {"tilt": [10, 1.6, 0], "y": [-3, 3.2, 0], "wing_l": [25, 1.6, 25], "wing_r": [25, 1.6, 25]},
+      "emotes": [[0.1, "note"], [0.9, null]]
+    },
+    "startle": {
+      "duration": 1.6, "cooldown": 30, "audience": true,
+      "weight": {"red": 3, "blue": 1, "yellow": 1},
+      "tracks": {
+        "y": [[0, 0], [0.12, -10], [0.3, 0], [1, 0]],
+        "eyes": [[0, "wide"], [1, "wide"]],
+        "wing_l": [[0, 0], [0.12, 70], [0.4, 20], [1, 0]],
+        "wing_r": [[0, 0], [0.12, 70], [0.4, 20], [1, 0]],
+        "puff": [[0, 0], [0.12, 0.8], [1, 0]],
+        "squash": [[0, 1], [0.12, 1.1], [0.3, 0.9], [0.45, 1], [1, 1]]
+      },
+      "emotes": [[0.05, "alert"], [0.8, null]]
+    },
+    "lean": {
+      "duration": 4.0, "cooldown": 45, "pair": true, "mirror": ["tilt", "x", "turn", "head_tilt"],
+      "weight": {"red": 2, "blue": 2, "yellow": 2},
+      "tracks": {
+        "tilt": [[0, 0], [0.2, 11], [0.8, 11], [1, 0]],
+        "x": [[0, 0], [0.2, 5], [0.8, 5], [1, 0]],
+        "turn": [[0, 0], [0.2, 0.6], [0.8, 0.6], [1, 0]],
+        "head_tilt": [[0, 0], [0.2, 8], [0.8, 8], [1, 0]],
+        "eyes": [[0, "happy"], [1, "happy"]],
+        "blush": [[0, 0], [0.2, 1], [0.8, 1], [1, 0]]
+      },
+      "emotes": [[0.2, "heart"], [0.8, null]]
+    }
+  }
+}

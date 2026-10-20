@@ -9,6 +9,7 @@ from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.services.session_service import Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.main_window import MainWindow
+from focuslab.ui.mascot.director import MOTION
 from focuslab.ui.overlay import MARGIN, POS_KEY, long_text, session_seconds
 
 
@@ -203,3 +204,14 @@ def test_the_three_parrots_are_drawn_in_their_colours(window):
     seats = (("#E8483F", (45, 112)), ("#3E72E6", (117, 184)), ("#F8C935", (189, 256)))
     for colour, x_range in seats:
         assert count(colour, x_range) > 100, colour
+
+
+def test_parrot_movement_setting_reaches_the_overlay(window):
+    combo = window.settings.mascot_motion
+    assert combo.currentData() == "normal"
+    assert window.overlay.perch.director.motion == MOTION["normal"]
+    combo.setCurrentIndex(combo.findData("minimal"))
+    assert window.ctx.mascot_motion == "minimal"
+    assert window.overlay.perch.director.motion == MOTION["minimal"]
+    combo.setCurrentIndex(combo.findData("lively"))
+    assert window.overlay.perch.director.motion == MOTION["lively"]

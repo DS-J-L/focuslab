@@ -85,10 +85,18 @@ def camera_names() -> list[str]:
         return []
 
 
+MOTION_LABELS = {  # message IDs, translated when the combo box is built
+    "minimal": "Minimal: breathing and blinking",
+    "normal": "Normal: dozing, singing, playing",
+    "lively": "Lively: more often, more together",
+}
+
+
 class SettingsPage(QWidget):
     dataChanged = Signal()
     updateAvailable = Signal(str)  # newer version number
     restartForUpdate = Signal(object)  # unpacked folder to swap in after quitting
+    overlayChanged = Signal()  # the parrots' settings changed
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -141,7 +149,19 @@ class SettingsPage(QWidget):
             lambda on: self.ctx.set_flag("ui.overlay_on_start", on)
         )
         form.addRow(tr("Session overlay"), self.overlay_on_start)
+        self.mascot_motion = QComboBox()
+        for level, label in MOTION_LABELS.items():
+            self.mascot_motion.addItem(tr(label), level)
+        self.mascot_motion.setCurrentIndex(
+            max(0, self.mascot_motion.findData(self.ctx.mascot_motion))
+        )
+        self.mascot_motion.currentIndexChanged.connect(self._motion_changed)
+        form.addRow(tr("Parrot movement"), self.mascot_motion)
         return box
+
+    def _motion_changed(self) -> None:
+        self.ctx.set_setting("ui.mascot_motion", self.mascot_motion.currentData())
+        self.overlayChanged.emit()
 
     def _language_changed(self) -> None:
         self.ctx.set_language_preference(self.language_combo.currentData())

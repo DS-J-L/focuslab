@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         self.activity.dataChanged.connect(self.settings.refresh)
         self.settings.updateAvailable.connect(self._show_update)
         self.settings.restartForUpdate.connect(self._restart_for_update)
+        self.settings.overlayChanged.connect(self.overlay.apply_settings)
         if ctx.flag("update.auto_check"):  # opt-in; off by default (local-only)
             QTimer.singleShot(
                 UPDATE_CHECK_DELAY_MS, lambda: self.settings.check_updates(quiet=True)

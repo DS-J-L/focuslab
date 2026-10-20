@@ -259,6 +259,10 @@ class SessionOverlay(QWidget):
         self.mini.setToolTip(tr("Click to expand"))
         self.mini.hide()
         box.addWidget(self.mini)
+        self.apply_settings()
+
+    def apply_settings(self) -> None:
+        self.perch.director.set_motion(self.ctx.mascot_motion)
 
     # showing ------------------------------------------------------------------------
     def start(self, snap: LiveSnapshot) -> None:
