@@ -22,6 +22,7 @@ from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
+from focuslab.ui.activity_page import ActivityPage
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
@@ -32,7 +33,8 @@ from focuslab.ui.settings_page import SettingsPage
 from focuslab.ui.theme import ACCENT, SELF_REPORT_LABELS, STYLESHEET
 from focuslab.ui.tray import Tray, make_icon
 
-HOME, SESSION, REPORT, SETTINGS = range(4)
+HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)
+ACTIVITY_REFRESH_MS = 30_000
 
 
 class MainWindow(QMainWindow):
@@ -56,7 +58,7 @@ class MainWindow(QMainWindow):
         tagline = QLabel("Know your workflow,\nnot just your screen time.", objectName="BrandSub")
         side.addWidget(tagline)
         self.nav = QListWidget()
-        self.nav.addItems(["홈", "세션", "리포트", "설정"])
+        self.nav.addItems(["홈", "활동", "세션", "리포트", "설정"])
         side.addWidget(self.nav, 1)
         footer = QLabel(f"v{__version__} · 로컬 전용" + ("\n데모 센서 모드" if ctx.demo else ""),
                         objectName="BrandSub")
@@ -65,10 +67,11 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.home = HomePage(ctx)
+        self.activity = ActivityPage(ctx)
         self.session = SessionPage(ctx)
         self.report = ReportPage(ctx)
         self.settings = SettingsPage(ctx)
-        for page in (self.home, self.session, self.report, self.settings):
+        for page in (self.home, self.activity, self.session, self.report, self.settings):
             self.stack.addWidget(page)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(central)
@@ -81,6 +84,7 @@ class MainWindow(QMainWindow):
         self.session.cameraStopRequested.connect(self.stop_camera)
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
+        self.activity.dataChanged.connect(self.settings.refresh)
 
         self.tray = Tray(self)
         if Tray.isSystemTrayAvailable():
@@ -91,6 +95,12 @@ class MainWindow(QMainWindow):
         self._timer = QTimer(self, interval=500)
         self._timer.timeout.connect(self.poll)
         self._timer.start()
+        # The activity page follows the recorder while it is open (cheap: one day of spans).
+        self._activity_timer = QTimer(self, interval=ACTIVITY_REFRESH_MS)
+        self._activity_timer.timeout.connect(
+            lambda: self.activity.refresh() if self.stack.currentIndex() == ACTIVITY else None
+        )
+        self._activity_timer.start()
         self.nav.setCurrentRow(HOME)
         self.home.refresh()
 
@@ -99,6 +109,8 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         if index == HOME:
             self.home.refresh()
+        elif index == ACTIVITY:
+            self.activity.refresh()
         elif index == REPORT:
             self.report.refresh()
         elif index == SETTINGS:
@@ -115,6 +127,8 @@ class MainWindow(QMainWindow):
     def _data_changed(self) -> None:
         self.home.refresh()
         self.report.refresh()
+        if self.stack.currentIndex() == ACTIVITY:
+            self.activity.refresh()
 
     def show_normal(self) -> None:
         self.showNormal()
@@ -230,6 +244,7 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         self._timer.stop()
+        self._activity_timer.stop()
         self.ctx.stop_recording()
         self.ctx.service.shutdown()
         self.tray.hide()
