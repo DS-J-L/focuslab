@@ -1,0 +1,59 @@
+name: Release
+# Pushing a version tag (v0.2.0) builds FocusLab.exe on Windows and publishes
+# FocusLab-<version>-win64.zip plus its .sha256 as a GitHub Release. The app's opt-in
+# update check (focuslab.updater) reads the latest release and verifies that checksum.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows-exe:
+    name: Build and publish FocusLab.exe
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: python -m pip install uv==0.9.5
+      - name: Install locked build environment
+        run: uv sync --locked --group build
+      - name: Tag must match the app version
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $app = uv run python -c "import focuslab; print(focuslab.__version__)"
+          $project = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ($version -ne $app -or $version -ne $project) {
+            echo "::error::Tag $env:TAG does not match focuslab.__version__ ($app) and pyproject.toml ($project)."
+            exit 1
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+      - name: Test (GUI tests run off-screen)
+        run: uv run pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Build FocusLab.exe
+        run: uv run python scripts/build_exe.py
+      - name: Package the FocusLab folder
+        shell: pwsh
+        run: |
+          $name = "FocusLab-$env:VERSION-win64.zip"
+          Compress-Archive -Path dist/FocusLab -DestinationPath $name
+          $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name" | Out-File -Encoding ascii "$name.sha256"
+          "ASSET=$name" >> $env:GITHUB_ENV
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create $env:TAG $env:ASSET "$env:ASSET.sha256"
+          --verify-tag --generate-notes --title "FocusLab $env:VERSION"
