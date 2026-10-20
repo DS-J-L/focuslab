@@ -2,7 +2,7 @@
 
 Apache-2.0 applies to original FocusLab code; it does not relicense dependencies, models or trademarks.
 Exact versions are pinned in `uv.lock`. This table records the licenses as declared by each project
-and must be re-verified before shipping binaries (PR-13).
+and must be re-verified before each binary release.
 
 ## Runtime dependencies (declared in pyproject.toml)
 

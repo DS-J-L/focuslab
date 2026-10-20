@@ -69,7 +69,7 @@ Build a local desktop app that combines face/head-pose/presence and Windows fore
 
 ### Browser-context boundary
 
-The desktop app alone identifies a browser process, not whether the current page is documentation or a social site. With an optional, explicitly enabled extension, send only the active tab's hostname and compare it with allowed sites. Do not collect complete browsing history, URL paths, or search terms.
+The desktop app alone identifies a browser process, not whether the current page is documentation or a social site. With an optional, explicitly enabled extension, send only the active tab's hostname (plus, with separate consent, a sanitized page title) and compare it with allowed sites. Do not collect complete browsing history, URL paths, or search terms.
 
 The initial browser work package PR-09 is superseded by PR-C in section 18, which also supports Edge. Without it, explain the limit of process-level browser observations.
 
@@ -102,11 +102,11 @@ A distributable Windows package, settings migration, robustness tests, measured 
 | PC events | pywin32, psutil, ctypes | Foreground process and idle/system events |
 | Storage | Standard-library sqlite3, WAL | No server, user-controlled files |
 | Quality | pytest, pytest-qt, ruff; gradual type checking | Domain, rules, integration, GUI validation |
-| Distribution | First evaluate pyside6-deploy / Nuitka; alternative PyInstaller | Verify packaging on actual Windows environments |
+| Distribution | PyInstaller ([scripts/build_exe.py](scripts/build_exe.py)), portable zip per GitHub Release | Verify packaging on actual Windows environments |
 | CI | GitHub Actions Windows runner | Lint, tests, diagnostic CLI, build |
 | Localization | English source messages, packaged Korean catalog | Stable stored codes; English/Korean interface |
 
-Pin versions only after validating compatibility on Windows Python 3.11. Keep model source/hash/license metadata with any future binary bundle; the current prototype downloads models only on request rather than bundling them.
+Pin versions only after validating compatibility on Windows Python 3.11. Keep model source/hash/license metadata with any future binary bundle; the face model is bundled into a local exe build only when it was downloaded beforehand, release zips do not include it, and the task-relevance model is downloaded only on request from Settings.
 
 ### Environment and dependency constraints
 
@@ -152,6 +152,7 @@ Follow the [README layout](README.md#repository-layout). Future phone detection 
 - `state_sample`: per-second state, confidence, evidence, app name, actual UTC epoch timestamp (`at_ms` from v5).
 - `event`: same-state intervals with offsets, severity, evidence, app names, and source.
 - `feedback`: one correction/comment per interval.
+- `relevance_rule`: user answers about whether an activity helps a goal (v7).
 - `settings`: key/value preferences and update timestamps.
 - `migration`: applied schema versions/timestamps.
 
@@ -302,7 +303,7 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md). Lock versions in `uv.lock`; validate 
 ## 15. Future extensions
 
 - Richer, user-correctable browser categories; start with minimum hostname collection.
-- Optional local LLM summaries constrained to explainable observed numbers, without diagnostic claims or overinterpretation.
+- Task relevance currently uses title rules plus an optional local embedding model ([relevance evaluation](docs/relevance-evaluation.md)); optional local LLM summaries remain future work, constrained to explainable observed numbers, without diagnostic claims or overinterpretation.
 - Optional wearable sleep/activity integrations with separate consent and validation.
 - Better interaction patterns for switches, breaks, and goal achievement.
 
@@ -310,7 +311,7 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md). Lock versions in `uv.lock`; validate 
 
 PR-00 establishes license/notices, README, contribution/conduct/security/privacy policies, issue/PR templates, and CI. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Release sequence: local v0.1 prototype, v0.2 browser/phone work, then validated Windows v1.0. Include checksums, changelog, notices, and an SBOM if feasible. Automatic updates default off and require separate design.
+Release sequence: local v0.1 prototype, v0.2 browser/phone work, then validated Windows v1.0. Include checksums, changelog, notices, and an SBOM if feasible. The in-app updater checks only on request or, if enabled, at startup (off by default) and verifies the release zip's SHA256.
 
 ### Before starting
 
@@ -362,11 +363,13 @@ Review naming availability, prepare a Windows 11 PC/webcam, confirm non-admin ca
 | PR-E | `feat/auto-sessions`, #9 | Implemented and tested |
 | PR-F | `feat/activity-dashboard`, #10 | Implemented and tested |
 | PR-G | `chore/activity-stability-release`, #11 | Retention/export/deletion and [performance measurements](docs/performance.md) |
+| Task relevance | #36–#42, released in v0.2.0 | Implemented and verified; see [relevance evaluation](docs/relevance-evaluation.md) |
 
-Migrations preserve earlier data: v2 adds app/activity_span/system_event, v3 browser_state/domain, v4 classification_rule/activity_feedback, and v5 auto_session/state_sample.at_ms. Subsequent fixes improve consent withdrawal, range-independent sessions, exports, daily attribution, and camera coverage. English/Korean localization adds a settings preference without changing schema or stored codes.
+Migrations preserve earlier data: v2 adds app/activity_span/system_event, v3 browser_state/domain, v4 classification_rule/activity_feedback, v5 auto_session/state_sample.at_ms, v6 optional browser/activity page titles, and v7 relevance_rule. Subsequent fixes improve consent withdrawal, range-independent sessions, exports, daily attribution, and camera coverage. English/Korean localization adds a settings preference without changing schema or stored codes.
 
 ### Remaining work
 
 - PR-12: validate classifier/session thresholds (five-minute break, five-minute category change, two-minute minimum) and idle assumptions with real user labels. Exercise sleep/lock/UWP/multi-monitor and manual-session cases.
-- PR-13: register the packaged executable as native host, prepare stable extension IDs/allowed origins for distribution, validate startup options, and finish installer/uninstaller checks.
+- PR-13: the packaged exe registers itself as native host and sign-in startup, and portable releases with an updater ship. Remaining: publish store listings and fill in their extension IDs (`STORE_IDS`), and build/validate an installer/uninstaller with browser-connection diagnostics tested on a first-time user's complete flow.
+- UX: move Activity's detail tables and long-range charts into collapsible sections or tabs, and describe numeric confidence as rule confidence rather than calibrated probability until field validation.
 - PR-10: optional phone detection and eye/blendshape observations remain separate future work.

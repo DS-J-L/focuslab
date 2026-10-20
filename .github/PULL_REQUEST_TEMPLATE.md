@@ -13,6 +13,7 @@
 - [ ] Latest PR-head CI: **PR targets main** and **Windows Python 3.11** passed for this exact SHA.
 - [ ] `uv run ruff check .`
 - [ ] `uv run pytest`
+- [ ] `node --test "browser_extension/test/*.test.js"`, if the extension changed
 - [ ] `uv build`
 - [ ] Real Windows hardware check, if applicable (or explicit reason not run).
 - [ ] English and Korean UI verified, if user-visible text changed.

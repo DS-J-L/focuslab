@@ -1,5 +1,5 @@
 name: Release
-# Pushing a version tag (v0.2.0) builds FocusLab.exe on Windows and publishes
+# Pushing a version tag (v<version>) builds FocusLab.exe on Windows and publishes
 # FocusLab-<version>-win64.zip plus its .sha256 as a GitHub Release. The app's opt-in
 # update check (focuslab.updater) reads the latest release and verifies that checksum.
 on:

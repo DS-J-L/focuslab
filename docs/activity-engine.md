@@ -60,14 +60,14 @@ Existing SessionService -> manual-session samples and optional camera -> state_s
 
 When `GetLastInputInfo` exceeds the configurable threshold (five minutes by default), close the active interval and start idle time **backdated to the last input**. On input, close idle and start a new active interval, recording the return time. Do not read keys, typed content, or coordinates.
 
-## 3. Data model (migrations v2-v5)
+## 3. Data model (migrations v2-v6)
 
 Use the repository's singular-table convention and separate feedback records.
 
 | Concept | Implementation | Content |
 | --- | --- | --- |
 | Window/idle activities | `activity_span`, `kind=ACTIVE/IDLE/LOCKED` | Nonoverlapping intervals, app, domain, classification |
-| Browser activities | `activity_span.domain` + `browser_state` | Interval hostname and latest extension state |
+| Browser activities | `activity_span.domain` + `browser_state` | Interval hostname and latest extension state; optional `page_title` (v6) |
 | Activity events | `system_event` | Start/stop/pause, lock, sleep, logoff, clock changes, recovery |
 | Program identity | `app` | Lowercase executable name as stable ID; display name |
 | Activity categories | `Category` enum | Ten fixed categories |
@@ -77,7 +77,7 @@ Use the repository's singular-table convention and separate feedback records.
 
 ## 4. Privacy defaults
 
-- Store executable/product names, active hostname, interval timestamps, and classification. Do not store window titles, full executable paths, full URLs/paths/search terms/page contents, typed content, mouse coordinates, screenshots, or camera footage.
+- Store executable/product names, active hostname, interval timestamps, and classification. Do not store window titles (except opt-in, sanitized browser page titles; see [PRIVACY.md](../PRIVACY.md)), full executable paths, full URLs/paths/search terms/page contents, typed content, mouse coordinates, screenshots, or camera footage.
 - Inspect executable paths only in memory for game-library hints, then discard them.
 - PC recording, browser recording, and camera observation require separate consent. Do not query the OS or store browser state before consent or while recording is paused.
 - Exclusions leave only unnamed Excluded time in the automatic timeline.
