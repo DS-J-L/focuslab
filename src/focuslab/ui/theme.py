@@ -90,6 +90,11 @@ ACCENT = "#3B5BDB"
 STYLESHEET = f"""
 QWidget {{ color: #1F2430; }}
 QMainWindow, QStackedWidget > QWidget, #PageContent {{ background: #F5F6F8; }}
+QDialog, QMessageBox, QMenu {{ background: #F5F6F8; }}
+QMenu::item:selected {{ background: #E3E8F7; }}
+QToolTip {{ background: white; color: #1F2430; border: 1px solid #D5D9E0; }}
+QAbstractItemView {{ background: white; selection-background-color: #E3E8F7;
+                     selection-color: #1F2430; }}
 #Sidebar {{ background: #1F2430; border: none; }}
 #Sidebar QListWidget {{ background: transparent; border: none; color: #C9CED8; font-size: 14px;
                         outline: 0; }}
