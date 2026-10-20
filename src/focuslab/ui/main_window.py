@@ -244,12 +244,17 @@ class MainWindow(QMainWindow):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
+        self.close_down()
+        QApplication.quit()
+
+    def close_down(self) -> None:
+        """Stop the UI timers first so no late tick touches the closed database, then the
+        recorder and the session service."""
         self._timer.stop()
         self._activity_timer.stop()
         self.ctx.stop_recording()
         self.ctx.service.shutdown()
         self.tray.hide()
-        QApplication.quit()
 
 
 def _set_windows_app_id() -> None:
