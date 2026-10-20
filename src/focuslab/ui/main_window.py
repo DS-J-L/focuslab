@@ -1,7 +1,9 @@
 "Main window: navigation, session start/finish flow, tray and application bootstrap."
 
+import os
 import sys
 from dataclasses import replace
+from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtGui import QCloseEvent
@@ -12,12 +14,13 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from focuslab import __version__
+from focuslab import __version__, updater
 from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
@@ -38,6 +41,7 @@ from focuslab.ui.tray import Tray, make_icon
 
 HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)
 ACTIVITY_REFRESH_MS = 30_000
+UPDATE_CHECK_DELAY_MS = 5_000
 
 
 class MainWindow(QMainWindow):
@@ -67,6 +71,13 @@ class MainWindow(QMainWindow):
             [tr("Home"), tr("Activity"), tr("Sessions"), tr("Reports"), tr("Settings")]
         )
         side.addWidget(self.nav, 1)
+        self.update_button = QPushButton(objectName="Primary")
+        self.update_button.clicked.connect(lambda: self.go(SETTINGS))
+        self.update_button.setVisible(False)
+        update_row = QHBoxLayout()
+        update_row.setContentsMargins(12, 0, 12, 8)
+        update_row.addWidget(self.update_button)
+        side.addLayout(update_row)
         footer = QLabel(
             tr("v{p0} · Local only", p0=__version__)
             + (tr("\nDemo sensor mode") if ctx.demo else ""),
@@ -98,6 +109,12 @@ class MainWindow(QMainWindow):
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
         self.activity.dataChanged.connect(self.settings.refresh)
+        self.settings.updateAvailable.connect(self._show_update)
+        self.settings.restartForUpdate.connect(self._restart_for_update)
+        if ctx.flag("update.auto_check"):  # opt-in; off by default (local-only)
+            QTimer.singleShot(
+                UPDATE_CHECK_DELAY_MS, lambda: self.settings.check_updates(quiet=True)
+            )
 
         self.tray = Tray(self)
         if Tray.isSystemTrayAvailable():
@@ -266,15 +283,32 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.quit_app()
 
+    def _confirm_quit(self) -> bool:
+        if self.ctx.service.snapshot().lifecycle not in ACTIVE:
+            return True
+        self.show_normal()
+        answer = QMessageBox.question(
+            self, tr("Quit FocusLab"), tr("End the current session and quit FocusLab?")
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
     def quit_app(self) -> None:
-        if self.ctx.service.snapshot().lifecycle in ACTIVE:
-            self.show_normal()
-            answer = QMessageBox.question(
-                self, tr("Quit FocusLab"), tr("End the current session and quit FocusLab?")
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
+        if not self._confirm_quit():
+            return
         self.close_down()
+        QApplication.quit()
+
+    # updates ------------------------------------------------------------------------
+    def _show_update(self, version: str) -> None:
+        self.update_button.setText(tr("Update to v{p0}", p0=version))
+        self.update_button.setVisible(True)
+
+    def _restart_for_update(self, staged: Path) -> None:
+        """Quit, then let the helper swap the unpacked folder in and start the new exe."""
+        if not self._confirm_quit():
+            return
+        self.close_down()
+        updater.launch_swap(staged, updater.install_dir(), os.getpid())
         QApplication.quit()
 
     def close_down(self) -> None:

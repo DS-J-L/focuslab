@@ -1,5 +1,6 @@
 """GUI flow with scripted sensors: start, pause/resume, break, correction, finish, close."""
 
+import os
 import threading
 
 import pytest
@@ -82,6 +83,53 @@ def test_settings_page_renders(window):
     window.go(SETTINGS)
     assert window.settings.activity_state.text()
     window.settings.refresh()
+
+
+def test_update_check_offers_a_newer_release(window, qtbot, monkeypatch):
+    from focuslab import updater
+
+    release = updater.Release("99.0.0", "https://example.invalid/releases/v99.0.0", None, None)
+    monkeypatch.setattr(updater, "latest_release", lambda: release)
+    opened = []
+    monkeypatch.setattr("focuslab.ui.settings_page.QDesktopServices.openUrl", opened.append)
+    assert not window.update_button.isVisible()
+    window.settings.check_updates()
+    qtbot.waitUntil(window.update_button.isVisible, timeout=5000)
+    assert "99.0.0" in window.update_button.text()
+    window.update_button.click()
+    assert window.stack.currentIndex() == SETTINGS
+    window.settings.update_button.click()  # a source checkout opens the release page instead
+    assert opened[0].toString() == release.page_url
+
+
+def test_update_check_without_any_release(window, qtbot, monkeypatch):
+    import urllib.error
+
+    from focuslab import updater
+
+    def missing():
+        raise urllib.error.HTTPError(updater.LATEST_URL, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(updater, "latest_release", missing)
+    window.settings.check_updates()
+    qtbot.waitUntil(window.settings.update_check.isEnabled, timeout=5000)
+    assert window.settings.update_state.text() == "아직 공개된 릴리스가 없습니다."
+    assert not window.update_button.isVisible()
+
+
+def test_restart_for_update_swaps_only_after_shutting_down(qtbot, monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(
+        "focuslab.ui.main_window.updater.launch_swap", lambda *args: calls.append(args)
+    )
+    monkeypatch.setattr("focuslab.ui.main_window.QApplication.quit", lambda: calls.append("quit"))
+    win = MainWindow(AppContext(demo=True))
+    qtbot.addWidget(win)
+    win.settings.restartForUpdate.emit(tmp_path / ".FocusLab-update")
+    staged, _target, pid = calls[0]
+    assert staged == tmp_path / ".FocusLab-update" and pid == os.getpid()
+    assert calls[1] == "quit"
+    assert not win._timer.isActive()  # close_down ran before the helper started
 
 
 def test_quit_releases_all_workers(qtbot, monkeypatch):

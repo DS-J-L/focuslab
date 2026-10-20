@@ -39,7 +39,7 @@ uv run focuslab
 | `uv run focuslab --fetch-models` | Download the face model from the official MediaPipe repository and verify its SHA256. |
 | `--data-dir <folder>` | Override the default `%LOCALAPPDATA%\FocusLab` data folder. |
 
-Without a face model or camera, sessions can continue using PC observations. The model download is the only network operation performed by the app.
+Without a face model or camera, sessions can continue using PC observations. Apart from the model download, the app uses the network only for update checks you request or turn on (see [Updates](#updates)).
 
 ### Interface language
 
@@ -71,6 +71,12 @@ uv run --group build python scripts/build_exe.py
 ```
 
 This creates `dist\FocusLab\FocusLab.exe` (no console window, about 340 MB folder). Keep or copy the whole `dist\FocusLab` folder: the exe needs the `_internal` folder next to it. The face model is bundled when `assets\models\face_landmarker.task` exists. The exe accepts the same options as `uv run focuslab`; console output such as `--check` appears only when piped (`.\FocusLab.exe --check | more`). **Start at sign-in** and **Install connection** register the exe's own path, so turn them off and on again after moving the folder. Load the browser extension from `dist\FocusLab\_internal\browser_extension` (Settings > Open extension folder).
+
+### Updates
+
+Pushing a version tag publishes a release: bump `version` in `pyproject.toml` and `__version__` in `src/focuslab/__init__.py`, merge to main, then `git tag v0.2.0 && git push origin v0.2.0`. The [Release workflow](.github/workflows/release.yml) checks that the tag matches both, runs the tests, builds `FocusLab.exe`, and attaches `FocusLab-<version>-win64.zip` and its `.sha256` to a GitHub Release.
+
+In the app, **Settings > Updates** shows the version. **Check now** asks GitHub for the latest release; **Check for updates when FocusLab starts** (off by default) does the same a few seconds after startup and shows an **Update to v…** button in the sidebar. **Update** downloads the zip, verifies its SHA256, unpacks it next to the install folder, quits FocusLab (asking first during a session), swaps the folders and starts the new version. Records and settings live in `%LOCALAPPDATA%\FocusLab` and are kept. The folder path stays the same, so sign-in startup and the browser connection keep working. If the folder is still in use (for example a browser holding the native host open), the old version restarts and you can try again after closing the browser. When running from source, **Update** opens the release page instead.
 
 GitHub Actions checks lint, tests, the diagnostic CLI, and package builds on a Windows runner. Camera hardware, permissions, and long-running GUI behavior require separate Windows testing.
 

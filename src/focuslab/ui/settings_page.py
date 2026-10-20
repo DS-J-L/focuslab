@@ -2,6 +2,7 @@
 
 import sys
 import threading
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from focuslab import autostart
+from focuslab import __version__, autostart, updater
 from focuslab.activity.recorder import RecorderState
 from focuslab.browser import extension
 from focuslab.browser import install as browser_install
@@ -35,6 +36,7 @@ from focuslab.config import (
     MODE_PROFILES,
     RULE_VERSION,
     RuleConfig,
+    data_dir,
     face_model_path,
 )
 from focuslab.domain.activity import Category
@@ -63,12 +65,15 @@ COLLECTED = (
     "when automatic recording is enabled; your corrections, self-reports and "
     "settings.<br><b>Never saved</b>: camera video or photos, face coordinates, "
     "audio, typed content, window titles, executable paths, URLs, or "
-    "screenshots.<br>All records stay on this PC. FocusLab sends nothing to a server."
+    "screenshots.<br>All records stay on this PC and are never sent to a server."
 )
 
 
 class _Signals(QObject):
     modelFetched = Signal(str)
+    updateChecked = Signal(object)  # Release, None (nothing published yet) or an exception
+    updateProgress = Signal(int)
+    updateStaged = Signal(object)  # unpacked folder or an exception
 
 
 def camera_names() -> list[str]:
@@ -82,12 +87,22 @@ def camera_names() -> list[str]:
 
 class SettingsPage(QWidget):
     dataChanged = Signal()
+    updateAvailable = Signal(str)  # newer version number
+    restartForUpdate = Signal(object)  # unpacked folder to swap in after quitting
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
         self.ctx = ctx
+        self._release: updater.Release | None = None
+        self._staged: Path | None = None  # unpacked update waiting for a restart
+        self._quiet_check = False
         self._signals = _Signals()
         self._signals.modelFetched.connect(self._model_fetched)
+        self._signals.updateChecked.connect(self._update_checked)
+        self._signals.updateProgress.connect(
+            lambda pct: self.update_state.setText(tr("Downloading… {p0}%", p0=pct))
+        )
+        self._signals.updateStaged.connect(self._update_staged)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -106,6 +121,7 @@ class SettingsPage(QWidget):
         root.addWidget(self._classify_box())
         root.addWidget(self._camera_box())
         root.addWidget(self._rules_box())
+        root.addWidget(self._updates_box())
         root.addStretch()
         self.refresh()
 
@@ -481,6 +497,34 @@ class SettingsPage(QWidget):
         layout.addWidget(label)
         return box
 
+    def _updates_box(self) -> QGroupBox:
+        box = QGroupBox(tr("Updates"))
+        form = QFormLayout(box)
+        style_form(form)
+        form.addRow(tr("Version"), QLabel(tr("FocusLab {p0}", p0=__version__)))
+        self.update_auto = QCheckBox(tr("Check for updates when FocusLab starts"))
+        self.update_auto.toggled.connect(lambda on: self.ctx.set_flag("update.auto_check", on))
+        self.update_check = QPushButton(tr("Check now"))
+        self.update_check.clicked.connect(lambda: self.check_updates())
+        self.update_button = QPushButton(tr("Update"), objectName="Primary")
+        self.update_button.clicked.connect(self._start_update)
+        self.update_button.setVisible(False)
+        form.addRow(tr("Check"), _row(self.update_auto, self.update_check, self.update_button))
+        self.update_state = QLabel(wordWrap=True)
+        form.addRow("", self.update_state)
+        form.addRow(
+            QLabel(
+                tr(
+                    "A check asks GitHub (api.github.com) for the latest FocusLab release. "
+                    "Like any web request it reveals your IP address and FocusLab version; "
+                    "no records are sent. Updates are verified with SHA256 before installing."
+                ),
+                wordWrap=True,
+                objectName="Muted",
+            )
+        )
+        return box
+
     # refresh ----------------------------------------------------------------------
     def refresh(self) -> None:
         self._refresh_recording()
@@ -560,6 +604,7 @@ class SettingsPage(QWidget):
             (self.idle_minutes, round(self.ctx.idle_threshold_s / 60)),
             (self.autostart, autostart.is_enabled()),
             (self.close_to_tray, self.ctx.close_to_tray),
+            (self.update_auto, self.ctx.flag("update.auto_check")),
         ):
             widget.blockSignals(True)
             (widget.setValue if isinstance(widget, QSpinBox) else widget.setChecked)(value)
@@ -687,8 +732,8 @@ class SettingsPage(QWidget):
                 (
                     "Download the face landmark model (about 3.7 MB) from the "
                     "official MediaPipe repository and verify its SHA256.\n\n"
-                    "{p0}\n\nFocusLab does not use the network except for this "
-                    "download."
+                    "{p0}\n\nApart from this download, FocusLab uses the network only "
+                    "for update checks you request or turn on in Settings."
                 ),
                 p0=FACE_MODEL_URL,
             ),
@@ -714,6 +759,93 @@ class SettingsPage(QWidget):
                 self, tr("Face model"), tr("Could not download: {p0}", p0=message[6:])
             )
         self.refresh()
+
+    def check_updates(self, quiet: bool = False) -> None:
+        """Ask GitHub for the latest release; quiet (startup) checks hide network errors."""
+        self._quiet_check = quiet
+        self.update_check.setEnabled(False)
+        self.update_state.setText(tr("Checking…"))
+
+        def work() -> None:
+            try:
+                self._signals.updateChecked.emit(updater.latest_release())
+            except urllib.error.HTTPError as exc:
+                self._signals.updateChecked.emit(None if exc.code == 404 else exc)
+            except Exception as exc:  # offline, timeout, unexpected response
+                self._signals.updateChecked.emit(exc)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_checked(self, result: object) -> None:
+        self.update_check.setEnabled(True)
+        if isinstance(result, Exception):
+            self.update_state.setText(
+                "" if self._quiet_check else tr("Could not check: {p0}", p0=result)
+            )
+            return
+        newer = isinstance(result, updater.Release) and updater.is_newer(result)
+        self._release = result if newer else None
+        self.update_button.setVisible(newer)
+        if newer:
+            self.update_state.setText(tr("FocusLab {p0} is available.", p0=result.version))
+            self.updateAvailable.emit(result.version)
+        elif result is None:
+            self.update_state.setText(tr("No release has been published yet."))
+        else:
+            self.update_state.setText(tr("You have the latest version."))
+
+    def _start_update(self) -> None:
+        release = self._release
+        if release is None:
+            return
+        if self._staged is not None and self._staged.is_dir():  # restart declined earlier
+            self.restartForUpdate.emit(self._staged)
+            return
+        if not (updater.can_self_update() and release.zip_url and release.sha256_url):
+            # Source checkouts (and releases without a Windows package) update by hand.
+            QDesktopServices.openUrl(QUrl(release.page_url))
+            return
+        answer = QMessageBox.question(
+            self,
+            tr("Update FocusLab"),
+            tr(
+                "Download FocusLab {p0} from GitHub and verify its SHA256?\n"
+                "FocusLab restarts to finish the update; your records and settings are kept.",
+                p0=release.version,
+            ),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.update_button.setEnabled(False)
+        self.update_check.setEnabled(False)
+        self.update_state.setText(tr("Downloading…"))
+
+        def work() -> None:
+            try:
+                downloads = data_dir() / "updates"
+                package = updater.download(release, downloads, self._signals.updateProgress.emit)
+                try:
+                    staged = updater.stage(package, updater.install_dir())
+                finally:
+                    package.unlink(missing_ok=True)
+                self._signals.updateStaged.emit(staged)
+            except Exception as exc:  # network/checksum/disk errors are shown to the user
+                self._signals.updateStaged.emit(exc)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_staged(self, result: object) -> None:
+        self.update_button.setEnabled(True)
+        self.update_check.setEnabled(True)
+        if isinstance(result, Exception):
+            self.update_state.setText("")
+            QMessageBox.warning(
+                self, tr("Update FocusLab"), tr("Could not update: {p0}", p0=result)
+            )
+            return
+        self._staged = result
+        self.update_state.setText(tr("Update ready. FocusLab restarts to finish it."))
+        self.restartForUpdate.emit(result)
 
     def _calibrate(self) -> None:
         dialog = CalibrationDialog(self.ctx.camera_index, self)
