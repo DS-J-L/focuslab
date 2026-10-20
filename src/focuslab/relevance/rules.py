@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from focuslab.activity.classifier import AI_APPS, AI_SITES, classify, suffix_match
 from focuslab.activity.windows_tracker import normalize
-from focuslab.config import BROWSERS
+from focuslab.config import BROWSERS, NEUTRAL_APPS
 from focuslab.domain.activity import Category, SpanKind
 from focuslab.relevance.models import (
     RelevanceInput,
@@ -220,6 +220,8 @@ def judge_title(data: RelevanceInput) -> TaskRelevanceResult:
 def judge(data: RelevanceInput) -> TaskRelevanceResult:
     """Judge one activity against the goal; the caller has checked the input is usable."""
     name = normalize(data.process_name or "")
+    if name in NEUTRAL_APPS:  # desktop shell, task switcher, FocusLab: in passing, not work
+        return _rule(RelevanceLevel.UNCERTAIN, None, RelevanceReason.NEUTRAL_APP)
     if name in AI_APPS or (data.domain and suffix_match(data.domain, AI_SITES)):
         return _rule(RelevanceLevel.UNCERTAIN, None, RelevanceReason.SUPPORT_TOOL)
     category = classify(SpanKind.ACTIVE, name, data.domain).category

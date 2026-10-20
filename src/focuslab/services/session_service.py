@@ -191,6 +191,7 @@ class SessionService:
             self._config = config
             self._session_id = self._repo.create_session(config, RULE_VERSION)
             self._engine = RuleEngine(config.mode, self._cfg)
+            self._relevance.reset_context()
             self._calibration = self._calibration_provider()
             self._activity = self._activity_factory(config)
             self._face = self._face_factory(config) if config.camera_enabled else None
@@ -217,6 +218,7 @@ class SessionService:
             self._close_pause()
             self._repo.set_status(self._session_id, SessionStatus.RUNNING)
             self._engine.reset()
+            self._relevance.reset_context()
             self._start_face()
             self._last_tick_ms = self._clock.monotonic_ms()
 
@@ -375,7 +377,7 @@ class SessionService:
                 user_break=self._on_break,
             )
             relevance = self._relevance.evaluate(
-                RelevanceInput.of(config.goal, config.mode, activity, self._cfg.active_idle_s)
+                RelevanceInput.of(config.goal, config.mode, activity), now
             )
             decision = self._engine.evaluate(frame, dt_s=elapsed)
             if config.planned_minutes:
@@ -411,6 +413,7 @@ class SessionService:
             self._paused_s += seconds - observed
             self._repo.add_paused_seconds(self._session_id, seconds - observed)
         self._engine.reset()
+        self._relevance.reset_context()
 
     def _record(self, sample: StateSample) -> None:
         self._repo.add_sample(self._session_id, sample)
