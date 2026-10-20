@@ -2,150 +2,145 @@
 
 **Know your workflow, not just your screen time.**
 
-Windows에서 공부·개발 세션의 **작업 패턴을 돌아보기 위한 로컬 우선 오픈소스 앱**을 만듭니다.
-사용자가 설정한 목표와 PC 활동, 선택형 웹캠 관찰을 조합하여 작업 관련 활동·잠재적 이탈·자리 비움·판단 불가를 구분하는 것이 목표입니다.
+FocusLab is a local-first, open-source Windows desktop app for reviewing work patterns during study and development. It combines your session goal, PC activity, and optional webcam observations to distinguish estimated task-related activity, possible task deviation, time away, and insufficient evidence.
 
-> **현재 상태: v0.1 프로토타입 + 자동 활동 기록 엔진 (개발자 실행용).** PySide6 데스크톱 앱, 선택형 웹캠 얼굴·머리 방향 관찰,
-> 모드별 규칙 엔진, 실시간 세션·리포트·정정에 더해 **동의 후 백그라운드에서 PC·브라우저 활동을 자동 기록·분류**하고
-> 자동 세션과 활동 대시보드를 보여줍니다(ActivityWatch 불필요). 임계값·분류 규칙은 튜닝 전 가설이며
-> 실사용 라벨 검증(PR-12)과 배포용 설치 파일(PR-13)은 아직 없습니다. 설계: [docs/activity-engine.md](docs/activity-engine.md)
+> **Status: v0.1 developer prototype with an automatic activity recording engine.** The PySide6 app includes optional face/head-pose observation, mode-aware rules, live sessions, reports, and corrections. With consent, it also records and classifies PC/browser activity in the background and detects automatic sessions. ActivityWatch is not required. Thresholds and classification rules are hypotheses pending field validation (PR-12); a distributable installer (PR-13) is not available yet. See the [engine design](docs/activity-engine.md).
 
-## 어떤 앱을 만드나요?
+## Product principles
 
-- **목표와 맥락:** 코딩, 강의, 독서·필기, 사용자 지정 모드와 허용 앱을 고려합니다.
-- **설명 가능한 관찰:** 왜 이탈로 추정했는지 보여주고 사용자가 정정할 수 있도록 합니다.
-- **불확실성 표현:** 화면 밖을 보거나 카메라를 가렸다는 이유만으로 딴짓을 확정하지 않습니다.
-- **로컬 처리:** 계정·클라우드를 강제하지 않고 사용자가 시작한 세션만 관찰합니다.
-- **최소 수집:** 원본 영상·음성·스크린샷·키 입력 내용·민감한 창 제목을 저장하지 않는 설계입니다.
+- **Goal and context:** coding, lectures, reading/writing, and custom modes have different allowed apps and expectations.
+- **Explainable observations:** see the evidence behind an estimate and correct it yourself.
+- **Explicit uncertainty:** looking away or covering the camera does not establish that you are off task.
+- **Local processing:** no account or cloud service is required. Background activity recording requires consent; the camera runs only in sessions you start.
+- **Minimal collection:** no saved camera footage, audio, screenshots, typed content, or sensitive window titles.
 
-FocusLab은 실제 집중력을 직접 측정하거나 ADHD를 진단·치료하는 도구가 아닙니다.
-상태와 지표는 관찰 가능한 행동의 추정이며 학습 성과·의학적 판단을 보장하지 않습니다.
+FocusLab does not directly measure attention and does not diagnose or treat ADHD. Its states are estimates of observable behavior, not guarantees of learning outcomes or medical judgments.
 
-## 개발 환경에서 시작하기
+## Run from source
 
-대상 환경은 **Windows 11 x64 / Python 3.11 / uv**입니다.
-Windows 10 호환성은 별도 검증 대상이며 공식 지원을 약속하지 않습니다.
-uv 설치: https://docs.astral.sh/uv/getting-started/installation/
+The supported development target is **Windows 11 x64 / Python 3.11 / uv**. Windows 10 compatibility requires separate testing and is not officially promised. Install uv using the [official instructions](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```powershell
 git clone https://github.com/DS-J-L/focuslab.git
 cd focuslab
 uv sync --locked
-uv run focuslab --fetch-models   # (선택) 웹캠 관찰용 MediaPipe 얼굴 모델 3.7MB, SHA256 확인
-uv run focuslab                  # 데스크톱 앱 실행
+uv run focuslab --fetch-models   # Optional: download and verify the 3.7 MB face model
+uv run focuslab
 ```
 
-| 명령 | 설명 |
+| Command | Behavior |
 | --- | --- |
-| `uv run focuslab` | 앱 실행. 첫 실행 시 자동 활동 기록 동의(기본 해제)를, 첫 세션 시작 시 카메라 동의를 따로 묻습니다. |
-| `uv run focuslab --background` | 트레이로 시작 (로그인 시 자동 실행 항목이 쓰는 옵션). 이미 실행 중이면 조용히 종료. |
-| `uv run focuslab --demo` | 모의 센서로 실행. 카메라와 PC 활동을 전혀 읽지 않습니다. |
-| `uv run focuslab --seed-demo` | 합성 데모 세션 4개를 로컬 DB에 추가 (리포트 화면 확인용). |
-| `uv run focuslab --check` | 버전·데이터 폴더·모델 체크섬·자동 실행·브라우저 연결·의존성 상태만 출력. |
-| `uv run focuslab --fetch-models` | 공식 MediaPipe 저장소에서 얼굴 모델을 받아 SHA256 검증. |
-| `--data-dir <폴더>` | 데이터 폴더 변경 (기본: `%LOCALAPPDATA%\FocusLab`). |
+| `uv run focuslab` | Open the app. First-run automatic recording is opt-in; PC observation and camera consent are handled separately. |
+| `uv run focuslab --background` | Start in the tray, as used by the sign-in startup entry. Exit quietly if already running. |
+| `uv run focuslab --demo` | Use scripted sensors without reading the real camera or PC activity. |
+| `uv run focuslab --language en` | Use English for this run. Use `ko` for Korean. |
+| `uv run focuslab --seed-demo` | Add four synthetic sessions to the local database for exploring reports. |
+| `uv run focuslab --check` | Print versions, paths, model checksum, startup/bridge status, and dependency availability. |
+| `uv run focuslab --fetch-models` | Download the face model from the official MediaPipe repository and verify its SHA256. |
+| `--data-dir <folder>` | Override the default `%LOCALAPPDATA%\FocusLab` data folder. |
 
-얼굴 모델이 없거나 카메라를 쓰지 않으면 PC 활동만으로 세션이 진행됩니다. 앱은 모델 다운로드 외에 네트워크를 사용하지 않습니다.
+Without a face model or camera, sessions can continue using PC observations. The model download is the only network operation performed by the app.
 
-### 브라우저 사이트 기록 (선택, Chrome·Edge)
+### Interface language
 
-1. 설정 > 브라우저 사이트 기록에서 **동의** → **연결 설치** (HKCU에 Native Messaging host 등록, 관리자 권한 불필요).
-2. `chrome://extensions` 또는 `edge://extensions` → 개발자 모드 → **압축해제된 확장 프로그램 로드** → 저장소의 `browser_extension/` 폴더.
-3. 이후 브라우저가 맨 앞일 때 활성 탭의 **hostname만** 기록됩니다. 확장이 없어도 프로그램 기록은 그대로 동작합니다.
+The app supports **English and Korean**. On first launch it uses Korean for a Korean system locale and English otherwise. Choose **Settings > Appearance > Language** to save a preference, then restart FocusLab to apply it. A language change does not interrupt your current session or translate your saved goals, app names, or records.
+
+`--language en|ko` or `FOCUSLAB_LANGUAGE=en|ko` overrides the saved preference for a run. Repository documentation is maintained in English. See the [translation guide](docs/internationalization.md).
+
+### Optional browser site recording (Chrome / Edge)
+
+1. In Settings > Browser site recording, give consent and choose **Install connection**. This registers the Native Messaging host in HKCU without administrator rights.
+2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `browser_extension/` folder.
+3. While the browser is in front, the extension reports only the active tab's hostname. Program recording works without the extension.
 
 ```powershell
 uv run ruff check .
-uv run pytest                                   # 단위·통합·GUI(오프스크린) 테스트
-node --test "browser_extension/test/*.test.js"  # 확장 프로그램 테스트
+uv run pytest                                   # Unit, integration, and off-screen GUI tests
+node --test "browser_extension/test/*.test.js"  # Extension tests
 uv build
-uv run python scripts/activity_smoke.py --seconds 60   # 실기기: 실제 프로브로 임시 DB에 기록
-uv run python scripts/bench_activity.py                # 합성 부하·성능 측정
+uv run python scripts/activity_smoke.py --seconds 60   # Real Win32 probe, temporary database
+uv run python scripts/bench_activity.py                # Synthetic load and performance
 ```
 
-GitHub Actions는 Windows runner에서 lint, 테스트, 환경 점검 CLI, 패키지 빌드를 확인합니다.
-Windows 11 실기기의 카메라·권한·장시간 GUI 검증은 별도로 수행해야 합니다.
+GitHub Actions checks lint, tests, the diagnostic CLI, and package builds on a Windows runner. Camera hardware, permissions, and long-running GUI behavior require separate Windows testing.
 
-## 프로토타입에서 할 수 있는 것
+## Implemented prototype features
 
-- **자동 활동 기록**(동의 시, 타이머 불필요): 맨 앞 프로그램(실행 파일 이름·제품 이름)을 `SetWinEventHook` 이벤트와 1초 폴링으로 기록,
-  유휴(기본 5분, 마지막 입력 시각으로 소급)·잠금·절전·로그오프·사용자 전환·화면 꺼짐 구분, 절전·미실행 시간은 계산하지 않음,
-  강제 종료 후에도 DB 무손상(최대 10초 손실). 트레이 상주, 기록 일시정지·재개, 로그인 시 자동 실행 옵션.
-- **브라우저 사이트**(선택): Chrome·Edge MV3 확장 + Native Messaging, 백그라운드 탭·비공개 창 제외.
-- **자동 분류**: 개발·공부·문서 작성·자료 조사·소통·오락·게임·업무 도구·휴식·미분류, 신뢰도·근거·출처 저장.
-  YouTube처럼 용도가 다양한 사이트는 `미분류`로 남기고, 정정하면 이후 분류에 반영(선택 사항). 프로그램·사이트 기록 제외 목록.
-- **자동 세션**: 유휴·작업 종류 전환으로 나누고 우회 후 복귀 시간 계산. 수동 집중 세션과 겹쳐도 시간은 한 번만 집계.
-- **활동**: 오늘 개요(총 PC 사용·입력 기준 활성 시간·유휴·전환·자동 세션·작업 카테고리 시간), 카테고리·프로그램·사이트별 시간, 하루 타임라인, 구간 정정, 7·30일 통계. 통계는 별도 DB 연결을 쓰는 작업 스레드에서 계산해 긴 조회 중에도 창과 세션이 멈추지 않습니다. 기록 상태는 '관찰 중'과 '저장 정상'을 따로 보여 주고, 저장이 실패하면 마지막 저장 성공 시각과 함께 경고가 저장에 성공할 때까지 남습니다(트레이에도 표시).
+- **Automatic activity recording:** consent-based recording without a timer. Foreground executable/product names are observed with `SetWinEventHook` plus one-second polling. Idle time (five minutes by default, backdated to last input), lock, sleep, logoff, user switching, and display-off events are handled. Sleep/unobserved time is not counted. Batch persistence limits abrupt-process-exit loss to about ten seconds. Tray recording, pause/resume, and optional sign-in startup are supported.
+- **Optional browser sites:** Chrome/Edge MV3 extension with Native Messaging; background tabs and private windows are excluded.
+- **Automatic classification:** development, study, documentation, research, communication, entertainment, gaming, productivity tools, break/inactive, and unclassified. Labels include confidence, evidence, and source. Ambiguous sites such as YouTube stay unclassified unless you choose a rule. App/site exclusions are supported.
+- **Automatic sessions:** group activity by absence and sustained work-category changes, and calculate detours/return times. Overlapping manual sessions are marked without adding duplicate activity time. Detection is independent of the selected report range; exports recalculate from current activity and rules.
+- **Activity:** daily overview, category/program/site totals, timeline, interval correction, automatic sessions, and 7/30-day statistics. Long-range reports run on a worker with its own database connection. Saving failures and last successful save times are visible.
+- **Home:** automatic recording status and daily activity summary alongside manual focus-session metrics; goal, mode, target time, allowed apps (including selection from open apps), and optional camera controls.
+- **Live session:** one-second estimates and evidence, confidence, foreground app, last input, head pose, in-memory preview with optional landmarks, timeline, pause, break, immediate correction, and finish. Closing the window can continue recording in the tray.
+- **Reports:** seven-day state totals, per-session task-related share, possible deviations, return times, app switches, longest streak, coverage, interval evidence/corrections, goal-achievement self-report, JSON/CSV export, and deletion. Daily totals use actual observation timestamps.
+- **Settings:** separate consent controls, language, data location, retention, complete export/deletion, browser setup, camera device, model download, four-step calibration, and rule explanations. Withdrawing camera/PC observation consent also stops that observation in an ongoing session.
+- **Recovery:** uncleanly ended sessions are marked interrupted on restart. Observation gaps become `UNKNOWN`.
 
-- **홈**: 자동 기록 상태와 오늘의 자동 기록 요약(입력 기준 활성 시간·작업 카테고리 시간·자동 세션), 수동 집중 세션의 작업 관련 추정 시간·이탈 의심 시간·측정 커버리지. 카드마다 '자동 기록'인지 '수동 집중 세션'인지 표시합니다. 목표·모드·목표 시간·허용 앱(열린 앱에서 선택 가능)·카메라 사용 여부로 세션 시작.
-- **세션**: 1초 단위 추정 상태와 근거, 신뢰도, 맨 앞 앱·마지막 입력·머리 방향, 메모리 전용 카메라 미리보기(랜드마크 표시 선택), 실시간 타임라인, 일시정지(카메라 해제)·휴식·잘못된 판정 즉시 정정·종료. 창을 닫아도 트레이에서 기록이 계속됩니다.
-- **리포트**: 최근 7일 상태별 시간, 세션별 지표(작업 관련 비율·이탈 의심 횟수·복귀 시간·앱 전환·최장 연속 구간·커버리지), 근거가 표시되는 타임라인과 구간 표, 구간별 정정·정정 취소, 목표 달성 자기보고, JSON/CSV 내보내기, 세션 삭제.
-- **설정**: 동의 상태와 철회, 저장 위치, 보존 기간, 전체 내보내기·삭제, 카메라 장치 선택, 얼굴 모델 받기, 4단계 머리 방향 보정, 판정 규칙 요약.
-- 비정상 종료 후 재실행하면 남은 세션을 `중단됨`으로 저장하고 알립니다. 절전 등으로 끊긴 구간은 `판단 불가`로 기록됩니다.
+## How estimates work
 
-## 판정 방식 요약
+Sensors publish observations; the mode-aware [rule engine](src/focuslab/focus/rules.py) combines them over time and returns states with evidence codes.
 
-센서는 관찰값만 내고, 규칙 엔진이 모드·시간 창을 보고 상태와 근거 코드를 정합니다 ([rules.py](src/focuslab/focus/rules.py)).
+- A non-allowed app for at least 15 seconds produces `POSSIBLY_OFF_TASK`; brief switches retain the previous state.
+- An absent face for 20 seconds (60 in reading/writing) plus at least 20 seconds without input can produce `AWAY`.
+- Looking away for 15 seconds (30 in reading/writing) plus ten seconds without input can produce `POSSIBLY_OFF_TASK`. **Looking down alone does not trigger this estimate.**
+- Camera off, occlusion, darkness, errors, and stale observations are missing evidence. Face observations expire after two seconds and PC observations after three; camera loss alone does not establish deviation or absence.
+- Entering task-related/unknown states requires three seconds of sustained evidence to prevent flicker. A user-requested break is immediate.
+- Without browser details, the app explains that browser activity is unknown. Allowed-app lists can include sites such as `github.com`.
 
-- 허용 목록에 없는 앱 15초 이상 → `POSSIBLY_OFF_TASK` (그 전에는 이전 상태 유지)
-- 얼굴 없음 20초(독서·필기 60초) + 입력 없음 20초 → `AWAY`
-- 화면 외 방향 15초(독서·필기 30초) + 입력 없음 10초 → `POSSIBLY_OFF_TASK`. **아래쪽 시선만으로는 판정하지 않습니다.**
-- 카메라 꺼짐·가림·어두움·오래된 관찰값(얼굴 2초, PC 3초) → 카메라 근거 없음으로 처리, 단독으로 이탈·자리 비움을 만들지 않음
-- 작업 관련·판단 불가로 바뀌려면 3초 유지(깜박임 방지). 휴식 버튼은 즉시 `BREAK`.
-- 브라우저 확장이 사이트를 알려주지 않으면 `브라우저 세부 활동 미확인` 근거를 함께 표시합니다. 허용 목록에 `github.com` 같은 사이트를 넣을 수 있습니다.
+Automatic recording uses input-based idle detection, so reading or watching a lecture without input may count as idle. Work-category totals are category sums; manual-session estimates also consider your goal and allowed apps. These are different measurements, and the UI explains the distinction.
 
-## 저장소 구조
+## Repository layout
 
-| 경로 | 역할 |
+| Path | Responsibility |
 | --- | --- |
-| `src/focuslab/` | CLI 진입점, 경로·임계값·모드 설정, 모의 센서·데모 데이터, 모델 다운로드 |
-| `src/focuslab/domain/` | 상태·관찰·세션 데이터, 상태 구간, 센서·시계 인터페이스 |
-| `src/focuslab/camera/` | 카메라, 얼굴 랜드마크, 머리 방향, 보정 |
-| `src/focuslab/activity/` | Win32 프로브·이벤트 훅·상시 레코더, 분류기, 자동 세션, 카메라 결합, 활동 통계 |
-| `src/focuslab/browser/` | Native Messaging host, 메시지 검증, Chrome·Edge 등록 |
-| `browser_extension/` | Chrome·Edge MV3 확장 (hostname만 전송) 및 Node 테스트 |
-| `scripts/` | 실기기 점검(`activity_smoke.py`)·성능 측정(`bench_activity.py`) |
-| `src/focuslab/focus/` | 센서 융합, 모드별 규칙, 지표 |
-| `src/focuslab/storage/` | SQLite, 마이그레이션, 저장소 |
-| `src/focuslab/services/` | 세션·워커·내보내기 조정 |
-| `src/focuslab/ui/` | 메인 창, 홈·활동·세션·리포트·설정 화면, 최초 실행·동의·보정 대화상자, 트레이 |
-| `assets/models/` | `--fetch-models`로 받는 얼굴 모델 위치 (커밋하지 않음) |
-| `tests/unit/`, `tests/integration/`, `tests/e2e/` | 단위, 모의 센서→저장→지표 통합, 오프스크린 GUI 테스트 |
-| `.github/` | Windows CI, 이슈·PR 템플릿 |
+| `src/focuslab/` | Entry point, paths/defaults, localization, demo sensors/data, model download |
+| `domain/` | States, observations, sessions, segments, and sensor/clock contracts |
+| `camera/` | Capture, face landmarks, head pose, and calibration |
+| `activity/` | Win32 probes/hooks, recorder, classifier, automatic sessions, camera overlays, statistics |
+| `browser/`, `browser_extension/` | Native Messaging host/protocol, Chrome/Edge registration, MV3 extension and JS tests |
+| `focus/` | Sensor fusion, mode-aware rules, evidence, and metrics |
+| `storage/` | SQLite, migrations, and repositories |
+| `services/` | Session/worker orchestration, activity reporting, export/deletion |
+| `ui/` | Window, pages, dialogs, tray, shared widgets, background report worker |
+| `locales/` | Korean translations of English application messages |
+| `scripts/` | Real-device smoke checks and synthetic benchmarks |
+| `assets/models/` | Optional face model downloaded with `--fetch-models`; not committed |
+| `tests/unit/`, `tests/integration/`, `tests/e2e/` | Unit, pipeline/persistence, and off-screen GUI tests |
+| `.github/` | Windows CI, issue forms, and PR template |
 
-## 관찰 상태
+Paths below `src/focuslab/` in the table are relative to that package unless otherwise indicated.
 
-| 상태 | 의미 |
+## Observation states
+
+| State | Meaning |
 | --- | --- |
-| `ON_TASK` | 목표 관련 활동으로 추정 |
-| `POSSIBLY_OFF_TASK` | 작업 이탈 가능성 |
-| `AWAY` | 자리 비움으로 추정 |
-| `BREAK` | 사용자가 지정한 휴식 |
-| `UNKNOWN` | 관찰 부족·센서 오류 등으로 판단 불가 |
+| `ON_TASK` | Estimated activity related to the configured task |
+| `POSSIBLY_OFF_TASK` | Possible task deviation |
+| `AWAY` | Estimated time away |
+| `BREAK` | A break explicitly requested by the user |
+| `UNKNOWN` | Missing, insufficient, or unreliable evidence |
 
-카메라 미사용을 낮은 점수로 처리하지 않으며 `UNKNOWN`, 휴식, 자리 비움은 별도로 집계해 보여줍니다.
-기본 앱만으로 브라우저의 사이트 관련성을 알 수는 없으므로, hostname만 보내는 선택형 Chrome·Edge 확장(PR-C)을 제공합니다.
+Camera-free sessions are not penalized. Unknown, break, and away time are reported separately. The optional Chrome/Edge extension provides hostname information that the desktop process alone cannot obtain reliably.
 
-## 개발 로드맵
+## Development roadmap
 
-| 단계 | 범위 | 상태 |
+Roadmap labels such as PR-09 are work-package names, not necessarily GitHub pull-request numbers.
+
+| Stage | Scope | Status |
 | --- | --- | --- |
-| PR-00 | 오픈소스 문서·구조·개발 환경, 모의 센서·기본 PySide6 창 | 프로토타입 구현 |
-| PR-01–02 | 세션 수명주기·SQLite·카메라 | 프로토타입 구현 |
-| PR-03–06 | 얼굴 관찰·보정·Windows 활동·판단 엔진 | 프로토타입 구현 (임계값 튜닝 전) |
-| PR-07–08 | 대시보드·내보내기·삭제, v0.1 MVP | 프로토타입 구현; 25분 실측·다른 PC 검증 남음 |
-| PR-A–G | 자동 활동 기록 엔진: 수집기·유휴/시스템 이벤트·브라우저 확장(PR-09 대체)·분류·자동 세션·활동 대시보드·안정성 | 구현, PR 검토 중 ([계획 §18](DEVELOPMENT_PLAN.md#18-v02-확장-native-windows-activity-tracking-engine)) |
-| PR-10–11 | 선택형 폰 감지·개인화·알림, v0.2 | 예정 |
-| PR-12–13 | 실사용 검증·성능·라이선스·Windows 설치 배포 | 예정 |
+| PR-00 | Repository, policies, environment, mock sensors, basic PySide6 window | Prototype implemented |
+| PR-01-02 | Session lifecycle, SQLite, camera | Prototype implemented |
+| PR-03-06 | Face/head pose, Windows activity, state engine | Prototype implemented; thresholds remain hypotheses |
+| PR-07-08 | Dashboard, reports, export/deletion, v0.1 MVP | Prototype implemented; extended soak and cross-PC validation remain |
+| PR-A-G | Native activity collection, idle/system events, browser extension, classification, automatic sessions, dashboard, stability | Implemented; see [plan section 18](DEVELOPMENT_PLAN.md#18-v02-extension-native-windows-activity-tracking-engine) |
+| PR-10-11 | Optional phone detection, personalization, quiet coaching | Planned |
+| PR-12-13 | Field validation, performance/packaging, Windows installer | Planned |
 
-완료 조건과 설계의 기준 문서는 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)입니다.
-각 기능은 브랜치 → PR → 검사·Windows 확인 → 리뷰 → 머지 순서로 진행합니다.
-FocusLab은 작업명이며 공개 제품 배포 전에 동명 서비스·상표 사용 가능성을 검토합니다.
+The [development plan](DEVELOPMENT_PLAN.md) defines scope and completion criteria. Implement changes on feature branches, target `main` when integrating them, validate, and review before merging. `FocusLab` remains a working name; naming/trademark availability must be reviewed before public distribution.
 
-## 기여와 정책
+## Contributing and policies
 
-- [기여 안내](CONTRIBUTING.md) · [행동 강령](CODE_OF_CONDUCT.md)
-- [개인정보 원칙](PRIVACY.md) · [보안 제보](SECURITY.md)
-- [개발 계획](DEVELOPMENT_PLAN.md) · [제3자 고지](THIRD_PARTY_NOTICES.md)
+[Contributing](CONTRIBUTING.md) - [Code of conduct](CODE_OF_CONDUCT.md) - [Privacy](PRIVACY.md) - [Security](SECURITY.md) - [Development plan](DEVELOPMENT_PLAN.md) - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-프로젝트 자체 코드는 [Apache License 2.0](LICENSE)으로 공개합니다.
-외부 패키지·Qt·ML 모델은 각각의 라이선스를 따릅니다 ([제3자 고지](THIRD_PARTY_NOTICES.md)). 얼굴 모델 파일은 저장소에 포함하지 않으며 `--fetch-models`로 받습니다.
+Original FocusLab code is licensed under [Apache License 2.0](LICENSE). Dependencies, Qt, and ML models retain their own licenses. Model files are not committed; download them explicitly using `--fetch-models`.

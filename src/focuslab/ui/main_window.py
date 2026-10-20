@@ -1,4 +1,4 @@
-"""Main window: navigation, session start/finish flow, tray and application bootstrap."""
+"Main window: navigation, session start/finish flow, tray and application bootstrap."
 
 import sys
 from dataclasses import replace
@@ -21,6 +21,7 @@ from focuslab import __version__
 from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
+from focuslab.i18n import install_qt_translator, tr
 from focuslab.services.export_service import apply_retention
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.activity_page import ActivityPage
@@ -43,7 +44,7 @@ class MainWindow(QMainWindow):
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
         self.ctx = ctx
-        self.setWindowTitle("FocusLab" + (" (데모 센서)" if ctx.demo else ""))
+        self.setWindowTitle("FocusLab" + (tr(" (demo sensors)") if ctx.demo else ""))
         self.setWindowIcon(make_icon(ACCENT))
         self.resize(1180, 820)
         self.setMinimumSize(980, 680)
@@ -60,10 +61,15 @@ class MainWindow(QMainWindow):
         tagline = QLabel("Know your workflow,\nnot just your screen time.", objectName="BrandSub")
         side.addWidget(tagline)
         self.nav = QListWidget()
-        self.nav.addItems(["홈", "활동", "세션", "리포트", "설정"])
+        self.nav.addItems(
+            [tr("Home"), tr("Activity"), tr("Sessions"), tr("Reports"), tr("Settings")]
+        )
         side.addWidget(self.nav, 1)
-        footer = QLabel(f"v{__version__} · 로컬 전용" + ("\n데모 센서 모드" if ctx.demo else ""),
-                        objectName="BrandSub")
+        footer = QLabel(
+            tr("v{p0} · Local only", p0=__version__)
+            + (tr("\nDemo sensor mode") if ctx.demo else ""),
+            objectName="BrandSub",
+        )
         side.addWidget(footer)
         layout.addWidget(sidebar)
 
@@ -156,9 +162,12 @@ class MainWindow(QMainWindow):
                 config = replace(config, camera_enabled=False)
             elif face_model_path() is None:
                 QMessageBox.information(
-                    self, "얼굴 모델 없음",
-                    "얼굴 모델이 없어 이번 세션은 PC 활동만 사용합니다.\n"
-                    "설정 > 카메라에서 모델을 받을 수 있습니다.",
+                    self,
+                    tr("Face model missing"),
+                    tr(
+                        "The face model is missing, so this session will use PC "
+                        "activity only.\nDownload it in Settings > Camera."
+                    ),
                 )
                 config = replace(config, camera_enabled=False)
         self.ctx.service.start(config)
@@ -177,7 +186,9 @@ class MainWindow(QMainWindow):
     def finish_session(self) -> None:
         if self.ctx.service.snapshot().lifecycle not in ACTIVE:
             return
-        answer = QMessageBox.question(self, "세션 종료", "세션을 종료하고 리포트를 볼까요?")
+        answer = QMessageBox.question(
+            self, tr("End session"), tr("End the session and view its report?")
+        )
         if answer == QMessageBox.StandardButton.Yes:
             self.ctx.service.finish()
             self.poll()
@@ -212,20 +223,22 @@ class MainWindow(QMainWindow):
         self.settings.set_session_active(False)
         if snap.planned_reached:
             self.show_normal()
-            self.tray.showMessage("FocusLab", "목표 시간에 도달해 세션을 종료했습니다.")
+            self.tray.showMessage(
+                "FocusLab", tr("The target time was reached and the session has ended.")
+            )
         self._ask_self_report(snap.session_id)
         self.home.refresh()
         self.open_report(snap.session_id)
 
     def _ask_self_report(self, session_id: int) -> None:
         box = QMessageBox(self)
-        box.setWindowTitle("세션 완료")
-        box.setText("목표를 달성했나요? (자기보고, 리포트에서 바꿀 수 있습니다)")
+        box.setWindowTitle(tr("Session complete"))
+        box.setText(tr("Did you achieve your goal? (Self-report; editable in Reports)"))
         buttons = {
             box.addButton(text, QMessageBox.ButtonRole.AcceptRole): key
             for key, text in SELF_REPORT_LABELS.items()
         }
-        box.addButton("건너뛰기", QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("Skip"), QMessageBox.ButtonRole.RejectRole)
         box.exec()
         value = buttons.get(box.clickedButton())
         if value:
@@ -241,8 +254,10 @@ class MainWindow(QMainWindow):
             if not self._tray_hint_shown:
                 self.tray.showMessage(
                     "FocusLab",
-                    "트레이에서 기록을 계속합니다. 아이콘을 눌러 다시 열고,"
-                    " 메뉴에서 일시정지하거나 완전히 종료할 수 있습니다.",
+                    tr(
+                        "Recording continues in the tray. Click the icon to reopen "
+                        "FocusLab, or use its menu to pause recording or quit."
+                    ),
                 )
                 self._tray_hint_shown = True
             return
@@ -253,7 +268,7 @@ class MainWindow(QMainWindow):
         if self.ctx.service.snapshot().lifecycle in ACTIVE:
             self.show_normal()
             answer = QMessageBox.question(
-                self, "FocusLab 종료", "진행 중인 세션을 종료하고 FocusLab을 끝낼까요?"
+                self, tr("Quit FocusLab"), tr("End the current session and quit FocusLab?")
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
@@ -302,11 +317,12 @@ def run_app(demo: bool = False, background: bool = False) -> int:
         if background:  # sign-in start while FocusLab is already running: nothing to do
             return 0
         QMessageBox.information(
-            None, "FocusLab", "FocusLab이 이미 실행 중입니다. 트레이 아이콘을 확인하세요."
+            None, "FocusLab", tr("FocusLab is already running. Check the tray icon.")
         )
         return 1
 
     ctx = AppContext(demo)
+    install_qt_translator(app)
     recovered = ctx.service.recover_interrupted()
     with ctx.service.lock:
         apply_retention(ctx.service.repository, ctx.retention_days)
@@ -319,11 +335,16 @@ def run_app(demo: bool = False, background: bool = False) -> int:
         window.show()
     if recovered:
         QMessageBox.information(
-            window, "이전 세션 복구",
-            f"정상 종료되지 않은 세션 {len(recovered)}개를 '중단됨'으로 저장했습니다.\n"
-            "기록은 리포트에서 확인할 수 있습니다.",
+            window,
+            tr("Previous session recovered"),
+            tr(
+                (
+                    "Saved {p0} uncleanly ended sessions as interrupted.\nYou "
+                    "can view their records in Reports."
+                ),
+                p0=len(recovered),
+            ),
         )
     code = app.exec()
     lock.unlock()
     return code
-

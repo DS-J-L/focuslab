@@ -1,6 +1,6 @@
 """First-run setup: explicit opt-in to automatic recording, sign-in start and tray behavior.
 
-Nothing is preselected that collects data; closing the dialog or choosing "나중에" records
+Nothing is preselected that collects data; closing the dialog or choosing "Later" records
 nothing. Every choice can be changed later in Settings.
 """
 
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from focuslab.i18n import tr
 from focuslab.ui.consent import RECORDING_TEXT
 
 
@@ -31,24 +32,24 @@ class OnboardingChoice:
 class OnboardingDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, idle_minutes: int = 5) -> None:
         super().__init__(parent)
-        self.setWindowTitle("FocusLab 시작 설정")
+        self.setWindowTitle(tr("Welcome to FocusLab"))
         self.setMinimumWidth(520)
         layout = QVBoxLayout(self)
-        title = QLabel("타이머 없이 PC 활동을 자동으로 기록할까요?")
+        title = QLabel(tr("Automatically record PC activity without a timer?"))
         title.setStyleSheet("font-size:16px; font-weight:700;")
         layout.addWidget(title)
-        text = QLabel(RECORDING_TEXT, wordWrap=True, objectName="Muted")
+        text = QLabel(tr(RECORDING_TEXT), wordWrap=True, objectName="Muted")
         layout.addWidget(text)
 
-        self.recording = QCheckBox("PC 활동 자동 기록에 동의합니다")
-        self.autostart = QCheckBox("Windows에 로그인하면 FocusLab을 트레이로 자동 실행")
-        self.close_to_tray = QCheckBox("창을 닫아도 트레이에서 계속 기록")
+        self.recording = QCheckBox(tr("I agree to automatic PC activity recording"))
+        self.autostart = QCheckBox(tr("Start FocusLab in the tray when I sign in to Windows"))
+        self.close_to_tray = QCheckBox(tr("Keep recording in the tray when the window is closed"))
         self.close_to_tray.setChecked(True)
         idle_row = QHBoxLayout()
-        idle_row.addWidget(QLabel("입력이 없으면 자리 비움(유휴)으로 보는 시간"))
+        idle_row.addWidget(QLabel(tr("No-input threshold for idle time")))
         self.idle = QSpinBox()
         self.idle.setRange(1, 60)
-        self.idle.setSuffix(" 분")
+        self.idle.setSuffix(tr(" min"))
         self.idle.setValue(idle_minutes)
         idle_row.addWidget(self.idle)
         idle_row.addStretch()
@@ -56,15 +57,19 @@ class OnboardingDialog(QDialog):
             layout.addWidget(w)
         layout.addLayout(idle_row)
         note = QLabel(
-            "카메라는 직접 시작한 집중 세션에서만 켜지며, 브라우저 사이트 기록은 설정에서 따로"
-            " 켤 수 있습니다. 모든 선택은 설정에서 바꿀 수 있습니다.",
-            wordWrap=True, objectName="Muted",
+            tr(
+                "The camera runs only in focus sessions you start. Browser "
+                "site recording can be enabled separately in Settings. You "
+                "can change all choices in Settings."
+            ),
+            wordWrap=True,
+            objectName="Muted",
         )
         layout.addWidget(note)
 
         buttons = QDialogButtonBox()
-        self.save = buttons.addButton("저장하고 시작", QDialogButtonBox.ButtonRole.AcceptRole)
-        buttons.addButton("나중에", QDialogButtonBox.ButtonRole.RejectRole)
+        self.save = buttons.addButton(tr("Save and start"), QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(tr("Later"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

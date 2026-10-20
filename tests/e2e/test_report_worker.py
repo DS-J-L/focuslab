@@ -35,6 +35,8 @@ class Calls(list):
     """Every report the worker computes: (thread id, connection, window)."""
 
     delay = 0.0
+    started = None
+    release = None
 
 
 @pytest.fixture
@@ -44,6 +46,10 @@ def calls(monkeypatch):
 
     def spy(conn, start_ms, end_ms):
         seen.append((threading.get_ident(), conn, (start_ms, end_ms)))
+        if seen.started is not None:
+            seen.started.set()
+        if seen.release is not None:
+            assert seen.release.wait(10), "Test did not release the blocked report"
         time.sleep(seen.delay)
         return real(conn, start_ms, end_ms)
 
@@ -84,17 +90,26 @@ def test_reports_finish_while_the_session_lock_is_held(window, settle):
         holder.join()
 
 
-def test_the_window_stays_responsive_and_only_the_latest_day_is_computed(window, calls,
-                                                                         settle):
+def test_the_window_stays_responsive_and_only_the_latest_day_is_computed(
+    window, calls, settle, qtbot
+):
     page = window.activity
     calls.clear()
-    calls.delay = 0.8
-    started = time.perf_counter()
-    page.refresh()
-    for _ in range(3):  # the user keeps stepping back while the first load is running
-        page.show_day(page.day - timedelta(days=1))
-    assert time.perf_counter() - started < 0.5  # nothing was computed on this thread
-    assert page.loading.text() == "불러오는 중…"
+    calls.started, calls.release = threading.Event(), threading.Event()
+    try:
+        started = time.perf_counter()
+        page.refresh()
+        assert time.perf_counter() - started < 0.5
+        # Ensure the initial report is running. Otherwise any intermediate day could
+        # legitimately start before it is superseded, making this a scheduling race.
+        qtbot.waitUntil(calls.started.is_set, timeout=2000)
+        started = time.perf_counter()
+        for _ in range(3):
+            page.show_day(page.day - timedelta(days=1))
+        assert time.perf_counter() - started < 0.5  # no calculation on the GUI thread
+        assert page.loading.text() == "불러오는 중…"
+    finally:
+        calls.release.set()
     settle(window)
     assert page.loading.text() == ""
     skipped = [local_day_bounds(page.day + timedelta(days=n)) for n in (1, 2)]

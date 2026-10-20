@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from focuslab.activity.classifier import UserRules, effective
 from focuslab.domain.activity import ActivitySpan, Category, ClassReason, SpanKind
+from focuslab.i18n import tr
 
 # Not evidence of any kind of work: desktop shell, FocusLab, unreadable programs.
 _NEUTRAL_REASONS = {ClassReason.NEUTRAL_SHELL, ClassReason.UNREADABLE_APP, ClassReason.EXCLUDED}
@@ -49,8 +50,8 @@ class AutoSession:
 def span_label(span: ActivitySpan) -> str:
     """Program (and site) name for grouping; excluded spans have no name."""
     if span.excluded and not span.exe_name:
-        return "제외됨"
-    name = span.display_name or span.exe_name or "알 수 없는 프로그램"
+        return tr("Excluded")
+    name = span.display_name or span.exe_name or tr("Unknown program")
     return f"{name} · {span.domain}" if span.domain else name
 
 
@@ -124,7 +125,7 @@ def detect_sessions(
                 cur.away_since = len(cur.spans) - 1
             cur.away_ms += span.duration_ms
             if cur.away_ms >= sustain_ms:  # a new kind of work: split at the switch
-                tail = cur.spans[cur.away_since:]
+                tail = cur.spans[cur.away_since :]
                 cur.spans = cur.spans[: cur.away_since]
                 cur.away_since = None
                 finish()
@@ -167,9 +168,7 @@ def _summarize(builder: _Builder) -> AutoSession | None:
     return session
 
 
-def link_manual_sessions(
-    sessions: list[AutoSession], manual: list[tuple[int, int, int]]
-) -> None:
+def link_manual_sessions(sessions: list[AutoSession], manual: list[tuple[int, int, int]]) -> None:
     """Mark each automatic session with the manual focus session it overlaps most.
 
     ``manual`` holds ``(session_id, start_ms, end_ms)``. Overlapping time is the same time;

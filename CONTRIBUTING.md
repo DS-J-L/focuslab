@@ -1,31 +1,33 @@
-# 기여 안내
+# Contributing
 
-먼저 [개발 계획](DEVELOPMENT_PLAN.md)과 [개인정보 원칙](PRIVACY.md)을 읽어 주세요.
-현재 범위는 v0.1 프로토타입입니다. 실사용 검증·임계값 튜닝·배포 패키지는 후속 PR에서 다룹니다.
+Read the [development plan](DEVELOPMENT_PLAN.md) and [privacy principles](PRIVACY.md) first. The project is a developer prototype; field validation, threshold tuning, and a distributable installer remain separate work packages.
 
-## Windows PowerShell 개발 환경
+## Windows PowerShell setup
 
-Python 3.11과 uv가 필요합니다. uv 설치는 https://docs.astral.sh/uv/getting-started/installation/ 을 참고하세요.
+Install Python 3.11 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```powershell
 git clone https://github.com/DS-J-L/focuslab.git
 cd focuslab
 uv sync --locked
-uv run focuslab --demo   # 모의 센서로 UI 확인
+uv run focuslab --demo   # Explore the UI with scripted sensors
 uv run ruff check .
 uv run pytest
-node --test "browser_extension/test/*.test.js"   # 브라우저 확장
+node --test "browser_extension/test/*.test.js"
 uv build
 ```
 
-## 작업 흐름
+## Workflow
 
-1. 이슈에서 범위와 개인정보 영향을 정리합니다.
-2. `feat/<scope>` 또는 `fix/<scope>` 브랜치에서 한 가지 목적만 구현합니다.
-3. 센서는 관찰값만 발행하고 판단 로직·UI·저장소와 분리합니다. 상시 레코더는 실제 OS 대신 스크립트 프로브와 가짜 시계로 테스트합니다(`tests/unit/test_recorder.py`).
-4. lint·테스트·필요한 Windows 실제 검증 결과를 PR에 남깁니다.
-5. 검증 및 리뷰 후 squash merge합니다.
+1. Describe scope and privacy impact in an issue.
+2. Implement one purpose on a `feat/<scope>` or `fix/<scope>` branch.
+3. Sensors publish observations only. Keep them separate from judgments, UI, and storage. Test the recorder with scripted probes and a fake clock rather than live OS activity (`tests/unit/test_recorder.py`).
+4. Record lint, test, and applicable real-Windows validation results in the PR.
+5. Confirm the PR base is `main` for final integration, then merge after validation and review. When using stacked branches, merging into a parent feature branch alone does not integrate the changes into `main`.
+6. After a remote merge, update your local `main` with `git pull --ff-only` after saving ongoing work.
 
-합성 이벤트(`focuslab.mock_sources`, `focuslab --seed-demo`)를 기본 테스트 데이터로 사용하고 원본 카메라 영상·사용자 기록·비밀키를 커밋하지 마세요.
-의존성 추가 시 Windows Python 3.11에서 호환성을 확인하고 uv.lock 및 제3자 고지를 갱신하세요.
-README는 한국어를 기준으로 관리하며 영어 번역 PR을 환영합니다. 기능 완료 여부와 설명은 번역 간 일치해야 합니다.
+Use synthetic observations (`focuslab.mock_sources`, `focuslab --seed-demo`) as default test data. Do not commit raw camera footage, personal records, or secrets. Verify new dependencies on Windows Python 3.11 and update `uv.lock` and third-party notices together.
+
+## Documentation and translations
+
+All repository documentation and PR templates are maintained in English. The application supports English and Korean. New user-visible messages must use the localization helpers, with Korean entries in the catalog; do not translate database identifiers or user-entered text. See [the localization guide](docs/internationalization.md) for conventions and validation.

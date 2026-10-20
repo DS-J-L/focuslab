@@ -1,41 +1,45 @@
-"""Separate, explicit consent prompts for automatic recording, PC activity and camera."""
+"Separate, explicit consent prompts for automatic recording, PC activity and camera."
 
 from PySide6.QtWidgets import QMessageBox, QWidget
 
+from focuslab.i18n import tr
+
 ACTIVITY_TEXT = (
-    "세션 중에만 다음을 1초마다 읽습니다.\n\n"
-    "• 맨 앞 창의 프로세스 이름 (예: code.exe)\n"
-    "• 마지막 키보드·마우스 입력 이후 경과 시간\n"
-    "• 화면 잠금 여부\n\n"
-    "창 제목, 문서 이름, URL, 키 입력 내용, 화면은 읽거나 저장하지 않습니다.\n"
-    "동의하지 않으면 PC 활동 없이 (카메라만으로) 관찰하며 대부분 '판단 불가'로 표시됩니다."
+    "The following is read once per second during a focus session only.\n\n• "
+    "Foreground process name (for example, code.exe)\n• Time since the last keyboard "
+    "or mouse input\n• Whether the screen is locked\n\nWindow titles, document "
+    "names, URLs, typed content, and screen contents are not read or saved.\nIf you "
+    "decline, observation uses only the camera, if enabled, and most states will be "
+    "unknown."
 )
 
 RECORDING_TEXT = (
-    "FocusLab이 실행 중인 동안 세션을 시작하지 않아도 PC 사용 기록을 자동으로 남깁니다.\n\n"
-    "• 맨 앞 프로그램의 실행 파일 이름과 제품 이름 (예: code.exe, Visual Studio Code)\n"
-    "• 프로그램을 쓰기 시작·끝낸 시각과 전환 횟수\n"
-    "• 화면 잠금 여부\n\n"
-    "창 제목, 실행 파일 경로, 문서 이름, URL, 키 입력 내용, 화면은 읽거나 저장하지 않습니다.\n"
-    "기록은 이 PC에만 저장되며 설정에서 언제든 끄고 삭제할 수 있습니다."
+    "While FocusLab is running, it automatically records PC use even without "
+    "starting a focus session.\n\n• Foreground executable and product names (for "
+    "example, code.exe, Visual Studio Code)\n• When program use starts and ends, and "
+    "switch counts\n• Whether the screen is locked\n\nWindow titles, executable "
+    "paths, document names, URLs, typed content, and screen contents are not "
+    "recorded.\nRecords stay on this PC. You can disable recording and delete "
+    "records in Settings at any time."
 )
 
 BROWSER_TEXT = (
-    "Chrome·Edge에 FocusLab 확장 프로그램을 설치하면, 브라우저가 맨 앞에 있을 때 활성 탭의\n"
-    "사이트 이름(예: github.com)만 이 PC의 FocusLab으로 보냅니다.\n\n"
-    "• 전체 주소·경로·검색어·페이지 내용·방문 기록은 보내거나 저장하지 않습니다.\n"
-    "• 백그라운드 탭과 InPrivate·시크릿 창은 기록하지 않습니다.\n"
-    "• 확장 프로그램과 FocusLab은 Native Messaging으로만 통신하며 네트워크를 쓰지 않습니다.\n\n"
-    "동의를 철회하면 브라우저 상태 수신을 멈추고 저장된 현재 상태를 지웁니다."
+    "With the FocusLab extension installed in Chrome or Edge, only the active tab's "
+    "hostname\n(for example, github.com) is sent to FocusLab on this PC while the "
+    "browser is in front.\n\n• Full URLs, paths, search terms, page contents, and "
+    "browsing history are not sent or saved.\n• Background tabs and InPrivate / "
+    "incognito windows are not recorded.\n• The extension communicates with FocusLab "
+    "only through Native Messaging, without network access.\n\nWithdrawing consent "
+    "stops receiving browser state and clears the stored current state."
 )
 
 CAMERA_TEXT = (
-    "카메라는 직접 시작한 세션 동안에만 켜지고, 일시정지·종료 시 즉시 해제됩니다.\n\n"
-    "• 영상은 메모리에서만 처리되며 저장·전송되지 않습니다.\n"
-    "• 얼굴이 보이는지와 머리 방향 각도만 계산해 1초 단위 상태 추정에 씁니다.\n"
-    "• 얼굴 신원 식별, 감정 인식, 진단을 하지 않습니다.\n"
-    "• 저장되는 것은 상태와 근거 코드뿐입니다.\n\n"
-    "설정에서 언제든 동의를 철회할 수 있습니다."
+    "The camera runs only during focus sessions you start and is released when you "
+    "pause or end a session.\n\n• Video is processed only in memory and is never "
+    "saved or transmitted.\n• Face presence and head angles inform per-second state "
+    "estimates.\n• No identity recognition, emotion recognition, or diagnosis is "
+    "performed.\n• Only estimated states and evidence codes are saved.\n\nYou can "
+    "withdraw consent in Settings at any time."
 )
 
 
@@ -45,23 +49,23 @@ def ask(parent: QWidget, title: str, text: str) -> bool:
     box.setIcon(QMessageBox.Icon.Information)
     box.setText(title)
     box.setInformativeText(text)
-    agree = box.addButton("동의하고 사용", QMessageBox.ButtonRole.AcceptRole)
-    box.addButton("사용 안 함", QMessageBox.ButtonRole.RejectRole)
+    agree = box.addButton(tr("Agree and enable"), QMessageBox.ButtonRole.AcceptRole)
+    box.addButton(tr("Do not enable"), QMessageBox.ButtonRole.RejectRole)
     box.exec()
     return box.clickedButton() is agree
 
 
 def ask_activity_consent(parent: QWidget) -> bool:
-    return ask(parent, "PC 활동 관찰 동의", ACTIVITY_TEXT)
+    return ask(parent, tr("PC activity observation consent"), tr(ACTIVITY_TEXT))
 
 
 def ask_camera_consent(parent: QWidget) -> bool:
-    return ask(parent, "카메라 관찰 동의", CAMERA_TEXT)
+    return ask(parent, tr("Camera observation consent"), tr(CAMERA_TEXT))
 
 
 def ask_browser_consent(parent: QWidget) -> bool:
-    return ask(parent, "브라우저 사이트 기록 동의", BROWSER_TEXT)
+    return ask(parent, tr("Browser site recording consent"), tr(BROWSER_TEXT))
 
 
 def ask_recording_consent(parent: QWidget) -> bool:
-    return ask(parent, "자동 활동 기록 동의", RECORDING_TEXT)
+    return ask(parent, tr("Automatic activity recording consent"), tr(RECORDING_TEXT))

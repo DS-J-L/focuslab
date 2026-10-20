@@ -1,50 +1,52 @@
-# 개인정보 처리 원칙
+# Privacy principles
 
-FocusLab은 계정·클라우드·분석 전송 기능이 없습니다. 모든 기록은 사용자 PC의 로컬 SQLite 파일에만 저장됩니다.
-네트워크는 사용자가 직접 실행한 얼굴 모델 다운로드(`focuslab --fetch-models` 또는 설정 화면의 버튼)에만 쓰입니다.
-브라우저 확장과 FocusLab은 같은 PC 안에서 Chrome Native Messaging(표준 입출력)으로만 통신하며 네트워크 포트를 열지 않습니다.
+FocusLab has no accounts, cloud storage, or analytics uploads. Records stay in a local SQLite database on your PC. Network access is limited to the face model download you explicitly request with `focuslab --fetch-models` or the Settings button.
 
-## 언제 무엇을 관찰하나요?
+The browser extension communicates with FocusLab on the same PC through Chrome Native Messaging (standard input/output). It does not open a network port.
 
-세 가지 관찰은 **각각 따로** 동의를 받으며, 설정에서 언제든 끄거나 철회할 수 있습니다.
-집중 세션 중에 카메라 또는 PC 활동 관찰 동의를 철회하면 진행 중인 세션에서도 즉시 해당 관찰을 멈추고 (카메라는 장치 해제), 일시정지 후 재개해도 다시 켜지지 않습니다.
+## When and what is observed?
 
-| 관찰 | 언제 | 읽는 것 | 읽지 않는 것 |
+Automatic recording, browser recording, manual-session PC observation, and camera observation have separate consent controls. You can disable or withdraw them in Settings.
+
+| Observation | When | Read | Not collected or recorded |
 | --- | --- | --- | --- |
-| 자동 활동 기록 (Windows) | 최초 실행 동의 후 FocusLab이 실행 중일 때 (트레이 포함). 일시정지 중에는 OS를 전혀 읽지 않음 | 맨 앞 창의 실행 파일 이름(예: `code.exe`)과 실행 파일 버전 정보의 제품 이름, 마지막 키보드·마우스 입력 이후 경과 시간, 화면 잠금·절전·로그오프·사용자 전환·화면 꺼짐 알림 | 창 제목, 실행 파일 전체 경로, 문서 이름, URL, 키 입력 내용, 마우스 위치, 화면 |
-| 브라우저 사이트 (선택, Chrome·Edge 확장) | 브라우저 동의 + 자동 기록 동의 후, 확장을 직접 설치한 경우 | 포커스된 창의 활성 탭 **hostname**(예: `github.com`) | 전체 URL·경로·검색어·페이지 제목·내용·방문 기록, 백그라운드 탭, InPrivate·시크릿 창 |
-| 집중 세션 PC 관찰 | 사용자가 시작한 집중 세션 동안 1초마다 | 맨 앞 프로세스 이름, 마지막 입력 이후 경과 시간, 잠금 여부, (자동 기록 중이면) 현재 사이트 | 위와 같음 |
-| 카메라 (선택) | 사용자가 시작한 집중 세션 동안만. 일시정지·종료·`카메라 끄기` 시 즉시 해제 | 얼굴이 보이는지, 머리 방향 각도, 관찰 품질 | 신원 식별, 감정, 진단. 영상·사진·얼굴 좌표는 저장하지 않음 |
+| Automatic Windows activity | After consent, while FocusLab runs, including in the tray. Pausing stops OS queries. | Foreground executable name and product description, time since keyboard/mouse input, lock/sleep/logoff/user-switch/display events | Window titles, document names, full URLs, typed content, mouse coordinates, screen contents |
+| Browser sites (optional Chrome/Edge extension) | With browser and automatic-recording consent, after you install the extension | Active tab **hostname** in the focused browser window (for example, `github.com`) | Full URL, paths, search terms, page titles/contents, browsing history, background tabs, InPrivate/incognito windows |
+| Manual-session PC observation | Once per second during a focus session you start | Foreground process name, time since last input, lock status, and current site if automatic recording provides it | The sensitive contents listed above |
+| Optional camera | Only during focus sessions you start; released on pause, finish, camera-off, or consent withdrawal | Face presence, head angles, observation quality | Identity recognition, emotion recognition, diagnosis; video, photos, and face coordinates are not saved |
 
-- 실행 파일 경로는 Steam·Epic 등 게임 폴더인지 판단하는 예/아니오 힌트로만 메모리에서 쓰고 저장하지 않습니다.
-- 카메라는 상시 기록에 쓰이지 않습니다. 자동 활동 기록과는 집중 세션 시간대에만 결합되며, `자리 비움`(얼굴 없음 + 입력 없음)만 작업 시간에서 뺍니다. 화면을 보지 않았다는 이유만으로 딴짓으로 판단하지 않습니다.
-- 카메라 프레임은 메모리에서만 처리하고 디스크에 쓰거나 전송하지 않습니다.
-- 사용자가 지정한 **기록 제외 프로그램·사이트**는 이름 없이 `제외됨` 시간으로만 남고 프로그램 이름은 데이터베이스에 들어가지 않습니다.
-- 브라우저 확장 프로그램이 보낸 메시지는 정해진 필드가 아니면 거부합니다(예: `url` 필드). 동의가 없거나 일시정지 중이면 저장하지 않고, 브라우저를 닫으면 현재 상태를 지웁니다.
+- Executable paths may be inspected in memory to identify a Steam/Epic/game-library folder; the paths are discarded and not stored.
+- The camera never runs as part of background automatic recording. Observations overlap with automatic activity only during manual focus sessions. Only estimated absence reduces attended work time; looking away alone does not establish task deviation.
+- Camera frames are processed in memory without disk storage or transmission.
+- Excluded programs/sites leave only unnamed **Excluded** time in the automatic activity timeline. Adding an exclusion does not erase historical records; delete existing records separately if needed.
+- Browser messages with unexpected fields (such as `url`) are rejected. Without consent or while recording is paused, current browser state is not stored. Closing the browser clears its current state.
+- Withdrawing camera or manual PC-observation consent also stops that observation in an ongoing session. Automatic PC recording has its own separate consent switch.
 
-## 무엇을 저장하나요?
+## What is stored?
 
-저장 위치: `%LOCALAPPDATA%\FocusLab\focuslab.db` (`--data-dir` 또는 `FOCUSLAB_DATA_DIR`로 변경 가능)
+Default location: `%LOCALAPPDATA%\FocusLab\focuslab.db`. Override with `--data-dir` or `FOCUSLAB_DATA_DIR`.
 
-- **활동 구간**: 시작·종료 시각, 활성·유휴·잠금 구분, 실행 파일 이름·제품 이름, 사이트 hostname, 분류(카테고리·신뢰도·근거·출처·분류 시각), 사용자 정정
-- **시스템 이벤트**: 기록 시작·종료·일시정지, 잠금·해제, 절전·복귀, 로그오프, 시계 변경, 비정상 종료 복구
-- **자동 세션**: 위 구간에서 계산한 작업 구간 요약(재계산 가능)
-- **브라우저 상태**: 브라우저 프로필별 마지막 hostname 1개(덮어쓰기, 이력 아님)
-- **집중 세션**: 목표, 모드, 목표 시간, 시작·종료 시각, 일시정지 시간, 카메라 사용 여부, 규칙 버전, 목표 달성 자기보고, 허용 앱, 1초 단위 추정 상태·신뢰도·근거 코드·맨 앞 앱·시각, 상태 구간과 정정
-- **설정**: 동의 여부, 유휴 기준, 분류 규칙, 기록 제외 목록, 카메라 번호, 머리 방향 보정 각도, 보존 기간 등
+- **Activity intervals:** start/end, active/idle/locked state, executable/product names, hostname, category/confidence/evidence/source/classification time, and corrections.
+- **System events:** recording start/stop/pause, lock/unlock, sleep/wake, logoff, clock changes, and unclean-exit recovery.
+- **Automatic sessions:** derived summaries of activity intervals; these can be recalculated.
+- **Browser state:** one latest hostname per browser profile, overwritten rather than stored as history.
+- **Focus sessions:** goal, mode, target time, start/end, pauses, camera setting, rules version, goal-achievement self-report, allowed apps, per-second estimates/confidence/evidence/foreground app/timestamp, state intervals, and corrections.
+- **Settings:** consent, interface language, idle threshold, classification rules, exclusions, camera index, head-pose calibration, retention, and related preferences.
 
-Windows 레지스트리(HKCU)에는 사용자가 켠 경우에만 로그인 시 자동 실행 항목과 Chrome·Edge Native Messaging host 등록 항목을 만들며, 설정에서 끄면 삭제합니다.
+Windows registry entries under HKCU are created only when you enable sign-in startup or install the Chrome/Edge Native Messaging connection. Their controls remove those entries when disabled/uninstalled.
 
-## 내보내기·삭제·보존
+## Export, deletion, and retention
 
-- 설정 화면: 전체 JSON 내보내기(집중 세션 + 활동 기록 전체), 집중 세션 CSV, 활동 기록 CSV, **모든 기록 삭제**.
-  모든 기록 삭제는 세션·활동·자동 세션·시스템 이벤트·브라우저 상태를 지우며 설정·동의·분류 규칙·제외 목록은 유지합니다.
-- 리포트 화면: 집중 세션별 JSON/CSV 내보내기와 삭제. 활동 화면: 구간별 분류 정정.
-- 보존 기간(일)을 정하면 앱 시작 시와 적용 시점에 기간이 지난 세션과 활동 기록을 삭제합니다. 기본값은 무제한입니다.
-- 앱 데이터 폴더를 통째로 지우면 설정과 동의를 포함한 모든 데이터가 삭제됩니다.
+- Settings provides complete JSON export (focus sessions and automatic activity), focus-session CSV, activity CSV, and **Delete all records**.
+- Complete deletion removes sessions, activity, automatic sessions, system events, browser state, and corrections. Settings, consent, classification rules, and exclusions remain.
+- Reports provides per-session JSON/CSV export and deletion. Activity provides interval classification corrections.
+- A configured retention period deletes expired sessions and activity at startup and when applied. The default is unlimited retention.
+- Removing the entire app data folder also removes preferences and consent.
 
-## 하지 않는 것
+Changing the interface language affects labels and formatted explanations. It does not translate or rewrite saved goals, app names, observations, stable state/category codes, or historical user content.
 
-- 타인을 동의 없이 관찰하거나 원격으로 감시하는 기능을 제공하지 않습니다.
-- 키 입력 내용, 화면, 창 제목, 전체 URL을 기록하지 않습니다.
-- 집중력 점수, ADHD 위험도 등 의학적·심리적 판정을 하지 않습니다. 모든 지표는 관찰 가능한 행동의 추정입니다.
+## Features we do not provide
+
+- Nonconsensual observation of other people or remote surveillance.
+- Recording typed content, screen contents, window titles, or full URLs.
+- Attention scores, ADHD risk scores, or medical/psychological judgments. Every metric is an estimate of observable behavior.

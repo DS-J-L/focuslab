@@ -9,6 +9,7 @@ from statistics import mean
 from focuslab.config import SELF_NAME
 from focuslab.domain.events import StateSegment, build_segments
 from focuslab.domain.models import FocusState, StateSample
+from focuslab.i18n import tr
 
 
 @dataclass(frozen=True)
@@ -112,16 +113,16 @@ def compute_metrics(samples: Sequence[StateSample], corrected_segments: int = 0)
 
 def format_duration(seconds: float | None) -> str:
     if seconds is None:
-        return "측정 불가"
+        return tr("Not measurable")
     seconds = int(round(seconds))
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     if h:
-        return f"{h}시간 {m}분"
+        return tr("{p0}h {p1}m", p0=h, p1=m)
     if m:
-        return f"{m}분 {s}초"
-    return f"{s}초"
+        return tr("{p0}m {p1}s", p0=m, p1=s)
+    return tr("{p0}s", p0=s)
 
 
 def format_ratio(value: float | None) -> str:
-    return "측정 불가" if value is None else f"{value * 100:.0f}%"
+    return tr("Not measurable") if value is None else f"{value * 100:.0f}%"

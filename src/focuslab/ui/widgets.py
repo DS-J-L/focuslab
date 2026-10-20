@@ -1,9 +1,10 @@
-"""Reusable widgets: timelines, stacked bar charts, stat cards, state badge, camera preview."""
+"Reusable widgets: timelines, stacked bar charts, stat cards, state badge, camera preview."
 
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from html import escape
 
 import numpy as np
 from PySide6.QtCore import QRectF, Qt, Signal
@@ -16,15 +17,14 @@ from PySide6.QtGui import (
     QPaintEvent,
     QPixmap,
 )
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolTip, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QToolTip, QVBoxLayout, QWidget
 
 from focuslab.domain.events import StateSegment
 from focuslab.domain.models import FocusState
 from focuslab.focus.metrics import format_duration
 from focuslab.focus.reasons import describe
+from focuslab.i18n import tr, weekday_name
 from focuslab.ui.theme import SHORT_LABELS, STATE_COLORS, STATE_LABELS
-
-_WEEKDAYS = "월화수목금토일"
 
 
 def clock_text(seconds: int) -> str:
@@ -73,16 +73,16 @@ class StatCard(QFrame):
 
 class StateBadge(QLabel):
     def __init__(self) -> None:
-        super().__init__("대기 중")
+        super().__init__(tr("Waiting"))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumHeight(54)
         self.set_state(None)
 
     def set_state(self, state: FocusState | None, held: bool = False) -> None:
         color = STATE_COLORS[state] if state else "#E6E9EF"
-        text = STATE_LABELS[state] if state else "대기 중"
+        text = STATE_LABELS[state] if state else tr("Waiting")
         fg = "white" if state not in (None, FocusState.UNKNOWN) else "#3A4150"
-        self.setText(text + ("  · 유지 중" if held else ""))
+        self.setText(text + (tr("  · Holding") if held else ""))
         self.setStyleSheet(
             f"background:{color}; color:{fg}; border-radius:12px; font-size:20px;"
             " font-weight:700; padding:10px 16px;"
@@ -90,27 +90,28 @@ class StateBadge(QLabel):
 
 
 class Legend(QWidget):
-    """Colored dots with labels; defaults to the focus states."""
+    """Wrapping color labels, including longer English category names."""
 
     def __init__(self, items: Sequence[tuple[str, str]] | None = None) -> None:
         super().__init__()
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
         if items is None:
             items = [(STATE_COLORS[s], SHORT_LABELS[s]) for s in FocusState]
-        for color, text in items:
-            dot = QLabel()
-            dot.setFixedSize(10, 10)
-            dot.setStyleSheet(f"background:{color}; border-radius:5px;")
-            layout.addWidget(dot)
-            layout.addWidget(QLabel(text, objectName="Muted"))
-        layout.addStretch()
+        label = QLabel(objectName="Muted", wordWrap=True)
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setText(
+            " &nbsp; ".join(
+                f'<span style="color:{color}">●</span>&nbsp;{escape(text)}' for color, text in items
+            )
+        )
+        label.setAccessibleName(" / ".join(text for _, text in items))
+        layout.addWidget(label)
 
 
 @dataclass(frozen=True)
 class Bar:
-    """One colored interval on a ``BarTimeline``; ``key`` is emitted when it is clicked."""
+    "One colored interval on a ``BarTimeline``; ``key`` is emitted when it is clicked."
 
     start: float
     end: float
@@ -121,7 +122,7 @@ class Bar:
 
 
 class BarTimeline(QWidget):
-    """Horizontal timeline of colored intervals over ``[start, end)`` with optional ticks."""
+    "Horizontal timeline of colored intervals over ``[start, end)`` with optional ticks."
 
     itemClicked = Signal(object)
 
@@ -135,7 +136,11 @@ class BarTimeline(QWidget):
         self._ticks: tuple[tuple[float, str], ...] = ()
 
     def set_bars(
-        self, bars: Sequence[Bar], start: float, end: float, selected: object = None,
+        self,
+        bars: Sequence[Bar],
+        start: float,
+        end: float,
+        selected: object = None,
         ticks: Sequence[tuple[float, str]] = (),
     ) -> None:
         self._bars = tuple(bars)
@@ -185,8 +190,7 @@ class BarTimeline(QWidget):
             x = self._x(value)
             p.drawLine(int(x), int(rect.bottom()), int(x), int(rect.bottom()) + 3)
             left = min(max(0.0, x - 30), self.width() - 60.0)  # keep edge labels visible
-            p.drawText(QRectF(left, rect.bottom() + 2, 60, 14), Qt.AlignmentFlag.AlignCenter,
-                       text)
+            p.drawText(QRectF(left, rect.bottom() + 2, 60, 14), Qt.AlignmentFlag.AlignCenter, text)
         p.end()
 
     def bar_at(self, x: float) -> Bar | None:
@@ -215,10 +219,10 @@ def _segment_tooltip(seg: StateSegment) -> str:
         STATE_LABELS[seg.state],
     ]
     if seg.corrected_label:
-        lines.append(f"정정됨 → {STATE_LABELS[seg.corrected_label]}")
+        lines.append(tr("Corrected → {p0}", p0=STATE_LABELS[seg.corrected_label]))
     lines += [f"· {text}" for text in describe(seg.reason_codes)]
     if seg.app_names:
-        lines.append("앱: " + ", ".join(seg.app_names))
+        lines.append(tr("Apps: ") + ", ".join(seg.app_names))
     return "\n".join(lines)
 
 
@@ -232,12 +236,20 @@ class TimelineWidget(BarTimeline):
         self.itemClicked.connect(self.segmentClicked)
 
     def set_segments(
-        self, segments: Sequence[StateSegment], total_s: int | None = None,
+        self,
+        segments: Sequence[StateSegment],
+        total_s: int | None = None,
         selected_event: int | None = None,
     ) -> None:
         bars = [
-            Bar(seg.start_s, seg.end_s, STATE_COLORS[seg.effective_state], seg,
-                _segment_tooltip(seg), bool(seg.corrected_label))
+            Bar(
+                seg.start_s,
+                seg.end_s,
+                STATE_COLORS[seg.effective_state],
+                seg,
+                _segment_tooltip(seg),
+                bool(seg.corrected_label),
+            )
             for seg in segments
         ]
         end = segments[-1].end_s if segments else 0
@@ -246,12 +258,15 @@ class TimelineWidget(BarTimeline):
 
 
 class StackedBars(QWidget):
-    """Vertical stacked bars: one column per label, stacked in ``order`` with ``colors``."""
+    "Vertical stacked bars: one column per label, stacked in ``order`` with ``colors``."
 
     def __init__(
-        self, order: Sequence[object], colors: Mapping[object, str],
-        value_text: Callable[[float], str] = lambda seconds: f"{round(seconds / 60)}분",
-        label_every: int = 1, height: int = 150,
+        self,
+        order: Sequence[object],
+        colors: Mapping[object, str],
+        value_text: Callable[[float], str] = lambda seconds: tr("{p0}m", p0=round(seconds / 60)),
+        label_every: int = 1,
+        height: int = 150,
     ) -> None:
         super().__init__()
         self.setMinimumHeight(height)
@@ -286,12 +301,18 @@ class StackedBars(QWidget):
                 y -= bar_h
                 p.fillRect(QRectF(x, y, bar_w, bar_h), QColor(self._colors[key]))
             if i % self.label_every == 0:
-                p.drawText(QRectF(i * slot - slot, top + h + 4, slot * 3, 16),
-                           Qt.AlignmentFlag.AlignCenter, label)
+                p.drawText(
+                    QRectF(i * slot - slot, top + h + 4, slot * 3, 16),
+                    Qt.AlignmentFlag.AlignCenter,
+                    label,
+                )
             total = sum(values.values())
             if total and self.label_every == 1:
-                p.drawText(QRectF(i * slot, y - 16, slot, 14), Qt.AlignmentFlag.AlignCenter,
-                           self._value_text(total))
+                p.drawText(
+                    QRectF(i * slot, y - 16, slot, 14),
+                    Qt.AlignmentFlag.AlignCenter,
+                    self._value_text(total),
+                )
         p.end()
 
 
@@ -303,5 +324,5 @@ class WeekChart(StackedBars):
 
     def set_days(self, days: list[tuple[date, Counter[FocusState]]]) -> None:
         self.set_columns(
-            [(f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})", counts) for d, counts in days]
+            [(f"{d.month}/{d.day}({weekday_name(d.weekday())})", counts) for d, counts in days]
         )

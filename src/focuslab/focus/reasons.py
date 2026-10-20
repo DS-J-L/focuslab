@@ -2,6 +2,8 @@
 
 from enum import StrEnum
 
+from focuslab.i18n import LocalizedMapping
+
 
 class Reason(StrEnum):
     USER_BREAK = "USER_BREAK"
@@ -29,31 +31,33 @@ class Reason(StrEnum):
     HYSTERESIS_HOLD = "HYSTERESIS_HOLD"
 
 
-REASON_TEXT = {
-    Reason.USER_BREAK: "사용자가 휴식을 시작함",
-    Reason.SCREEN_LOCKED: "화면 잠금 중 (관찰 불가)",
-    Reason.OBSERVATION_GAP: "절전·지연으로 관찰이 끊긴 구간",
-    Reason.ALLOWED_APP: "허용 앱 사용 중",
-    Reason.UNRELATED_APP: "허용 목록에 없는 앱",
-    Reason.NEUTRAL_APP: "중립 앱(바탕화면·FocusLab 등)",
-    Reason.BROWSER_DETAIL_UNKNOWN: "브라우저 세부 활동 미확인",
-    Reason.ACTIVITY_UNAVAILABLE: "PC 활동 정보 없음",
-    Reason.ACTIVITY_STALE: "PC 활동 정보가 오래됨",
-    Reason.USER_ACTIVE: "키보드·마우스 입력 있음",
-    Reason.USER_IDLE: "키보드·마우스 입력 없음",
-    Reason.IDLE_EXPECTED_IN_MODE: "이 모드에서는 입력이 없어도 정상",
-    Reason.CAMERA_OFF: "카메라 사용 안 함",
-    Reason.CAMERA_UNAVAILABLE: "카메라 사용 불가",
-    Reason.FACE_STALE: "얼굴 관찰값이 오래됨",
-    Reason.FACE_LOW_QUALITY: "얼굴 관찰 품질 낮음 (어두움·가림·멀리 있음)",
-    Reason.FACE_FORWARD: "화면 방향 관찰",
-    Reason.HEAD_DOWN: "아래쪽 방향 관찰 (단독으로 이탈 판정하지 않음)",
-    Reason.HEAD_DOWN_READING: "아래쪽 방향 관찰 (독서·필기 모드)",
-    Reason.HEAD_TURNED_AWAY: "화면 외 방향 관찰",
-    Reason.FACE_NOT_VISIBLE: "카메라에 얼굴이 보이지 않음",
-    Reason.INSUFFICIENT_EVIDENCE: "판단할 근거가 부족함",
-    Reason.HYSTERESIS_HOLD: "짧은 변화라 이전 상태 유지",
-}
+REASON_TEXT = LocalizedMapping(
+    {
+        Reason.USER_BREAK: "You started a break",
+        Reason.SCREEN_LOCKED: "Screen locked (observation unavailable)",
+        Reason.OBSERVATION_GAP: "Observation interrupted by sleep or delay",
+        Reason.ALLOWED_APP: "Using an allowed app",
+        Reason.UNRELATED_APP: "App is not on the allow list",
+        Reason.NEUTRAL_APP: "Neutral app (desktop, FocusLab, etc.)",
+        Reason.BROWSER_DETAIL_UNKNOWN: "Browser activity details unavailable",
+        Reason.ACTIVITY_UNAVAILABLE: "PC activity unavailable",
+        Reason.ACTIVITY_STALE: "PC activity observation is stale",
+        Reason.USER_ACTIVE: "Keyboard or mouse input detected",
+        Reason.USER_IDLE: "No keyboard or mouse input",
+        Reason.IDLE_EXPECTED_IN_MODE: "No input is expected in this mode",
+        Reason.CAMERA_OFF: "Camera not in use",
+        Reason.CAMERA_UNAVAILABLE: "Camera unavailable",
+        Reason.FACE_STALE: "Face observation is stale",
+        Reason.FACE_LOW_QUALITY: "Low-quality face observation (dark, obscured, or distant)",
+        Reason.FACE_FORWARD: "Observed facing the screen",
+        Reason.HEAD_DOWN: "Looking down (does not establish task deviation)",
+        Reason.HEAD_DOWN_READING: "Looking down (reading / writing mode)",
+        Reason.HEAD_TURNED_AWAY: "Looking away from the screen",
+        Reason.FACE_NOT_VISIBLE: "Face not visible to the camera",
+        Reason.INSUFFICIENT_EVIDENCE: "Insufficient evidence",
+        Reason.HYSTERESIS_HOLD: "Brief change; holding the previous state",
+    }
+)
 
 
 def describe(codes: tuple[str, ...] | list[str]) -> list[str]:

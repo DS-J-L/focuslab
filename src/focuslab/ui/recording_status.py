@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from focuslab.activity.recorder import RecorderState, RecorderStatus, wall_ms
+from focuslab.i18n import tr
 
 WARNING_STYLE = "color:#C92A2A; font-weight:700;"  # a failing save, until a save works
 
@@ -29,21 +30,31 @@ def describe(
 ) -> RecordingHealth:
     now_ms = wall_ms() if now_ms is None else now_ms
     if not consent:
-        return RecordingHealth("자동 기록 꺼짐 · 설정에서 켤 수 있습니다")
+        return RecordingHealth(tr("Automatic recording is off · Enable it in Settings"))
     if status is None or status.state is RecorderState.STOPPED:
-        return RecordingHealth("자동 기록 중지됨")
+        return RecordingHealth(tr("Automatic recording stopped"))
     if status.state is RecorderState.PAUSED:
-        observing = "자동 기록 일시정지됨"
+        observing = tr("Automatic recording is paused")
     elif status.probe_error:
-        observing = "● 관찰 불가 (프로그램을 읽지 못함)"
+        observing = tr("● Observation unavailable (cannot read the program)")
     else:
-        observing = "● 관찰 중"
-    last = _clock(status.last_save_ms, now_ms) if status.last_save_ms else "없음"
+        observing = tr("● Observing")
+    last = _clock(status.last_save_ms, now_ms) if status.last_save_ms else tr("None")
     if status.save_error:
         since = _clock(status.save_failing_since_ms or now_ms, now_ms)
         return RecordingHealth(
-            f"{observing} · ⚠ 저장 실패 ({since}부터, 마지막 저장 {last})",
-            saving_failed=True, detail=status.save_error,
+            tr(
+                "{p0} · ⚠ Save failed (since {p1}, last saved {p2})",
+                p0=observing,
+                p1=since,
+                p2=last,
+            ),
+            saving_failed=True,
+            detail=status.save_error,
         )
-    saving = f"저장 정상 · 마지막 저장 {last}" if status.last_save_ms else "저장 대기 중"
+    saving = (
+        tr("Saving normally · Last saved {p0}", p0=last)
+        if status.last_save_ms
+        else tr("Waiting to save")
+    )
     return RecordingHealth(f"{observing} · {saving}", detail=status.probe_error or "")
