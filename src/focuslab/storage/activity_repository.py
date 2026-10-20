@@ -125,9 +125,6 @@ class ActivityRepository:
         ).fetchone()
         return (row["domain"], row["page_title"]) if row else (None, None)
 
-    def browser_domain(self, browser: str, since_ms: int) -> str | None:
-        return self.browser_detail(browser, since_ms)[0]
-
     def last_span(self) -> ActivitySpan | None:
         row = self.conn.execute(_SPAN_SELECT + " ORDER BY s.end_ms DESC LIMIT 1").fetchone()
         return _span(row) if row else None

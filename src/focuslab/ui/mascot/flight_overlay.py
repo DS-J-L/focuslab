@@ -191,12 +191,12 @@ class FlightController(QObject):
         plumage: Callable[[int], Plumage],
         perched_scale: float = 1.0,
         rng: random.Random | None = None,
-        fullscreen: Callable[[], bool] = foreground_is_fullscreen,
+        fullscreen: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__()
         self.clock, self.home, self.area, self.plumage = clock, home, area, plumage
         self.perched_scale = perched_scale  # leaves and lands at its size on the branch
-        self.fullscreen = fullscreen
+        self.fullscreen = fullscreen  # None: look up foreground_is_fullscreen at call time
         self.rng = rng or random.Random()
         self.enabled = False
         self.interval_s = 300.0
@@ -228,7 +228,7 @@ class FlightController(QObject):
             return
         if self._last_departure is not None and now - self._last_departure < self.interval_s:
             return
-        if self.fullscreen():
+        if (self.fullscreen or foreground_is_fullscreen)():
             return
         self.depart(now)
 

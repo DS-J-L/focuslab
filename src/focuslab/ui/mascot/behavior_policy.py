@@ -27,9 +27,6 @@ class Mood(StrEnum):
     AWAY = "away"  # quietly waiting for you to come back
 
 
-OFF_TASK_MOODS = frozenset({Mood.WATCH, Mood.WARN, Mood.ALARM})
-
-
 class BehaviorPolicy:
     def __init__(
         self,

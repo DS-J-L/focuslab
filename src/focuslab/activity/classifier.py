@@ -16,9 +16,6 @@ from focuslab.config import NEUTRAL_APPS
 from focuslab.domain.activity import ActivitySpan, Category, ClassReason, ClassSource, SpanKind
 from focuslab.i18n import LocalizedMapping
 
-CLASSIFIER_VERSION = "classes-0.1"
-
-
 CLASS_REASON_TEXT = LocalizedMapping(
     {
         ClassReason.APP_RULE: "Built-in program rule",
