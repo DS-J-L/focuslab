@@ -7,6 +7,7 @@ from focuslab.domain.models import (
     SessionMode,
     SessionStatus,
 )
+from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.reasons import Reason
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.services.session_service import (
@@ -216,3 +217,57 @@ def test_recover_interrupted_after_crash(tmp_path, clock):
     assert restarted.recover_interrupted() == [sid]
     assert restarted.repository.get_session(sid).status is SessionStatus.INTERRUPTED
     restarted.shutdown()
+
+
+@pytest.mark.parametrize("paused", [False, True], ids=["running", "paused"])
+def test_withdrawing_consent_stops_the_live_session_sensors(tmp_path, clock, paused):
+    """The settings page path: no more camera or PC reads, also after a resume."""
+    from focuslab.ui.context import AppContext
+
+    reads = []
+    coding = ((3600, "code.exe", "active"),)
+
+    class CountingActivity(MockActivitySource):
+        def sample(self, now_ms):
+            reads.append(now_ms)
+            return super().sample(now_ms)
+
+    faces = []
+
+    def face_factory(cfg):
+        faces.append(MockFaceSource(clock=clock))
+        return faces[-1]
+
+    ctx = AppContext()
+    ctx.service.shutdown()
+    ctx.service = SessionService(
+        tmp_path / "consent.db", face_factory=face_factory,
+        activity_factory=lambda cfg: CountingActivity(cfg.allowed_apps, coding),
+        clock=clock, auto_tick=False,
+    )
+    try:
+        ctx.set_camera_consent(True)
+        ctx.set_activity_consent(True)
+        sid = ctx.service.start(config())
+        tick(ctx.service, clock, 3)
+        if paused:
+            ctx.service.pause()
+        ctx.set_camera_consent(False)
+        ctx.set_activity_consent(False)
+        if paused:
+            ctx.service.resume()
+        observed = len(reads)
+        tick(ctx.service, clock, 3)
+
+        assert len(reads) == observed
+        assert faces[0].status is CameraStatus.OFF and faces[0].start_count == 1
+        assert ctx.service.face_source is None
+        snap = ctx.service.snapshot()
+        assert snap.camera_status is CameraStatus.OFF
+        assert snap.face is None and snap.face_evidence is FaceEvidence.OFF
+        assert snap.app_name is None
+        after = ctx.service.repository.samples(sid)[3:]
+        assert len(after) == 3 and all(s.app_name is None for s in after)
+        assert all(Reason.CAMERA_OFF in s.reason_codes for s in after)
+    finally:
+        ctx.service.shutdown()

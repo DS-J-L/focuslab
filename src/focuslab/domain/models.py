@@ -111,7 +111,7 @@ class StateSample:
     confidence: float
     reason_codes: tuple[str, ...] = ()
     app_name: str | None = None
-    at_ms: int | None = None  # UTC epoch ms of this second (None for gap fills, pre-v5 rows)
+    at_ms: int | None = None  # UTC epoch ms of this second (None for rows from before v5)
 
 
 @dataclass(frozen=True)

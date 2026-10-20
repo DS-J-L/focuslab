@@ -47,7 +47,7 @@ class ActivityStats:
     daily: dict[date, Counter] = field(default_factory=dict)  # local day -> Category -> ms
     work_ms: int = 0
     attended_work_ms: int = 0  # work minus camera-judged AWAY seconds
-    camera_covered_ms: int = 0
+    camera_covered_ms: int = 0  # work time the camera actually observed
     sessions: list[AutoSession] = field(default_factory=list)
     manual_overlap_ms: int = 0  # activity time that falls inside manual focus sessions
 
@@ -138,8 +138,8 @@ def compute_stats(
         if label.category in WORK:
             stats.work_ms += ms
             stats.attended_work_ms += attended_ms(span, item.camera)
-            if item.camera and item.camera.has_camera:
-                stats.camera_covered_ms += ms
+            if item.camera:  # only the observed seconds, never the whole span
+                stats.camera_covered_ms += min(ms, item.camera.camera_s * 1000)
         if label.reason in _NEUTRAL:
             continue
         if previous is not None and name != previous:

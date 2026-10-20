@@ -4,7 +4,11 @@ from focuslab.activity.camera_overlay import attended_ms, overlay, session_sampl
 from focuslab.domain.activity import ActivitySpan, Category, SpanKind
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
-from focuslab.services.activity_service import rebuild_auto_sessions, stored_auto_sessions
+from focuslab.services.activity_service import (
+    activity_report,
+    rebuild_auto_sessions,
+    stored_auto_sessions,
+)
 from focuslab.services.session_service import SessionService
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.storage.repository import epoch_ms
@@ -89,3 +93,33 @@ def test_rebuilding_auto_sessions_is_idempotent_and_links_the_focus_session(tmp_
         assert stored[0].active_ms == 20 * minute and stored[2].active_ms == 25 * minute
     finally:
         svc.shutdown()
+
+
+def test_camera_coverage_counts_only_the_observed_seconds(tmp_path, clock):
+    """A 10 minute span with a 2 minute camera session is 2 minutes of camera coverage, and a
+    window holding half of that session shows half."""
+    svc, _ = run_focus_session(tmp_path / "f.db", clock)
+    try:
+        conn = svc.repository.conn
+        ActivityRepository(conn).insert_span(
+            ActivitySpan(T0 - 480_000, T0 + 120_000, SpanKind.ACTIVE, "code.exe")
+        )
+        _, whole = activity_report(conn, T0 - 480_000, T0 + 120_000)
+        _, half = activity_report(conn, T0 - 480_000, T0 + 60_000)
+    finally:
+        svc.shutdown()
+    assert whole.work_ms == 600_000 and whole.camera_covered_ms == 120_000
+    assert half.work_ms == 540_000 and half.camera_covered_ms == 60_000
+
+
+def test_a_failed_camera_is_not_camera_coverage():
+    from focuslab.domain.models import StateSample
+    from focuslab.focus.reasons import Reason
+
+    span = ActivitySpan(T0, T0 + 10_000, SpanKind.ACTIVE, "code.exe", span_id=1)
+    samples = [
+        (T0 + i * 1000, 1, StateSample(i, FocusState.ON_TASK, 0.5, (Reason.CAMERA_UNAVAILABLE,)))
+        for i in range(10)
+    ]
+    ov = overlay([span], samples)[1]
+    assert ov.observed_s == 10 and ov.camera_s == 0 and not ov.has_camera

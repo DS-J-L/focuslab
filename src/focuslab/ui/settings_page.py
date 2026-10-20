@@ -469,17 +469,16 @@ class SettingsPage(QWidget):
 
     def _toggle_activity(self) -> None:
         if self.ctx.activity_consent:
-            self.ctx.set_flag("consent.activity", False)
+            self.ctx.set_activity_consent(False)
         else:
-            self.ctx.set_flag("consent.activity", ask_activity_consent(self))
+            self.ctx.set_activity_consent(ask_activity_consent(self))
         self.refresh()
 
     def _toggle_camera(self) -> None:
         if self.ctx.camera_consent:
-            self.ctx.set_flag("consent.camera", False)
-            self.ctx.set_flag("last.camera", False)
+            self.ctx.set_camera_consent(False)
         else:
-            self.ctx.set_flag("consent.camera", ask_camera_consent(self))
+            self.ctx.set_camera_consent(ask_camera_consent(self))
         self.refresh()
         self.dataChanged.emit()
 
