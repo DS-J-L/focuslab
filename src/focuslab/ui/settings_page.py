@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -29,9 +29,9 @@ from PySide6.QtWidgets import (
 
 from focuslab import autostart
 from focuslab.activity.recorder import RecorderState
+from focuslab.browser import extension
 from focuslab.browser import install as browser_install
 from focuslab.config import (
-    EXTENSION_DIR,
     MODE_PROFILES,
     RULE_VERSION,
     RuleConfig,
@@ -217,22 +217,62 @@ class SettingsPage(QWidget):
         form.addRow(
             tr("Desktop connection"), _row(self.host_state, self.host_install, self.host_remove)
         )
-        open_ext = QPushButton(tr("Open extension folder"))
-        open_ext.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(EXTENSION_DIR)))
-        )
+        self.ext_buttons = {
+            "chrome": QPushButton(tr("Install in Chrome")),
+            "edge": QPushButton(tr("Install in Edge")),
+        }
+        for browser, button in self.ext_buttons.items():
+            button.clicked.connect(lambda _=False, b=browser: self._install_extension(b))
         guide = QLabel(
             tr(
-                "Open chrome://extensions or edge://extensions, enable Developer mode, choose "
-                "'Load unpacked', and select this folder. Program recording works even without "
-                "the extension."
+                "One click asks for consent if needed, installs the desktop connection, and "
+                "opens the browser with the extension folder and short steps. Program "
+                "recording works even without the extension."
             ),
             wordWrap=True,
             objectName="Muted",
         )
-        form.addRow(tr("Extension"), _row(open_ext))
+        form.addRow(tr("Extension"), _row(*self.ext_buttons.values()))
         form.addRow(guide)
         return box
+
+    def _install_extension(self, browser: str) -> None:
+        if not self.ctx.browser_consent:
+            if not ask_browser_consent(self):
+                return
+            self.ctx.set_browser_consent(True)
+        if not self._install_host():  # rewrite it so newly listed store origins are allowed
+            return
+        try:
+            url = extension.store_url(browser)
+            if url:
+                extension.open_in_browser(browser, url)
+            else:
+                folder = extension.stage_extension(self.ctx.data_dir)
+                page = extension.EXTENSIONS_PAGES[browser]
+                QGuiApplication.clipboard().setText(page)
+                extension.reveal(folder)
+                extension.open_in_browser(browser)
+                QMessageBox.information(
+                    self,
+                    tr("Install the extension"),
+                    tr(
+                        "A browser window and the extension folder are now open.\n\n"
+                        "1. In the browser's address bar press Ctrl+V, then Enter "
+                        "({p0} is already copied).\n"
+                        "2. Turn on Developer mode on that page.\n"
+                        "3. Drag the selected 'browser-extension' folder from Explorer onto "
+                        "the page.\n"
+                        "4. When 'FocusLab Activity Bridge' appears, you are done. "
+                        "'Last received' here updates once you browse.",
+                        p0=page,
+                    ),
+                )
+        except OSError as exc:
+            QMessageBox.warning(
+                self, tr("Install the extension"), tr("Could not install: {p0}", p0=exc)
+            )
+        self.refresh()
 
     def _refresh_browser(self) -> None:
         consent = self.ctx.browser_consent
@@ -252,6 +292,8 @@ class SettingsPage(QWidget):
         windows = sys.platform == "win32" and not self.ctx.demo
         self.host_install.setEnabled(windows)
         self.host_remove.setEnabled(windows and bool(names))
+        for browser, button in self.ext_buttons.items():
+            button.setEnabled(windows and extension.browser_executable(browser) is not None)
         self.browser_button.setEnabled(not self.ctx.demo)
 
     def _toggle_browser(self) -> None:
@@ -263,14 +305,17 @@ class SettingsPage(QWidget):
                 self._install_host()
         self.refresh()
 
-    def _install_host(self) -> None:
+    def _install_host(self) -> bool:
         try:
             browser_install.install(self.ctx.data_dir)
         except OSError as exc:
             QMessageBox.warning(
                 self, tr("Browser connection"), tr("Could not install: {p0}", p0=exc)
             )
-        self.refresh()
+            return False
+        finally:
+            self.refresh()
+        return True
 
     def _remove_host(self) -> None:
         browser_install.uninstall(self.ctx.data_dir)

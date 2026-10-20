@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Sends only the active tab's hostname (never the full URL) to the FocusLab desktop app on this PC.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAz3PYStzPnljp7K/1TrOZQsmg7psGzcnVbPQOX9tmmw2tjoKYDMJWH+MzZuS/yqnfJ1OXMb0TDfzFmB6/6ft1Ab7ZljtDsz33jxnd9wwJdNUJBic6/dEtQfCz1WOoNNHHfOTScOJ79YCrqcnU6lVnD6Tei1z9uBQH8wCSO+y7d25ua83iCgKAAL2jx/PDXny0YPdgzcZHUuSoTE/RCR71eqez6xzpvg3pbEJ4XWIn32GNH/52tMXn163qjTiM4xUww/mGN8iFwbvibjnMGix0g9Al8st/QqlCW6lolJrI5lw9cuWqQJzcxNdGzHL4mbm7ETA+UZzyTP/A8JIAIrHGDwIDAQAB",
+  "icons": {"16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png"},
   "minimum_chrome_version": "116",
   "incognito": "not_allowed",
   "permissions": ["tabs", "nativeMessaging", "alarms"],

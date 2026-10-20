@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from focuslab.browser import EXTENSION_ORIGIN
+from focuslab.browser import EXTENSION_ORIGINS
 from focuslab.browser.install import bound_data_dir
 from focuslab.browser.protocol import ProtocolError, parse_state, read_message, write_message
 from focuslab.browser.store import BrowserStateStore
@@ -37,7 +37,7 @@ def _parse_args(argv: list[str]) -> tuple[str, Path | None]:
 
 
 def serve(stdin, stdout, origin: str, database: Path) -> int:
-    if origin != EXTENSION_ORIGIN:
+    if origin not in EXTENSION_ORIGINS:
         write_message(stdout, {"type": "error", "error": "origin not allowed"})
         return 1
     conn = connect(database)

@@ -49,9 +49,11 @@ The app supports **English and Korean**. On first launch it uses Korean for a Ko
 
 ### Optional browser site recording (Chrome / Edge)
 
-1. In Settings > Browser site recording, give consent and choose **Install connection**. This registers the Native Messaging host in HKCU without administrator rights.
-2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `browser_extension/` folder.
+1. In Settings > Browser site recording, choose **Install in Chrome** or **Install in Edge**. This asks for consent if needed and registers the Native Messaging host in HKCU without administrator rights.
+2. Once the extension is listed in the Chrome Web Store or Edge Add-ons, the button opens that page; choose **Add**. Until then, the button copies the extension to `%LOCALAPPDATA%\FocusLab\browser-extension`, opens it in Explorer, opens a browser window, and copies `chrome://extensions` (or `edge://extensions`) to the clipboard. Browsers do not let other programs open that page directly. Paste the address, turn on Developer mode, and drag the folder onto the page.
 3. While the browser is in front, the extension reports only the active tab's hostname. Program recording works without the extension.
+
+To publish the extension to the stores, see [Publishing the browser extension](docs/browser-extension-store.md).
 
 ```powershell
 uv run ruff check .
