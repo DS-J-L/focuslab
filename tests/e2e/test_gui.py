@@ -181,3 +181,37 @@ def test_popups_stay_readable_on_a_dark_system_palette(qapp, qtbot):
         qapp.setFont(previous_font)
         qapp.setPalette(previous_palette)
         qapp.setStyleSheet(previous_sheet)
+
+
+def test_relevance_model_toggle_downloads_only_after_consent(window, qtbot, monkeypatch, tmp_path):
+    from focuslab.relevance import model_manager
+
+    settings = window.settings
+    window.ctx.demo = False  # the toggle is disabled in demo mode
+    installed = []
+    monkeypatch.setattr(model_manager, "runtime_available", lambda: True)
+    monkeypatch.setattr(model_manager, "installed_dir", lambda dirs=None: installed and tmp_path)
+    monkeypatch.setattr(
+        model_manager, "install", lambda **kw: installed.append(True) or tmp_path
+    )
+    try:
+        monkeypatch.setattr(
+            QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No
+        )
+        settings.refresh()
+        assert settings.relevance_check.isEnabled() and not settings.relevance_check.isChecked()
+        settings.relevance_check.setChecked(True)
+        assert installed == [] and not window.ctx.relevance_ai  # declined: nothing downloaded
+
+        monkeypatch.setattr(
+            QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes
+        )
+        settings.relevance_check.setChecked(True)
+        qtbot.waitUntil(lambda: window.ctx.relevance_ai, timeout=5_000)
+        assert installed == [True] and window.ctx.service.semantic is not None
+        assert settings.relevance_check.isChecked()
+
+        settings.relevance_check.setChecked(False)
+        assert not window.ctx.relevance_ai and window.ctx.service.semantic is None
+    finally:
+        window.ctx.demo = True

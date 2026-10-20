@@ -41,6 +41,7 @@ from focuslab.config import (
 from focuslab.domain.activity import Category
 from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, tr
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
+from focuslab.relevance import model_manager
 from focuslab.services.export_service import (
     apply_retention,
     delete_all,
@@ -73,6 +74,8 @@ COLLECTED = (
 
 class _Signals(QObject):
     modelFetched = Signal(str)
+    relevanceProgress = Signal(int)  # percent of the relevance model downloaded
+    relevanceFetched = Signal(str)  # "" on success, else the error
     updateChecked = Signal(object)  # Release, None (nothing published yet) or an exception
 
 
@@ -107,6 +110,9 @@ class SettingsPage(QWidget):
         self._quiet_check = False
         self._signals = _Signals()
         self._signals.modelFetched.connect(self._model_fetched)
+        self._signals.relevanceProgress.connect(self._relevance_progress)
+        self._signals.relevanceFetched.connect(self._relevance_fetched)
+        self._relevance_cancel: threading.Event | None = None
         self._signals.updateChecked.connect(self._update_checked)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -123,6 +129,7 @@ class SettingsPage(QWidget):
         root.addWidget(self._language_box())
         root.addWidget(self._privacy_box())
         root.addWidget(self._browser_box())
+        root.addWidget(self._relevance_box())
         root.addWidget(self._classify_box())
         root.addWidget(self._camera_box())
         root.addWidget(self._rules_box())
@@ -435,6 +442,110 @@ class SettingsPage(QWidget):
         browser_install.uninstall(self.ctx.data_dir)
         self.refresh()
 
+    def _relevance_box(self) -> QGroupBox:
+        box = QGroupBox(tr("Task relevance AI (optional, on this PC)"))
+        form = QFormLayout(box)
+        style_form(form)
+        form.addRow(
+            QLabel(
+                tr(
+                    "Compares the session goal with the active page title using a small "
+                    "language model that runs only on this PC. It needs page titles (above). "
+                    "Without the model, FocusLab uses simple rules. Nothing is sent anywhere."
+                ),
+                wordWrap=True,
+                objectName="Muted",
+            )
+        )
+        self.relevance_check = QCheckBox(tr("Use the local language model"))
+        self.relevance_check.toggled.connect(self._toggle_relevance)
+        form.addRow(tr("Model analysis"), self.relevance_check)
+        self.relevance_state = QLabel(wordWrap=True)
+        self.relevance_remove = QPushButton(tr("Remove model"))
+        self.relevance_remove.clicked.connect(self._remove_relevance_model)
+        form.addRow(tr("Model"), _row(self.relevance_state, self.relevance_remove))
+        return box
+
+    def _refresh_relevance(self) -> None:
+        downloading = self._relevance_cancel is not None
+        status = model_manager.status()
+        texts = {
+            model_manager.ModelStatus.READY: tr("Installed ({p0}, {p1} license)"),
+            model_manager.ModelStatus.NOT_INSTALLED: tr("Not installed"),
+            model_manager.ModelStatus.RUNTIME_MISSING: tr("Unavailable in this build"),
+        }
+        text = texts[status].format(p0=model_manager.MODEL_VERSION, p1=model_manager.LICENSE)
+        if self.ctx.relevance_ai_state() == "FAILED":
+            text = tr("Could not load the model; using rules only")
+        if not downloading:
+            self.relevance_state.setText(text)
+        self.relevance_check.blockSignals(True)
+        self.relevance_check.setChecked(self.ctx.relevance_ai and status is status.READY)
+        self.relevance_check.setEnabled(
+            not self.ctx.demo and not downloading and status is not status.RUNTIME_MISSING
+        )
+        self.relevance_check.blockSignals(False)
+        self.relevance_remove.setEnabled(not downloading and status is status.READY)
+
+    def _toggle_relevance(self, enabled: bool) -> None:
+        if not enabled:
+            self.ctx.set_relevance_ai(False)
+        elif model_manager.status() is model_manager.ModelStatus.READY:
+            self.ctx.set_relevance_ai(True)
+        else:
+            self._download_relevance_model()
+        self.refresh()
+
+    def _download_relevance_model(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            tr("Download relevance model"),
+            tr(
+                "Download {p0} (about {p1} MB, {p2} license) from Hugging Face and verify "
+                "its SHA256. It runs only on this PC.\n\n{p3}",
+                p0=model_manager.UPSTREAM,
+                p1=round(model_manager.DOWNLOAD_BYTES / 1e6),
+                p2=model_manager.LICENSE,
+                p3=model_manager.MODEL_FILE.url,
+            ),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        cancel = self._relevance_cancel = threading.Event()
+        self.relevance_state.setText(tr("Downloading…"))
+
+        def work() -> None:
+            try:
+                model_manager.install(
+                    progress=lambda done, total: self._signals.relevanceProgress.emit(
+                        done * 100 // total
+                    ),
+                    cancel=cancel,
+                )
+                self._signals.relevanceFetched.emit("")
+            except Exception as exc:  # network, disk or checksum errors are shown
+                self._signals.relevanceFetched.emit(str(exc) or type(exc).__name__)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _relevance_progress(self, percent: int) -> None:
+        self.relevance_state.setText(tr("Downloading… {p0}%", p0=percent))
+
+    def _relevance_fetched(self, error: str) -> None:
+        self._relevance_cancel = None
+        if error:
+            QMessageBox.warning(
+                self, tr("Relevance model"), tr("Could not download: {p0}", p0=error)
+            )
+        else:
+            self.ctx.set_relevance_ai(True)
+        self.refresh()
+
+    def _remove_relevance_model(self) -> None:
+        self.ctx.set_relevance_ai(False)
+        model_manager.remove()
+        self.refresh()
+
     def _classify_box(self) -> QGroupBox:
         box = QGroupBox(tr("Activity classification rules and exclusions"))
         layout = QVBoxLayout(box)
@@ -624,6 +735,7 @@ class SettingsPage(QWidget):
     def refresh(self) -> None:
         self._refresh_recording()
         self._refresh_browser()
+        self._refresh_relevance()
         self._refresh_classification()
         activity = self.ctx.activity_consent
         consent_text = {None: tr("Not asked yet"), True: tr("Agreed"), False: tr("Not agreed")}

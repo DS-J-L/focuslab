@@ -31,6 +31,7 @@ from focuslab.domain.protocols import ActivitySource, Clock, FaceSource, Monoton
 from focuslab.focus.fusion import FaceEvidence, fuse
 from focuslab.focus.reasons import Reason
 from focuslab.focus.rules import RuleEngine
+from focuslab.relevance.embedding import SemanticAnalyzer
 from focuslab.relevance.engine import RelevanceEngine
 from focuslab.relevance.models import RelevanceInput, TaskRelevanceResult
 from focuslab.storage.repository import Repository, utc_now
@@ -172,6 +173,10 @@ class SessionService:
         return self._lock
 
     @property
+    def semantic(self) -> SemanticAnalyzer | None:
+        return self._relevance.semantic
+
+    @property
     def face_source(self) -> FaceSource | None:
         """The live session's camera source (for the in-memory preview), if any."""
         return self._face
@@ -243,6 +248,13 @@ class SessionService:
             self._last_relevance = None
             self._relevance.forget_titles()
 
+    def set_semantic(self, analyzer: SemanticAnalyzer | None) -> None:
+        """Use (or stop using) the local language model for page-title relevance."""
+        with self._lock:
+            previous, self._relevance.semantic = self._relevance.semantic, analyzer
+        if previous is not None and previous is not analyzer:
+            previous.close()
+
     def forget_page_titles(self) -> None:
         """Page-title consent withdrawn: drop the last title and anything derived from it."""
         with self._lock:
@@ -294,6 +306,7 @@ class SessionService:
 
     def shutdown(self) -> None:
         self.finish()
+        self.set_semantic(None)
         with self._lock:
             self._repo.conn.close()
 

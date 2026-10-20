@@ -1,0 +1,91 @@
+goal,title,label
+증강현실 프로그래밍 공부,Unity AR Foundation Tutorial,related
+증강현실 프로그래밍 공부,유니티로 만드는 AR 앱 1강,related
+증강현실 프로그래밍 공부,ARCore 평면 인식 원리,related
+증강현실 프로그래밍 공부,Vuforia 이미지 타겟 설정하기,related
+증강현실 프로그래밍 공부,컴퓨터 비전 SLAM 기초,related
+증강현실 프로그래밍 공부,게임 플레이 모음,unrelated
+증강현실 프로그래밍 공부,침착맨 삼국지 정주행,unrelated
+증강현실 프로그래밍 공부,오늘 저녁 메뉴 추천 TOP 10,unrelated
+증강현실 프로그래밍 공부,손흥민 환상 골 장면,unrelated
+데이터베이스 시험공부,SQL 정규화 완벽 정리,related
+데이터베이스 시험공부,SQL JOIN 실습,related
+데이터베이스 시험공부,트랜잭션과 동시성 제어,related
+데이터베이스 시험공부,B+ 트리 인덱스 구조,related
+데이터베이스 시험공부,ER 다이어그램 그리는 법,related
+데이터베이스 시험공부,아이폰 17 언박싱,unrelated
+데이터베이스 시험공부,부동산 시장 전망 2026,unrelated
+데이터베이스 시험공부,Minecraft Hardcore Day 100,unrelated
+데이터베이스 시험공부,고양이 웃긴 영상 모음,unrelated
+딥러닝 이미지 분류 논문 작성,Attention Is All You Need 논문 리뷰,related
+딥러닝 이미지 분류 논문 작성,ResNet 구조 설명,related
+딥러닝 이미지 분류 논문 작성,Vision Transformer explained,related
+딥러닝 이미지 분류 논문 작성,CNN 합성곱 신경망 기초,related
+딥러닝 이미지 분류 논문 작성,LaTeX 표 작성법,related
+딥러닝 이미지 분류 논문 작성,주말 캠핑 브이로그,unrelated
+딥러닝 이미지 분류 논문 작성,롤 챔피언스 결승 하이라이트,unrelated
+딥러닝 이미지 분류 논문 작성,다이어트 식단 일주일,unrelated
+딥러닝 이미지 분류 논문 작성,연애 상담 라이브,unrelated
+파이썬 웹 크롤링 프로젝트,BeautifulSoup 사용법,related
+파이썬 웹 크롤링 프로젝트,Selenium으로 동적 페이지 수집하기,related
+파이썬 웹 크롤링 프로젝트,requests 라이브러리 기초,related
+파이썬 웹 크롤링 프로젝트,Scrapy tutorial for beginners,related
+파이썬 웹 크롤링 프로젝트,HTML DOM 구조 이해,related
+파이썬 웹 크롤링 프로젝트,아이유 콘서트 직캠,unrelated
+파이썬 웹 크롤링 프로젝트,주식 단타 매매법,unrelated
+파이썬 웹 크롤링 프로젝트,먹방 라이브 다시보기,unrelated
+파이썬 웹 크롤링 프로젝트,제주도 여행 코스 추천,unrelated
+토익 영어 공부,토익 LC 파트2 공략,related
+토익 영어 공부,영어 문법 시제 총정리,related
+토익 영어 공부,TOEIC reading practice test,related
+토익 영어 공부,빈출 영단어 500,related
+토익 영어 공부,English listening for beginners,related
+토익 영어 공부,피파 온라인 선수 강화,unrelated
+토익 영어 공부,예능 런닝맨 레전드,unrelated
+토익 영어 공부,자취 요리 레시피,unrelated
+토익 영어 공부,넷플릭스 신작 드라마 리뷰,unrelated
+운영체제 중간고사 준비,프로세스와 스레드의 차이,related
+운영체제 중간고사 준비,교착상태 deadlock 해결,related
+운영체제 중간고사 준비,페이지 교체 알고리즘 LRU,related
+운영체제 중간고사 준비,CPU 스케줄링 라운드 로빈,related
+운영체제 중간고사 준비,세마포어와 뮤텍스,related
+운영체제 중간고사 준비,발로란트 랭크 게임,unrelated
+운영체제 중간고사 준비,강아지 훈련 방법,unrelated
+운영체제 중간고사 준비,월드컵 예선 하이라이트,unrelated
+운영체제 중간고사 준비,패션 하울 가을 코디,unrelated
+Learn React hooks,useEffect complete guide,related
+Learn React hooks,React useState tutorial,related
+Learn React hooks,Custom hooks in React,related
+Learn React hooks,JavaScript closures explained,related
+Learn React hooks,Next.js app router basics,related
+Learn React hooks,Funny cat compilation,unrelated
+Learn React hooks,NBA top 10 plays of the week,unrelated
+Learn React hooks,Taylor Swift official music video,unrelated
+Learn React hooks,How to bake sourdough bread,unrelated
+선형대수 과제,고유값과 고유벡터 직관적 이해,related
+선형대수 과제,행렬 곱셈과 역행렬,related
+선형대수 과제,3Blue1Brown Essence of linear algebra,related
+선형대수 과제,가우스 소거법 예제,related
+선형대수 과제,벡터 공간과 기저,related
+선형대수 과제,오버워치 2 신규 영웅,unrelated
+선형대수 과제,연예인 공항 패션,unrelated
+선형대수 과제,중고차 구매 팁,unrelated
+선형대수 과제,웹툰 원작 드라마 몰아보기,unrelated
+경제학 원론 복습,수요와 공급 곡선,related
+경제학 원론 복습,기회비용 개념 정리,related
+경제학 원론 복습,인플레이션과 금리,related
+경제학 원론 복습,GDP 계산 방법,related
+경제학 원론 복습,한계효용 체감의 법칙,related
+경제학 원론 복습,배틀그라운드 치킨 먹는 법,unrelated
+경제학 원론 복습,아이돌 무대 교차편집,unrelated
+경제학 원론 복습,홈트레이닝 30분 루틴,unrelated
+경제학 원론 복습,공포 게임 실황,unrelated
+한국사 능력검정시험 공부,조선 후기 실학 사상,related
+한국사 능력검정시험 공부,고려 무신정권 정리,related
+한국사 능력검정시험 공부,임진왜란 주요 전투,related
+한국사 능력검정시험 공부,삼국시대 문화재,related
+한국사 능력검정시험 공부,일제강점기 독립운동,related
+한국사 능력검정시험 공부,스타크래프트 프로리그,unrelated
+한국사 능력검정시험 공부,캠핑카 리뷰,unrelated
+한국사 능력검정시험 공부,K-pop 랜덤 플레이 댄스,unrelated
+한국사 능력검정시험 공부,ASMR 빗소리 10시간,unrelated

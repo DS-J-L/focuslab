@@ -14,10 +14,12 @@ classifiers = ["Development Status :: 2 - Pre-Alpha", "Operating System :: Micro
 dependencies = [
     "mediapipe>=0.10.14,<0.11",
     "numpy>=1.26,<3",
+    "onnxruntime>=1.19,<2",
     "opencv-contrib-python>=4.10,<6",
     "psutil>=6,<8",
     "pyside6>=6.8,<6.11",
     "pywin32>=308 ; sys_platform == 'win32'",
+    "sentencepiece>=0.2,<0.3",
 ]
 
 [project.scripts]

@@ -531,5 +531,20 @@
   "Game or entertainment program or site unrelated to the goal": "목표와 무관한 게임·오락 프로그램 또는 사이트",
   "Notes, AI assistant or work tool; may serve the task (judgment deferred)": "메모·AI 도구·업무 도구 — 작업에 쓰일 수 있음(판단 보류)",
   "Messenger or mail; may or may not concern the task": "메신저·메일 — 작업 관련 여부 불확실",
-  "Page title mentions the goal but also looks like entertainment": "웹페이지 제목이 목표와 겹치지만 오락 콘텐츠로도 보임"
+  "Page title mentions the goal but also looks like entertainment": "웹페이지 제목이 목표와 겹치지만 오락 콘텐츠로도 보임",
+  "The local language model finds the page title close in meaning to the goal": "로컬 언어 모델 분석: 웹페이지 제목이 목표와 의미상 가까움",
+  "The page title reads closer to leisure topics than to the goal (not conclusive)": "웹페이지 제목이 목표보다 여가 주제에 더 가까움(확정 아님)",
+  "Task relevance AI (optional, on this PC)": "작업 관련성 AI (선택 · 이 PC에서만 실행)",
+  "Compares the session goal with the active page title using a small language model that runs only on this PC. It needs page titles (above). Without the model, FocusLab uses simple rules. Nothing is sent anywhere.": "작은 언어 모델로 세션 목표와 현재 웹페이지 제목을 비교합니다. 모델은 이 PC에서만 실행되며 위의 웹페이지 제목 수집이 필요합니다. 모델이 없으면 간단한 규칙으로 판단합니다. 어떤 정보도 외부로 전송하지 않습니다.",
+  "Use the local language model": "로컬 언어 모델 사용",
+  "Model analysis": "모델 분석",
+  "Remove model": "모델 삭제",
+  "Model": "모델",
+  "Installed ({p0}, {p1} license)": "설치됨 ({p0}, {p1} 라이선스)",
+  "Unavailable in this build": "이 빌드에서는 사용할 수 없음",
+  "Could not load the model; using rules only": "모델을 불러오지 못해 규칙만 사용 중",
+  "Download relevance model": "관련성 모델 내려받기",
+  "Download {p0} (about {p1} MB, {p2} license) from Hugging Face and verify its SHA256. It runs only on this PC.\n\n{p3}": "Hugging Face에서 {p0}(약 {p1} MB, {p2} 라이선스)를 내려받고 SHA256을 확인합니다. 모델은 이 PC에서만 실행됩니다.\n\n{p3}",
+  "Downloading… {p0}%": "받는 중… {p0}%",
+  "Relevance model": "관련성 모델"
 }
