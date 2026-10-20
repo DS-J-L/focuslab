@@ -28,6 +28,7 @@ from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, initialize_language
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.relevance import model_manager
 from focuslab.relevance.embedding import SemanticAnalyzer
+from focuslab.relevance.feedback import RelevanceRule, RelevanceRules
 from focuslab.services.session_service import NoActivitySource, SessionService
 from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
@@ -161,6 +162,15 @@ class AppContext:
             if folder
             else None
         )
+
+    def relevance_rules(self) -> list[RelevanceRule]:
+        with self.service.lock:
+            return RelevanceRules(self.service.repository.conn).all()
+
+    def delete_relevance_rule(self, rule_id: int) -> None:
+        """Takes effect from the next session; the one in progress keeps what it loaded."""
+        with self.service.lock:
+            RelevanceRules(self.service.repository.conn).delete(rule_id)
 
     def relevance_ai_state(self) -> str | None:
         """Analyzer state (IDLE / LOADING / READY / FAILED) while one is in use."""

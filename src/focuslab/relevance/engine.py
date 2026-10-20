@@ -10,6 +10,7 @@ Finally the activity context may adjust the result from the order and duration o
 from focuslab.relevance import rules
 from focuslab.relevance.context import ActivityContext
 from focuslab.relevance.embedding import LEISURE_AT, RELATED_AT, SemanticAnalyzer
+from focuslab.relevance.feedback import FeedbackRules
 from focuslab.relevance.models import (
     RelevanceInput,
     RelevanceLevel,
@@ -43,6 +44,7 @@ class RelevanceEngine:
     ) -> None:
         self.semantic = semantic
         self.context = context or ActivityContext()
+        self.feedback = FeedbackRules()
 
     def evaluate(self, data: RelevanceInput, now_ms: int | None = None) -> TaskRelevanceResult:
         """Judge one tick; with ``now_ms`` the activity context takes part as well."""
@@ -62,6 +64,9 @@ class RelevanceEngine:
             return uncertain(RelevanceReason.NO_ACTIVITY)
         if data.locked:
             return uncertain(RelevanceReason.INACTIVE)
+        answer = self.feedback.lookup(data)
+        if answer is not None:  # the user's answer outranks every automatic judgment
+            return answer
         result = rules.judge(data)
         semantic = self.semantic
         if (
@@ -78,5 +83,6 @@ class RelevanceEngine:
     def forget_titles(self) -> None:
         """Drop anything derived from page titles (consent withdrawn)."""
         self.context.reset()
+        self.feedback.forget_titles()
         if self.semantic is not None:
             self.semantic.forget_titles()

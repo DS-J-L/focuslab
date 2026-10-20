@@ -21,6 +21,8 @@ from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.metrics import format_duration
 from focuslab.focus.reasons import Reason, describe
 from focuslab.i18n import LocalizedMapping, tr
+from focuslab.relevance.explain import evidence, sentence
+from focuslab.relevance.models import RelevanceLevel
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import CAMERA_LABELS, CORRECTION_LABELS, SHORT_LABELS
@@ -141,6 +143,34 @@ class SessionPage(QWidget):
         grid.setColumnStretch(1, 2)
         root.addLayout(grid)
 
+        rel_card, rel_layout = _card()
+        rel_layout.addWidget(QLabel(tr("Task relevance"), objectName="CardTitle"))
+        self.relevance_text = QLabel("", wordWrap=True)
+        self.relevance_text.setTextFormat(Qt.TextFormat.PlainText)
+        rel_layout.addWidget(self.relevance_text)
+        self.relevance_evidence = QLabel("", objectName="Muted", wordWrap=True)
+        self.relevance_evidence.setTextFormat(Qt.TextFormat.PlainText)
+        rel_layout.addWidget(self.relevance_evidence)
+        answers = QHBoxLayout()
+        self.answer_buttons = {}
+        for level, text in (
+            (RelevanceLevel.RELATED, tr("Helps the task")),
+            (RelevanceLevel.POSSIBLY_UNRELATED, tr("Not related")),
+            (RelevanceLevel.UNCERTAIN, tr("Not sure")),
+        ):
+            button = QPushButton(text)
+            button.clicked.connect(lambda _=False, lv=level: self._answer(lv))
+            answers.addWidget(button)
+            self.answer_buttons[level] = button
+        self.remember_answer = QCheckBox(tr("Also use for similar goals"))
+        self.remember_answer.setToolTip(
+            tr("Saved as a rule (Settings → Task relevance AI) and used in later sessions.")
+        )
+        answers.addWidget(self.remember_answer)
+        answers.addStretch()
+        rel_layout.addLayout(answers)
+        root.addWidget(rel_card)
+
         tl_card, tl_layout = _card()
         tl_layout.addWidget(QLabel(tr("Timeline (hover for evidence)"), objectName="CardTitle"))
         self.timeline = TimelineWidget(40)
@@ -196,6 +226,17 @@ class SessionPage(QWidget):
         else:
             self.feedback.setText(tr("No interval to correct yet."))
 
+    def _answer(self, level: RelevanceLevel) -> None:
+        remember = self.remember_answer.isChecked()
+        if self.ctx.service.answer_relevance(level, remember):
+            self.feedback.setText(
+                tr("Saved your answer; it now counts instead of the automatic estimate.")
+            )
+            self.remember_answer.setChecked(False)
+        else:
+            self.feedback.setText(tr("No activity to answer about yet."))
+        self.refresh(self.ctx.service.snapshot())
+
     def _preview_toggled(self, on: bool) -> None:
         self.ctx.set_flag("camera.preview", on)
         src = self.ctx.service.face_source
@@ -233,14 +274,21 @@ class SessionPage(QWidget):
             self.correct_button,
             self.overlay_button,
             self.finish_button,
+            *self.answer_buttons.values(),
+            self.remember_answer,
         ):
             w.setEnabled(active)
+        if not snap.relevance_subject:
+            for w in (*self.answer_buttons.values(), self.remember_answer):
+                w.setEnabled(False)
         if snap.config is None:
             self.title.setText(tr("No session in progress"))
             self.subtitle.setText(tr("Press + on Home to start a session."))
             self.badge.set_state(None)
             self.timeline.set_segments(())
             self.camera_stop.hide()
+            self.relevance_text.setText(tr("No activity to compare with the goal yet."))
+            self.relevance_evidence.setText("")
             return
 
         cfg = snap.config
@@ -286,6 +334,9 @@ class SessionPage(QWidget):
             self.badge.set_state(decision.state, held)
             self.reasons.setText("\n".join(f"• {t}" for t in describe(decision.reason_codes)))
             self.confidence.setValue(round(decision.confidence * 100))
+
+        self.relevance_text.setText(sentence(snap.relevance, cfg.goal, snap.relevance_subject))
+        self.relevance_evidence.setText(evidence(snap.relevance))
 
         idle = "-" if snap.idle_s is None else tr("{p0:.0f}s ago", p0=snap.idle_s)
         face = FACE_TEXT.get(snap.face_evidence, "-")

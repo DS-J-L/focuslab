@@ -9,6 +9,7 @@ from statistics import mean
 from focuslab.config import SELF_NAME
 from focuslab.domain.events import StateSegment, build_segments
 from focuslab.domain.models import FocusState, StateSample
+from focuslab.focus.reasons import Reason
 from focuslab.i18n import tr
 
 
@@ -26,6 +27,10 @@ class SessionMetrics:
     app_switches: int
     longest_on_task_s: int
     corrected_segments: int = 0
+    # Seconds the task-relevance judgment decided: counted as work because the activity
+    # relates to the goal, or as possibly off task because it does not (after corrections).
+    goal_related_s: int = 0
+    goal_unrelated_s: int = 0
 
 
 def apply_corrections(
@@ -108,6 +113,15 @@ def compute_metrics(samples: Sequence[StateSample], corrected_segments: int = 0)
         app_switches=_app_switches(samples),
         longest_on_task_s=max(on_streaks, default=0),
         corrected_segments=corrected_segments,
+        goal_related_s=sum(
+            s.state is FocusState.ON_TASK and Reason.PAGE_RELATED_TO_GOAL in s.reason_codes
+            for s in samples
+        ),
+        goal_unrelated_s=sum(
+            s.state is FocusState.POSSIBLY_OFF_TASK
+            and Reason.PAGE_UNRELATED_TO_GOAL in s.reason_codes
+            for s in samples
+        ),
     )
 
 

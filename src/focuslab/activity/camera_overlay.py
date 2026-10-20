@@ -4,6 +4,9 @@ The camera only runs inside focus sessions the user starts. For time covered by 
 session, each activity span gets counts of what the session engine observed. Only ``AWAY``
 (face not visible *and* no input for a while) reduces attended time; looking elsewhere or
 down is shown as an observation and never subtracted or called off-task.
+
+The same seconds also say how the session engine related the activity to the session goal.
+A user correction that contradicts that judgment removes it from these counts.
 """
 
 from collections.abc import Iterable
@@ -25,6 +28,8 @@ class CameraOverlay:
     face_absent_s: int = 0
     head_away_s: int = 0  # head turned away from the screen (observation only)
     head_down_s: int = 0  # looking down (observation only)
+    goal_related_s: int = 0  # counted as task work because it relates to the session goal
+    goal_unrelated_s: int = 0  # counted as possibly off task: unrelated to the session goal
 
     @property
     def has_camera(self) -> bool:
@@ -77,6 +82,13 @@ def overlay(
                 ov.head_away_s += 1
             if reasons & {Reason.HEAD_DOWN, Reason.HEAD_DOWN_READING}:
                 ov.head_down_s += 1
+            if sample.state is FocusState.ON_TASK and Reason.PAGE_RELATED_TO_GOAL in reasons:
+                ov.goal_related_s += 1
+            if (
+                sample.state is FocusState.POSSIBLY_OFF_TASK
+                and Reason.PAGE_UNRELATED_TO_GOAL in reasons
+            ):
+                ov.goal_unrelated_s += 1
             j += 1
     return result
 

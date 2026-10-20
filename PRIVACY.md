@@ -33,6 +33,7 @@ Default location: `%LOCALAPPDATA%\FocusLab\focuslab.db`. Override with `--data-d
 - **Browser state:** latest hostname and (only after separate title consent) current tab title per browser profile. Title consent withdrawal clears title values in both current state and saved activity.
 - **Focus sessions:** goal, mode, target time, start/end, pauses, camera setting, rules version, goal-achievement self-report, allowed apps, per-second estimates/confidence/evidence/foreground app/timestamp, state intervals, and corrections.
 - **Settings:** consent, interface language, idle threshold, classification rules, exclusions, camera index, head-pose calibration, retention, and related preferences.
+- **Task-relevance rules (only when you tick "Also use for similar goals"):** key words of the session goal, the page (site and page title), site or program you answered about, and your answer. Rules naming a page title are deleted when page-title consent is withdrawn; Settings → Task relevance AI lists and deletes them. One-time answers are kept only in memory, apart from the corrected state interval.
 
 Windows registry entries under HKCU are created only when you enable sign-in startup or install the Chrome/Edge Native Messaging connection. Their controls remove those entries when disabled/uninstalled.
 

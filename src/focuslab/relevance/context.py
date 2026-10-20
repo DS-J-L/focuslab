@@ -101,11 +101,14 @@ class ActivityContext:
             return
         if current is not None and current.seconds >= self.cfg.min_visit_s:
             self._history.append(current)
-        start = current.end_ms if current is not None else now
-        self._current = _Visit(key, start, now, base)
+        self._current = _Visit(key, now, now, base)  # starts when first observed
         horizon = now - self.cfg.window_s * 1000
         while self._history and self._history[0].end_ms < horizon:
             self._history.popleft()
+
+    def visit_started_ms(self) -> int | None:
+        """When the activity now in front came to the front (session clock)."""
+        return self._current.start_ms if self._current is not None else None
 
     def _anchors(self, visit: _Visit) -> bool:
         return visit.related and visit.seconds >= self.cfg.min_related_s
@@ -123,8 +126,10 @@ class ActivityContext:
         if not _SUPPORT_CANDIDATES.intersection(base.reasons) or visit.seconds > cfg.support_max_s:
             return base
         history = self._history
-        # Blips between the two were dropped, so "right after" allows a blip-sized gap.
-        right_after = history and visit.start_ms - history[-1].end_ms < cfg.min_visit_s * 1000
+        # Blips between the two were dropped, so "right after" allows a blip-sized gap
+        # (plus the tick between one visit's last observation and the next one's first).
+        gap_ms = visit.start_ms - history[-1].end_ms if history else None
+        right_after = gap_ms is not None and gap_ms <= (cfg.min_visit_s + 1) * 1000
         if right_after and self._anchors(history[-1]):
             return _context(RelevanceLevel.RELATED, RelevanceReason.FOLLOWS_RELATED_WORK, base)
         if self._alternates(visit.key):

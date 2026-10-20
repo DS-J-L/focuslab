@@ -506,6 +506,15 @@ class ActivityPage(QWidget):
         camera = _camera_text(item)
         if camera:
             lines.append(tr("Camera: {p0}", p0=camera))
+        ov = item.camera
+        if ov is not None and (ov.goal_related_s or ov.goal_unrelated_s):
+            lines.append(
+                tr(
+                    "Session goal: related {p0} · unrelated {p1}",
+                    p0=_dur(ov.goal_related_s * 1000),
+                    p1=_dur(ov.goal_unrelated_s * 1000),
+                )
+            )
         return "\n".join(lines)
 
     def _fill_spans(self) -> None:

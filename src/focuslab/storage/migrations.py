@@ -169,6 +169,22 @@ MIGRATIONS: list[tuple[int, str]] = [
         ALTER TABLE activity_span ADD COLUMN page_title TEXT;
         """,
     ),
+    (
+        7,
+        # The user's task-relevance answers kept as rules for similar goals.
+        """
+        CREATE TABLE relevance_rule (
+            id INTEGER PRIMARY KEY,
+            goal_terms TEXT NOT NULL,
+            target_kind TEXT NOT NULL CHECK (target_kind IN ('PAGE', 'SITE', 'APP')),
+            target TEXT NOT NULL,
+            level TEXT NOT NULL
+                CHECK (level IN ('RELATED', 'UNCERTAIN', 'POSSIBLY_UNRELATED')),
+            created_at_utc TEXT NOT NULL,
+            UNIQUE (goal_terms, target_kind, target)
+        );
+        """,
+    ),
 ]
 
 
