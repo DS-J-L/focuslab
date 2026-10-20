@@ -3,11 +3,55 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
+  pr-policy:
+    name: PR targets main
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main as the only PR base
+        shell: bash
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$PR_BASE" != "main" ]]; then
+            echo "::error::Pull requests must target main, not '$PR_BASE'. Open dependent PRs only after their predecessors reach main."
+            exit 1
+          fi
+          if [[ -z "$PR_HEAD_SHA" ]]; then
+            echo "::error::Missing PR head SHA."
+            exit 1
+          fi
+          echo "Validating PR head: $PR_HEAD_SHA"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify the tested merge commit includes the PR head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # pull_request checks out GitHub's synthetic base+head merge commit.
+          # Its second parent must be the exact PR head whose checks are running.
+          actual_head="$(git rev-parse 'HEAD^2')"
+          if [[ "$actual_head" != "$EXPECTED_HEAD" ]]; then
+            echo "::error::PR head changed: expected $EXPECTED_HEAD, tested $actual_head. Re-run checks on the new head."
+            exit 1
+          fi
+          echo "Tested PR head: $actual_head"
+
   quality:
     name: Windows Python 3.11
+    needs: pr-policy
+    # A skipped PR-only policy job must not block push-to-main CI.
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.pr-policy.result == 'success') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
