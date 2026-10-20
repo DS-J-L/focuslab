@@ -269,6 +269,7 @@ class AppContext:
 
     def apply_onboarding(self, choice: OnboardingChoice) -> None:
         self.set_flag("onboarding.done", True)
+        self.set_language_preference(choice.language)
         self.set_flag("consent.recording", choice.recording)
         self.set_flag("ui.close_to_tray", choice.close_to_tray)
         self.set_idle_threshold(choice.idle_minutes * 60)

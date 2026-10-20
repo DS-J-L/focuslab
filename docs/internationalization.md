@@ -4,7 +4,7 @@ FocusLab supports English (`en`) and Korean (`ko`). Repository documentation is 
 
 ## User controls
 
-- First launch follows the system locale: Korean for `ko`, English otherwise.
+- The default language is English. First-run setup offers a language picker that applies immediately and is saved as the preference.
 - Settings > Appearance > Language stores `ui.language` in the local settings table. Restart to apply it; a selection does not interrupt sessions or discard unsaved forms.
 - `focuslab --language en|ko` or `FOCUSLAB_LANGUAGE=en|ko` overrides the saved choice for that run.
 - English/Korean choices are shown using their native language names so either audience can find them.

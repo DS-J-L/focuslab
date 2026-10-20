@@ -43,7 +43,7 @@ Without a face model or camera, sessions can continue using PC observations. The
 
 ### Interface language
 
-The app supports **English and Korean**. On first launch it uses Korean for a Korean system locale and English otherwise. Choose **Settings > Appearance > Language** to save a preference, then restart FocusLab to apply it. A language change does not interrupt your current session or translate your saved goals, app names, or records.
+The app supports **English and Korean**. English is the default; the first-run setup lets you pick the language, and it applies right away. Later, choose **Settings > Appearance > Language** to save a preference, then restart FocusLab to apply it. A language change does not interrupt your current session or translate your saved goals, app names, or records.
 
 `--language en|ko` or `FOCUSLAB_LANGUAGE=en|ko` overrides the saved preference for a run. Repository documentation is maintained in English. See the [translation guide](docs/internationalization.md).
 

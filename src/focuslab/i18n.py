@@ -5,7 +5,6 @@ changing the interface never rebuilds a running session or discards an unsaved f
 """
 
 import json
-import locale
 import os
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
@@ -17,12 +16,7 @@ _language: str | None = None
 K = TypeVar("K")
 
 
-def system_language() -> str:
-    """Use the OS display language, with English as the unsupported-locale fallback."""
-    from PySide6.QtCore import QLocale
-
-    name = QLocale.system().name() or locale.getlocale()[0] or "en"
-    return "ko" if name.lower().startswith("ko") else "en"
+DEFAULT_LANGUAGE = "en"
 
 
 def set_language(language: str) -> None:
@@ -33,9 +27,12 @@ def set_language(language: str) -> None:
 
 
 def initialize_language(saved: str | None = None) -> str:
-    """A CLI/environment override wins over the saved preference and OS language."""
+    """A CLI/environment override wins over the saved preference, then English.
+
+    First-run setup asks for the language, so the OS locale is not consulted.
+    """
     selected = os.environ.get("FOCUSLAB_LANGUAGE") or saved
-    set_language(selected if selected in SUPPORTED_LANGUAGES else system_language())
+    set_language(selected if selected in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE)
     return get_language()
 
 
