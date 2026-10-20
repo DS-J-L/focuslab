@@ -33,13 +33,20 @@ from focuslab.focus.reasons import Reason
 from focuslab.focus.rules import RuleEngine
 from focuslab.relevance.embedding import SemanticAnalyzer
 from focuslab.relevance.engine import RelevanceEngine
-from focuslab.relevance.models import RelevanceInput, TaskRelevanceResult
+from focuslab.relevance.explain import subject
+from focuslab.relevance.feedback import FeedbackRules, RelevanceRules, user_result
+from focuslab.relevance.models import RelevanceInput, RelevanceLevel, TaskRelevanceResult
 from focuslab.storage.repository import Repository, utc_now
 from focuslab.storage.sqlite_db import connect
 
 log = logging.getLogger(__name__)
 
 _MAX_SEGMENT_APPS = 10
+# What a relevance answer means for the seconds already spent on the activity.
+_ANSWER_STATE = {
+    RelevanceLevel.RELATED: FocusState.ON_TASK,
+    RelevanceLevel.POSSIBLY_UNRELATED: FocusState.POSSIBLY_OFF_TASK,
+}
 
 
 class Lifecycle(StrEnum):
@@ -98,6 +105,7 @@ class LiveSnapshot:
     segments: tuple[StateSegment, ...] = ()
     planned_reached: bool = False
     relevance: TaskRelevanceResult | None = None  # goal vs. the current activity
+    relevance_subject: str | None = None  # what that result is about (page, site or app)
 
 
 class NoActivitySource:
@@ -161,6 +169,7 @@ class SessionService:
         self._last_face: FaceObservation | None = None
         self._last_face_evidence: FaceEvidence | None = None
         self._last_relevance: TaskRelevanceResult | None = None
+        self._last_relevance_input: RelevanceInput | None = None
         self._planned_reached = False
 
     @property
@@ -192,6 +201,9 @@ class SessionService:
             self._session_id = self._repo.create_session(config, RULE_VERSION)
             self._engine = RuleEngine(config.mode, self._cfg)
             self._relevance.reset_context()
+            self._relevance.feedback = FeedbackRules(
+                config.goal, RelevanceRules(self._repo.conn).all()
+            )
             self._calibration = self._calibration_provider()
             self._activity = self._activity_factory(config)
             self._face = self._face_factory(config) if config.camera_enabled else None
@@ -248,7 +260,59 @@ class SessionService:
             self._activity = NoActivitySource()
             self._last_activity = None
             self._last_relevance = None
+            self._last_relevance_input = None
             self._relevance.forget_titles()
+
+    def answer_relevance(self, level: RelevanceLevel, remember: bool = False) -> bool:
+        """The user's answer about the activity in front now; it outranks automatic judgment.
+
+        The seconds already spent on this activity are corrected to match (helpful ->
+        ON_TASK, not related -> POSSIBLY_OFF_TASK; "not sure" corrects nothing). With
+        ``remember`` the answer also becomes a rule for similar goals.
+        """
+        with self._lock:
+            data = self._last_relevance_input
+            if self._lifecycle.state not in ACTIVE or data is None or not data.process_name:
+                return False
+            if remember:
+                rules = RelevanceRules(self._repo.conn)
+                rules.add(self._config.goal, data, level)
+                self._relevance.feedback = FeedbackRules(self._config.goal, rules.all())
+            self._relevance.feedback.answer(data, level)
+            self._last_relevance = user_result(level, rule=remember)
+            started = self._relevance.context.visit_started_ms()
+            label = _ANSWER_STATE.get(level)
+            if label is not None and started is not None:
+                # The sample at offset k is observed on the tick ending second k, hence the 1.
+                seconds_ago = round((self._clock.monotonic_ms() - started) / 1000)
+                self._correct_since(max(0, self._active_s - seconds_ago - 1), label)
+            return True
+
+    def _correct_since(self, start_s: int, label: FocusState) -> None:
+        """Correct every recorded second from ``start_s`` on, splitting the segment there."""
+        i = -1
+        while (i := i + 1) < len(self._segments):  # grows by one when a segment is split
+            seg = self._segments[i]
+            if seg.end_s <= start_s or seg.event_id is None:
+                continue
+            if seg.start_s < start_s:  # straddles the start: keep the head as it was
+                self._repo.extend_segment(seg.event_id, start_s, seg.app_names)
+                tail = StateSegment(start_s, seg.end_s, seg.state, seg.reason_codes, seg.app_names)
+                tail = replace(
+                    tail, event_id=self._repo.insert_segment(self._session_id, tail, RULE_VERSION)
+                )
+                was_open = self._open_segment is not None and (
+                    self._open_segment.event_id == seg.event_id
+                )
+                self._segments[i] = replace(seg, end_s=start_s)
+                self._segments.insert(i + 1, tail)
+                if was_open:
+                    self._open_segment = tail
+                continue  # the tail is corrected on the next iteration
+            self._repo.set_feedback(seg.event_id, label, "relevance")
+            self._segments[i] = replace(seg, corrected_label=label)
+            if self._open_segment is not None and self._open_segment.event_id == seg.event_id:
+                self._open_segment = self._segments[i]
 
     def set_semantic(self, analyzer: SemanticAnalyzer | None) -> None:
         """Use (or stop using) the local language model for page-title relevance."""
@@ -263,6 +327,8 @@ class SessionService:
             if self._last_activity is not None:
                 self._last_activity = replace(self._last_activity, page_title=None)
             self._last_relevance = None
+            self._last_relevance_input = None
+            RelevanceRules(self._repo.conn).clear_pages()
             self._relevance.forget_titles()
 
     def finish(self) -> int | None:
@@ -403,10 +469,10 @@ class SessionService:
         self, config: SessionConfig, activity: ActivityObservation, now: int
     ) -> TaskRelevanceResult | None:
         """Relevance is optional evidence: a failure here must never stop the session."""
+        data = RelevanceInput.of(config.goal, config.mode, activity)
+        self._last_relevance_input = data
         try:
-            return self._relevance.evaluate(
-                RelevanceInput.of(config.goal, config.mode, activity), now
-            )
+            return self._relevance.evaluate(data, now)
         except Exception:
             log.warning("relevance evaluation failed; continuing without it", exc_info=True)
             self._relevance.reset_context()
@@ -474,6 +540,7 @@ class SessionService:
                 segments=tuple(self._segments),
                 planned_reached=self._planned_reached,
                 relevance=self._last_relevance,
+                relevance_subject=subject(self._last_relevance_input),
             )
 
     def recover_interrupted(self) -> list[int]:

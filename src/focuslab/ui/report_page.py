@@ -329,7 +329,14 @@ class ReportPage(QWidget):
                 p1=m.episodes_without_return,
             ),
         )
-        self.cards["switch"].set(tr("{p0} times", p0=m.app_switches))
+        self.cards["switch"].set(
+            tr("{p0} times", p0=m.app_switches),
+            tr(
+                "Session goal: related {p0} · unrelated {p1}",
+                p0=format_duration(m.goal_related_s),
+                p1=format_duration(m.goal_unrelated_s),
+            ),
+        )
         self.cards["streak"].set(
             format_duration(m.longest_on_task_s),
             tr("Corrected intervals: {p0}", p0=m.corrected_segments),

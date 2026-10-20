@@ -129,6 +129,7 @@ class SemanticAnalyzer:
             while len(self._wanted) > 8:  # only recent pages matter; drop stale requests
                 self._wanted.popitem(last=False)
             if self._thread is None:
+                self._state = AnalyzerState.LOADING  # before the thread runs: no IDLE window
                 self._thread = threading.Thread(
                     target=self._run, name="focuslab-relevance", daemon=True
                 )
@@ -160,8 +161,6 @@ class SemanticAnalyzer:
             )
 
     def _run(self) -> None:
-        with self._lock:
-            self._state = AnalyzerState.LOADING
         try:
             embedder = self._load()
             leisure = embedder.embed([f"query: {t}" for t in LEISURE_TOPICS])

@@ -20,7 +20,7 @@ from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig
 from focuslab.domain.models import Decision, FocusState, SessionMode
 from focuslab.focus.fusion import AppRelation, FaceEvidence, FusedFrame
 from focuslab.focus.reasons import Reason
-from focuslab.relevance.models import RelevanceLevel
+from focuslab.relevance.models import RelevanceLevel, RelevanceSource
 
 # (state or None to keep the previous state, confidence, reasons)
 Candidate = tuple[FocusState | None, float, tuple[str, ...]]
@@ -121,7 +121,9 @@ class RuleEngine:
             return FocusState.POSSIBLY_OFF_TASK, 0.5, (Reason.HEAD_TURNED_AWAY, Reason.USER_IDLE)
 
         if _page_unrelated(f) and f.app is not AppRelation.UNRELATED:
-            if t.unrelated_page_s < c.unrelated_page_s:
+            # The user's own answer needs no waiting; an automatic judgment does.
+            told = f.relevance.source == RelevanceSource.USER
+            if t.unrelated_page_s < c.unrelated_page_s and not told:
                 return None, 0.0, (Reason.PAGE_UNRELATED_TO_GOAL,)
             present = f.face in _PRESENT or active or (
                 f.face is not FaceEvidence.ABSENT and idle_known and idle < c.pc_only_idle_s

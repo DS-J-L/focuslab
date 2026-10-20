@@ -215,3 +215,21 @@ def test_relevance_model_toggle_downloads_only_after_consent(window, qtbot, monk
         assert not window.ctx.relevance_ai and window.ctx.service.semantic is None
     finally:
         window.ctx.demo = True
+
+
+def test_session_page_explains_relevance_and_takes_an_answer(window, qtbot):
+    from focuslab.relevance.models import RelevanceLevel
+
+    page = window.session
+    assert not page.answer_buttons[RelevanceLevel.RELATED].isEnabled()  # no session yet
+    window.start_session(config())
+    qtbot.waitUntil(lambda: snapshot(window).relevance_subject is not None, timeout=6000)
+    window.poll()
+    assert "code.exe" in page.relevance_text.text()  # demo sensors report programs only
+    assert page.relevance_evidence.text()
+    assert page.answer_buttons[RelevanceLevel.RELATED].isEnabled()
+    page.answer_buttons[RelevanceLevel.RELATED].click()
+    assert "답변을 저장했습니다" in page.feedback.text()
+    relevance = snapshot(window).relevance
+    assert relevance.level is RelevanceLevel.RELATED and relevance.source == "USER"
+    assert "도움이 된다고" in page.relevance_text.text()

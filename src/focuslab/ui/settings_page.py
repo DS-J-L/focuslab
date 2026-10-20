@@ -42,6 +42,7 @@ from focuslab.domain.activity import Category
 from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, tr
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
 from focuslab.relevance import model_manager
+from focuslab.relevance.explain import RELEVANCE_LEVEL_LABELS
 from focuslab.services.export_service import (
     apply_retention,
     delete_all,
@@ -464,7 +465,19 @@ class SettingsPage(QWidget):
         self.relevance_remove = QPushButton(tr("Remove model"))
         self.relevance_remove.clicked.connect(self._remove_relevance_model)
         form.addRow(tr("Model"), _row(self.relevance_state, self.relevance_remove))
+        self.relevance_rules = QListWidget()
+        self.relevance_rules.setMaximumHeight(120)
+        self.relevance_rules.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        delete = QPushButton(tr("Delete selected rule"))
+        delete.clicked.connect(self._delete_relevance_rules)
+        form.addRow(tr("Your answers kept as rules"), self.relevance_rules)
+        form.addRow("", delete)
         return box
+
+    def _delete_relevance_rules(self) -> None:
+        for item in self.relevance_rules.selectedItems():
+            self.ctx.delete_relevance_rule(item.data(Qt.ItemDataRole.UserRole))
+        self.refresh()
 
     def _refresh_relevance(self) -> None:
         downloading = self._relevance_cancel is not None
@@ -486,6 +499,18 @@ class SettingsPage(QWidget):
         )
         self.relevance_check.blockSignals(False)
         self.relevance_remove.setEnabled(not downloading and status is status.READY)
+        self.relevance_rules.clear()
+        for rule in self.ctx.relevance_rules():
+            item = QListWidgetItem(
+                tr(
+                    "{p0} → {p1} (goals like: {p2})",
+                    p0=rule.label,
+                    p1=RELEVANCE_LEVEL_LABELS[rule.level],
+                    p2=" ".join(rule.goal_terms) or "-",
+                )
+            )
+            item.setData(Qt.ItemDataRole.UserRole, rule.id)
+            self.relevance_rules.addItem(item)
 
     def _toggle_relevance(self, enabled: bool) -> None:
         if not enabled:

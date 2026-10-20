@@ -26,6 +26,7 @@ class RelevanceSource(StrEnum):
     RULE = "RULE"
     EMBEDDING = "EMBEDDING"  # local language model similarity
     CONTEXT = "CONTEXT"  # order and duration of recent activities
+    USER = "USER"  # the user's own answer, which outranks everything else
 
 
 class RelevanceReason(StrEnum):
@@ -47,6 +48,10 @@ class RelevanceReason(StrEnum):
     FOLLOWS_RELATED_WORK = "FOLLOWS_RELATED_WORK"
     ALTERNATES_WITH_WORK = "ALTERNATES_WITH_WORK"
     SUSTAINED_LEISURE_LIKE = "SUSTAINED_LEISURE_LIKE"
+    USER_SAYS_HELPFUL = "USER_SAYS_HELPFUL"
+    USER_SAYS_UNRELATED = "USER_SAYS_UNRELATED"
+    USER_UNSURE = "USER_UNSURE"
+    USER_RULE = "USER_RULE"
 
 
 RELEVANCE_REASON_TEXT = LocalizedMapping(
@@ -89,6 +94,10 @@ RELEVANCE_REASON_TEXT = LocalizedMapping(
         RelevanceReason.SUSTAINED_LEISURE_LIKE: (
             "A page that reads like leisure has stayed in front for several minutes"
         ),
+        RelevanceReason.USER_SAYS_HELPFUL: "You said this helps the task",
+        RelevanceReason.USER_SAYS_UNRELATED: "You said this is not related to the task",
+        RelevanceReason.USER_UNSURE: "You were not sure; left undecided",
+        RelevanceReason.USER_RULE: "Your rule for similar goals",
     }
 )
 
