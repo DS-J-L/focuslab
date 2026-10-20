@@ -12,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
+    QColor,
     QGuiApplication,
     QHideEvent,
     QMouseEvent,
@@ -55,6 +56,7 @@ from focuslab.ui.widgets import clock_text
 MARGIN = 16
 POS_KEY = "ui.overlay_pos"  # top-right corner, so collapsing keeps the right edge in place
 FRAME_MS = 33  # about 30 frames per second, only while the parrots are on screen
+RESTING_FRAME_MS = 80  # when they are only breathing and blinking
 
 # Scene geometry (px) of the expanded overlay.
 SCENE_W, SCENE_H = 300, 244
@@ -147,6 +149,7 @@ class PerchView(QWidget):
 
         self._timer = QTimer(self, interval=FRAME_MS)
         self._timer.timeout.connect(self.update)
+        self._backdrop: QPixmap | None = None
 
     @property
     def animating(self) -> bool:
@@ -172,12 +175,28 @@ class PerchView(QWidget):
             self.director.set_hover(target, self.clock())
         return False
 
+    def _background(self) -> QPixmap:
+        "The branch and plaque never move: paint them once per display scale."
+        ratio = self.devicePixelRatioF()
+        if self._backdrop is None or self._backdrop.devicePixelRatio() != ratio:
+            pixmap = QPixmap(self.size() * ratio)
+            pixmap.setDevicePixelRatio(ratio)
+            pixmap.fill(QColor(0, 0, 0, 0))
+            p = QPainter(pixmap)
+            paint_plaque(p, PLAQUE, STRINGS, BRANCH.bottom())
+            paint_branch(p, BRANCH)
+            p.end()
+            self._backdrop = pixmap
+        return self._backdrop
+
     def paintEvent(self, event: QPaintEvent) -> None:
         poses = self.director.poses(self.clock())
+        interval = RESTING_FRAME_MS if self.director.resting else FRAME_MS
+        if self._timer.interval() != interval:
+            self._timer.setInterval(interval)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        paint_plaque(p, PLAQUE, STRINGS, BRANCH.bottom())
-        paint_branch(p, BRANCH)
+        p.drawPixmap(0, 0, self._background())
         for seat, pose, actor, button in zip(
             SEATS, poses, self.director.actors, self.parrots, strict=True
         ):
