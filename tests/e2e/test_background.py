@@ -126,7 +126,7 @@ def test_camera_can_be_stopped_immediately_from_the_session(qtbot, monkeypatch):
     win = MainWindow(ctx)
     qtbot.addWidget(win)
     try:
-        win.home.startRequested.emit(
+        win.start_session(
             SessionConfig("카메라 끄기", SessionMode.CODING, 0, ("code.exe",), True)
         )
         qtbot.waitUntil(lambda: ctx.service.snapshot().active_s >= 1, timeout=6000)

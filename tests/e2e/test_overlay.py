@@ -24,7 +24,7 @@ def window(qtbot, monkeypatch):
 
 
 def start(win):
-    win.home.startRequested.emit(
+    win.start_session(
         SessionConfig("오버레이", SessionMode.CODING, 0, ("code.exe",), False)
     )
 

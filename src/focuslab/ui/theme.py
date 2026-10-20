@@ -162,6 +162,17 @@ QPushButton#Primary {{ background: {ACCENT}; color: white; border: 1px solid {AC
 QPushButton#Primary:hover {{ background: #324FC2; }}
 QPushButton#Primary:disabled {{ background: #A9B6E8; }}
 QPushButton#Danger {{ color: #C92A2A; }}
+QPushButton#Fab {{ background: {ACCENT}; color: white; border: none; border-radius: 28px;
+                   padding: 0; font-size: 28px; font-weight: 400; }}
+QPushButton#Fab[running="true"] {{ padding: 0 24px; font-size: 14px; font-weight: 600; }}
+QPushButton#Fab:hover {{ background: #324FC2; }}
+QPushButton#Fab:focus {{ border: 2px solid #A9B6E8; }}
+#Sidebar QPushButton#SessionReturn {{ background: #2B3242; color: #E4E8F0;
+    border: 1px solid #3B4560; border-radius: 8px; padding: 10px 14px; text-align: left;
+    font-size: 12px; }}
+#Sidebar QPushButton#SessionReturn:hover {{ background: #343F60; }}
+#Sidebar QPushButton#SessionReturn[current="true"] {{ background: #343F60; color: white;
+    border-color: {ACCENT}; font-weight: 600; }}
 QToolButton {{ background: white; border: 1px solid #D5D9E0; border-radius: 8px;
                padding: 8px 12px; min-height: 20px; }}
 QLineEdit, QSpinBox, QComboBox, QPlainTextEdit {{

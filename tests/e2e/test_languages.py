@@ -55,11 +55,11 @@ def test_pages_reports_tray_and_session_use_selected_language(
     try:
         settle(window)
         expected = (
-            ["Home", "Activity", "Sessions", "Reports", "Settings"]
+            ["Home", "Activity", "Reports", "Settings"]
             if language == "en"
-            else ["홈", "활동", "세션", "리포트", "설정"]
+            else ["홈", "활동", "리포트", "설정"]
         )
-        assert [window.nav.item(i).text() for i in range(5)] == expected
+        assert [window.nav.item(i).text() for i in range(window.nav.count())] == expected
         assert {card._tag.text() for card in window.home.findChildren(StatCard)} == (
             {"Automatic recording", "Manual focus sessions"}
             if language == "en"
