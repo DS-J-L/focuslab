@@ -43,7 +43,6 @@ def test_a_title_without_its_site_is_not_used():
         ({"available": False}, RelevanceReason.NO_ACTIVITY),
         ({"name": None}, RelevanceReason.NO_ACTIVITY),
         ({"locked": True}, RelevanceReason.INACTIVE),
-        ({"idle": 600.0}, RelevanceReason.INACTIVE),
         ({"domain": "youtube.com"}, RelevanceReason.TITLE_UNAVAILABLE),
         ({}, RelevanceReason.TITLE_UNAVAILABLE),  # a browser without any report
     ],
@@ -53,6 +52,12 @@ def test_missing_input_is_uncertain_never_unrelated(kw, reason):
     assert result.level is RelevanceLevel.UNCERTAIN
     assert result.reasons == (reason,)
     assert result.score is None
+
+
+def test_idle_time_does_not_change_what_a_page_is_about():
+    assert judge(domain="youtube.com", title="게임 플레이 모음", idle=600.0).level is (
+        RelevanceLevel.POSSIBLY_UNRELATED
+    )
 
 
 def test_no_goal_is_uncertain():

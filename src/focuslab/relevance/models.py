@@ -25,6 +25,7 @@ class RelevanceSource(StrEnum):
     INPUT = "INPUT"  # not enough input to judge at all
     RULE = "RULE"
     EMBEDDING = "EMBEDDING"  # local language model similarity
+    CONTEXT = "CONTEXT"  # order and duration of recent activities
 
 
 class RelevanceReason(StrEnum):
@@ -40,15 +41,19 @@ class RelevanceReason(StrEnum):
     ENTERTAINMENT_ACTIVITY = "ENTERTAINMENT_ACTIVITY"
     SUPPORT_TOOL = "SUPPORT_TOOL"
     COMMUNICATION = "COMMUNICATION"
+    NEUTRAL_APP = "NEUTRAL_APP"
     TITLE_SIMILAR_TO_GOAL = "TITLE_SIMILAR_TO_GOAL"
     TITLE_CLOSER_TO_LEISURE = "TITLE_CLOSER_TO_LEISURE"
+    FOLLOWS_RELATED_WORK = "FOLLOWS_RELATED_WORK"
+    ALTERNATES_WITH_WORK = "ALTERNATES_WITH_WORK"
+    SUSTAINED_LEISURE_LIKE = "SUSTAINED_LEISURE_LIKE"
 
 
 RELEVANCE_REASON_TEXT = LocalizedMapping(
     {
         RelevanceReason.NO_GOAL: "No session goal to compare with",
         RelevanceReason.NO_ACTIVITY: "Current activity unavailable",
-        RelevanceReason.INACTIVE: "Screen locked or no recent input; relevance not judged",
+        RelevanceReason.INACTIVE: "Screen locked; relevance not judged",
         RelevanceReason.TITLE_UNAVAILABLE: (
             "Page title unavailable (not reported, stale, or not permitted)"
         ),
@@ -68,11 +73,21 @@ RELEVANCE_REASON_TEXT = LocalizedMapping(
             "Notes, AI assistant or work tool; may serve the task (judgment deferred)"
         ),
         RelevanceReason.COMMUNICATION: "Messenger or mail; may or may not concern the task",
+        RelevanceReason.NEUTRAL_APP: "Desktop, app switcher or FocusLab; not judged",
         RelevanceReason.TITLE_SIMILAR_TO_GOAL: (
             "The local language model finds the page title close in meaning to the goal"
         ),
         RelevanceReason.TITLE_CLOSER_TO_LEISURE: (
             "The page title reads closer to leisure topics than to the goal (not conclusive)"
+        ),
+        RelevanceReason.FOLLOWS_RELATED_WORK: (
+            "Opened right after task-related work; probably supporting it"
+        ),
+        RelevanceReason.ALTERNATES_WITH_WORK: (
+            "Used back and forth with task-related work; probably supporting it"
+        ),
+        RelevanceReason.SUSTAINED_LEISURE_LIKE: (
+            "A page that reads like leisure has stayed in front for several minutes"
         ),
     }
 )
@@ -101,23 +116,21 @@ class RelevanceInput:
     domain: str | None = None
     page_title: str | None = None
     available: bool = True
-    inactive: bool = False  # screen locked or idle past the session's active threshold
+    locked: bool = False
+    # Seconds without input. A page's relevance does not change while it is watched, so idle
+    # time only matters to the activity context (and to presence, judged by the focus rules).
+    idle_s: float | None = None
 
     @staticmethod
-    def of(
-        goal: str,
-        mode: SessionMode,
-        obs: ActivityObservation | None,
-        active_idle_s: float = 30.0,
-    ) -> "RelevanceInput":
+    def of(goal: str, mode: SessionMode, obs: ActivityObservation | None) -> "RelevanceInput":
         if obs is None or not obs.available:
             return RelevanceInput(goal, mode, None, available=False)
-        idle = obs.idle_seconds
         return RelevanceInput(
             goal,
             mode,
             obs.process_name,
             obs.domain,
             obs.page_title if obs.domain else None,
-            inactive=obs.screen_locked or (idle is not None and idle >= active_idle_s),
+            locked=obs.screen_locked,
+            idle_s=obs.idle_seconds,
         )

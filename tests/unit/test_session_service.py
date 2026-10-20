@@ -281,9 +281,9 @@ def test_goal_and_page_title_reach_the_relevance_engine_in_the_same_tick(
     seen = []
     original = RelevanceEngine.evaluate
 
-    def spy(self, data):
+    def spy(self, data, now_ms=None):
         seen.append(data)
-        return original(self, data)
+        return original(self, data, now_ms)
 
     monkeypatch.setattr(RelevanceEngine, "evaluate", spy)
     svc = make_service(
@@ -310,3 +310,23 @@ def test_forgetting_page_titles_drops_the_last_title_and_result(make_service, cl
     svc.forget_page_titles()
     assert svc._last_activity.page_title is None
     assert svc.snapshot().relevance is None
+
+
+def test_session_relevance_uses_the_order_of_activities(make_service, clock):
+    from focuslab.relevance.models import RelevanceLevel
+
+    svc = make_service(
+        activity_script=(
+            (60, "chrome.exe", "active", "youtube.com", "Unity AR Foundation 기초 강의"),
+            (3600, "notepad.exe", "active"),
+        )
+    )
+    svc.start(SessionConfig("증강현실 공부", SessionMode.LECTURE, 0, ("chrome.exe",), False))
+    tick(svc, clock, 70)
+    relevance = svc.snapshot().relevance
+    assert relevance.level is RelevanceLevel.RELATED and relevance.source == "CONTEXT"
+    svc.pause()
+    clock.advance(30)
+    svc.resume()
+    tick(svc, clock, 2)  # after a pause the lecture no longer vouches for the notes
+    assert svc.snapshot().relevance.level is RelevanceLevel.UNCERTAIN
