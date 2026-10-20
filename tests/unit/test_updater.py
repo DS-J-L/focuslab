@@ -52,14 +52,39 @@ def test_download_verifies_the_published_sha256(tmp_path):
     sha_path.write_text(f"{digest}  {zip_path.name}\n")
     release = updater.Release("0.2.0", "", zip_path.as_uri(), sha_path.as_uri())
     seen = []
-    got = updater.download(release, tmp_path / "downloads", seen.append)
+    got = updater.download(release, tmp_path / "downloads", lambda *p: seen.append(p))
     assert got.read_bytes() == zip_path.read_bytes()
-    assert seen[-1] == 100
+    size = zip_path.stat().st_size
+    assert seen[-1] == (size, size)  # bytes done of the Content-Length
 
     sha_path.write_text("0" * 64)
     with pytest.raises(ValueError, match="checksum mismatch"):
         updater.download(release, tmp_path / "bad")
     assert not any((tmp_path / "bad").iterdir())  # no partial or unverified file is kept
+
+
+def test_cancelled_download_keeps_no_file(tmp_path):
+    zip_path, sha_path, digest = package(tmp_path)
+    sha_path.write_text(digest)
+    release = updater.Release("0.2.0", "", zip_path.as_uri(), sha_path.as_uri())
+    with pytest.raises(updater.UpdateCancelled):
+        updater.download(release, tmp_path / "downloads", cancelled=lambda: True)
+    assert not any((tmp_path / "downloads").iterdir())
+
+
+def test_stage_reports_unpacked_bytes_and_can_be_cancelled(tmp_path):
+    zip_path, _, _ = package(tmp_path)
+    install = tmp_path / "apps" / "FocusLab"
+    (install / "_internal").mkdir(parents=True)
+    seen = []
+    updater.stage(zip_path, install, lambda *p: seen.append(p))
+    assert seen[-1] == (len(b"new exe"), len(b"new exe"))
+
+    install2 = tmp_path / "other" / "FocusLab"
+    (install2 / "_internal").mkdir(parents=True)
+    with pytest.raises(updater.UpdateCancelled):
+        updater.stage(zip_path, install2, cancelled=lambda: True)
+    assert [p.name for p in install2.parent.iterdir()] == ["FocusLab"]  # nothing left behind
 
 
 def test_download_requires_a_windows_package(tmp_path):
