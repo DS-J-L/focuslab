@@ -57,6 +57,7 @@ class SessionPage(QWidget):
     pauseRequested = Signal()
     finishRequested = Signal()
     cameraStopRequested = Signal()
+    overlayRequested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -161,9 +162,12 @@ class SessionPage(QWidget):
         for label, text in CORRECTION_LABELS.items():
             menu.addAction(text, lambda lab=label: self._correct(lab))
         self.correct_button.setMenu(menu)
+        self.overlay_button = QPushButton(tr("Show overlay"))
+        self.overlay_button.setToolTip(tr("Show the session time on top of other programs."))
+        self.overlay_button.clicked.connect(self.overlayRequested.emit)
         self.finish_button = QPushButton(tr("End session"), objectName="Danger")
         self.finish_button.clicked.connect(self.finishRequested.emit)
-        for b in (self.pause_button, self.break_button, self.correct_button):
+        for b in (self.pause_button, self.break_button, self.correct_button, self.overlay_button):
             controls.addWidget(b)
         controls.addStretch()
         self.feedback = QLabel("", objectName="Muted")
@@ -223,7 +227,13 @@ class SessionPage(QWidget):
     def refresh(self, snap: LiveSnapshot) -> None:
         self._snapshot = snap
         active = snap.lifecycle in ACTIVE
-        for w in (self.pause_button, self.break_button, self.correct_button, self.finish_button):
+        for w in (
+            self.pause_button,
+            self.break_button,
+            self.correct_button,
+            self.overlay_button,
+            self.finish_button,
+        ):
             w.setEnabled(active)
         if snap.config is None:
             self.title.setText(tr("No session in progress"))

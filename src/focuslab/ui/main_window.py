@@ -32,6 +32,7 @@ from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
 from focuslab.ui.onboarding import OnboardingDialog
+from focuslab.ui.overlay import SessionOverlay
 from focuslab.ui.report_page import ReportPage
 from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.session_page import SessionPage
@@ -106,6 +107,10 @@ class MainWindow(QMainWindow):
         self.session.pauseRequested.connect(self.toggle_pause)
         self.session.finishRequested.connect(self.finish_session)
         self.session.cameraStopRequested.connect(self.stop_camera)
+        self.overlay = SessionOverlay(ctx)
+        self.overlay.pauseRequested.connect(self.toggle_pause)
+        self.overlay.finishRequested.connect(self.finish_session)
+        self.session.overlayRequested.connect(self.show_overlay)
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
         self.activity.dataChanged.connect(self.settings.refresh)
@@ -192,7 +197,12 @@ class MainWindow(QMainWindow):
         self.ctx.service.start(config)
         self.home.set_running(True)
         self.go(SESSION)
+        if ctx.overlay_on_start:
+            self.show_overlay()
         self.poll()
+
+    def show_overlay(self) -> None:
+        self.overlay.start(self.ctx.service.snapshot())
 
     def toggle_pause(self) -> None:
         snap = self.ctx.service.snapshot()
@@ -226,6 +236,7 @@ class MainWindow(QMainWindow):
     def poll(self) -> None:
         snap = self.ctx.service.snapshot()
         self.session.refresh(snap)
+        self.overlay.refresh(snap)
         health = self.ctx.recording_health()
         self.tray.update_state(snap, self.ctx.recording_state, health)
         if self.stack.currentIndex() == ACTIVITY:
@@ -316,6 +327,7 @@ class MainWindow(QMainWindow):
         report worker, the recorder and the session service."""
         self._timer.stop()
         self._activity_timer.stop()
+        self.overlay.close()
         self.reporter.shutdown()
         self.ctx.stop_recording()
         self.ctx.service.shutdown()

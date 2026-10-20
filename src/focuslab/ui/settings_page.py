@@ -139,6 +139,11 @@ class SettingsPage(QWidget):
         self.language_notice = QLabel(wordWrap=True, objectName="Muted")
         form.addRow(self.language_notice)
         self._refresh_language_notice()
+        self.overlay_on_start = QCheckBox(tr("Show the overlay when a session starts"))
+        self.overlay_on_start.toggled.connect(
+            lambda on: self.ctx.set_flag("ui.overlay_on_start", on)
+        )
+        form.addRow(tr("Session overlay"), self.overlay_on_start)
         return box
 
     def _language_changed(self) -> None:
@@ -604,6 +609,7 @@ class SettingsPage(QWidget):
             (self.idle_minutes, round(self.ctx.idle_threshold_s / 60)),
             (self.autostart, autostart.is_enabled()),
             (self.close_to_tray, self.ctx.close_to_tray),
+            (self.overlay_on_start, self.ctx.overlay_on_start),
             (self.update_auto, self.ctx.flag("update.auto_check")),
         ):
             widget.blockSignals(True)

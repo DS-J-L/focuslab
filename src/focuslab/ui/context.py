@@ -136,6 +136,10 @@ class AppContext:
         return self.flag("ui.close_to_tray", True)
 
     @property
+    def overlay_on_start(self) -> bool:
+        return self.flag("ui.overlay_on_start", True)
+
+    @property
     def camera_index(self) -> int:
         return int(self.setting("camera.index", "0") or 0)
 
