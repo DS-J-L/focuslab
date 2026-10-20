@@ -233,3 +233,12 @@ def test_session_page_explains_relevance_and_takes_an_answer(window, qtbot):
     relevance = snapshot(window).relevance
     assert relevance.level is RelevanceLevel.RELATED and relevance.source == "USER"
     assert "도움이 된다고" in page.relevance_text.text()
+
+
+def test_settings_say_when_the_model_could_not_load(window, monkeypatch):
+    from focuslab.relevance import model_manager
+
+    monkeypatch.setattr(model_manager, "status", lambda dirs=None: model_manager.ModelStatus.READY)
+    monkeypatch.setattr(window.ctx, "relevance_ai_state", lambda: "FAILED")
+    window.settings.refresh()
+    assert "규칙만 사용" in window.settings.relevance_state.text()

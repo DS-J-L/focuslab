@@ -35,7 +35,15 @@ def _check() -> int:
         hosts = [name for name, ok in registered().items() if ok]
         lines.append(f"Start at sign-in: {'on' if autostart.is_enabled() else 'off'}")
         lines.append(f"Browser bridge: {', '.join(hosts) if hosts else 'not installed'}")
-    for module in ("PySide6", "cv2", "mediapipe", "psutil"):
+    from focuslab.relevance import model_manager
+
+    folder = model_manager.installed_dir()
+    lines.append(
+        f"Relevance model: {folder} ({model_manager.MODEL_VERSION})"
+        if folder
+        else "Relevance model: not installed (optional; Settings -> Task relevance AI)"
+    )
+    for module in ("PySide6", "cv2", "mediapipe", "psutil", "onnxruntime", "sentencepiece"):
         try:
             mod = __import__(module)
             lines.append(f"{module}: {getattr(mod, '__version__', 'ok')}")
@@ -43,6 +51,48 @@ def _check() -> int:
             lines.append(f"{module}: unavailable ({exc})")
     print("\n".join(lines))
     return 0
+
+
+def _relevance_selftest() -> int:
+    """Load the installed relevance model and compare two titles with a goal.
+
+    Exit 0 when the model is not installed (it is optional) or behaves as expected, 1 when
+    the runtime is missing or the model cannot load or ranks the titles the wrong way round.
+    """
+    import time
+
+    from focuslab.relevance import model_manager
+    from focuslab.relevance.embedding import SemanticAnalyzer
+
+    status = model_manager.status()
+    print(f"Relevance model status: {status.value}")
+    if status is model_manager.ModelStatus.NOT_INSTALLED:
+        return 0
+    if status is model_manager.ModelStatus.RUNTIME_MISSING:
+        return 1
+    folder = model_manager.installed_dir()
+    started = time.perf_counter()
+    try:
+        embedder = model_manager.load(folder)
+    except Exception as exc:  # report, do not crash
+        print(f"Relevance model failed to load: {exc}")
+        return 1
+    print(f"Verified and loaded {folder} in {time.perf_counter() - started:.2f} s")
+    analyzer = SemanticAnalyzer(lambda: embedder, model_manager.MODEL_VERSION)
+    goal = "증강현실 프로그래밍 공부"
+    titles = ("ARCore 평면 인식 원리", "침착맨 삼국지 정주행")
+    try:
+        for title in titles:
+            analyzer.lookup(goal, title)
+            analyzer.wait_idle(30)
+        margins = [analyzer.lookup(goal, title) for title in titles]
+    finally:
+        analyzer.close()
+    for title, margin in zip(titles, margins, strict=True):
+        print(f"  {goal} | {title}: margin {margin}")
+    ok = None not in margins and margins[0] > margins[1]
+    print("Relevance self-test: " + ("ok" if ok else "FAILED"))
+    return 0 if ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,6 +123,11 @@ def main(argv: list[str] | None = None) -> int:
         help="download the MediaPipe face model and verify its SHA256",
     )
     parser.add_argument(
+        "--relevance-selftest",
+        action="store_true",
+        help="load the optional task-relevance model, if installed, and test it",
+    )
+    parser.add_argument(
         "--seed-demo",
         action="store_true",
         help="add synthetic demo sessions to the local database and exit",
@@ -91,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["FOCUSLAB_LANGUAGE"] = args.language
     if args.check:
         return _check()
+    if args.relevance_selftest:
+        return _relevance_selftest()
     if args.fetch_models:
         from focuslab.model_fetch import fetch_face_model
 

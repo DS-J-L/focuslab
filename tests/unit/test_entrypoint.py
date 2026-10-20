@@ -26,3 +26,27 @@ def test_packaged_exe_downloads_models_into_data_folder(monkeypatch, isolated_da
 
     monkeypatch.setattr(model_fetch, "FROZEN", True)  # never write into the exe bundle
     assert model_fetch.target_dir() == isolated_data_dir / "models"
+
+
+@pytest.mark.parametrize(
+    "status,code", [("NOT_INSTALLED", 0), ("RUNTIME_MISSING", 1)]
+)
+def test_relevance_selftest_without_a_usable_model(monkeypatch, capsys, status, code):
+    from focuslab.relevance import model_manager
+
+    monkeypatch.setattr(model_manager, "status", lambda: model_manager.ModelStatus(status))
+    assert main(["--relevance-selftest"]) == code
+    assert status in capsys.readouterr().out
+
+
+def test_relevance_selftest_reports_a_model_that_cannot_load(monkeypatch, capsys, tmp_path):
+    from focuslab.relevance import model_manager
+
+    def broken(folder):
+        raise ValueError("checksum mismatch for m.onnx")
+
+    monkeypatch.setattr(model_manager, "status", lambda: model_manager.ModelStatus.READY)
+    monkeypatch.setattr(model_manager, "installed_dir", lambda: tmp_path)
+    monkeypatch.setattr(model_manager, "load", broken)
+    assert main(["--relevance-selftest"]) == 1
+    assert "checksum mismatch" in capsys.readouterr().out
