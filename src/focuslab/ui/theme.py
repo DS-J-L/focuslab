@@ -1,7 +1,8 @@
-"""Colors, labels and the application stylesheet. Wording avoids scores and diagnoses."""
+"Colors, labels and the application stylesheet. Wording avoids scores and diagnoses."
 
 from focuslab.domain.activity import Category
 from focuslab.domain.models import CameraStatus, FocusState
+from focuslab.i18n import LocalizedMapping
 
 STATE_COLORS = {
     FocusState.ON_TASK: "#2E9E6B",
@@ -11,57 +12,65 @@ STATE_COLORS = {
     FocusState.UNKNOWN: "#CDD2DA",
 }
 
-STATE_LABELS = {
-    FocusState.ON_TASK: "작업 관련 활동(추정)",
-    FocusState.POSSIBLY_OFF_TASK: "이탈 의심",
-    FocusState.AWAY: "자리 비움(추정)",
-    FocusState.BREAK: "휴식",
-    FocusState.UNKNOWN: "판단 불가",
-}
+STATE_LABELS = LocalizedMapping(
+    {
+        FocusState.ON_TASK: "Task-related activity (estimated)",
+        FocusState.POSSIBLY_OFF_TASK: "Possibly off task",
+        FocusState.AWAY: "Away (estimated)",
+        FocusState.BREAK: "Break",
+        FocusState.UNKNOWN: "Cannot determine",
+    }
+)
 
-SHORT_LABELS = {
-    FocusState.ON_TASK: "작업 관련",
-    FocusState.POSSIBLY_OFF_TASK: "이탈 의심",
-    FocusState.AWAY: "자리 비움",
-    FocusState.BREAK: "휴식",
-    FocusState.UNKNOWN: "판단 불가",
-}
+SHORT_LABELS = LocalizedMapping(
+    {
+        FocusState.ON_TASK: "Task-related",
+        FocusState.POSSIBLY_OFF_TASK: "Possibly off task",
+        FocusState.AWAY: "Away",
+        FocusState.BREAK: "Break",
+        FocusState.UNKNOWN: "Cannot determine",
+    }
+)
 
-CORRECTION_LABELS = {
-    FocusState.ON_TASK: "정상 작업이었음",
-    FocusState.BREAK: "휴식이었음",
-    FocusState.AWAY: "자리를 비웠음",
-    FocusState.POSSIBLY_OFF_TASK: "실제로 이탈했음",
-}
+CORRECTION_LABELS = LocalizedMapping(
+    {
+        FocusState.ON_TASK: "I was working normally",
+        FocusState.BREAK: "I was taking a break",
+        FocusState.AWAY: "I was away",
+        FocusState.POSSIBLY_OFF_TASK: "I was off task",
+    }
+)
 
-CAMERA_LABELS = {
-    CameraStatus.OFF: "카메라 꺼짐",
-    CameraStatus.STARTING: "카메라 여는 중…",
-    CameraStatus.RUNNING: "카메라 사용 중",
-    CameraStatus.NO_DEVICE: "카메라를 열 수 없음 (장치·권한 확인)",
-    CameraStatus.DISCONNECTED: "카메라 연결 끊김 — 재연결 시도 중",
-    CameraStatus.MODEL_MISSING: "얼굴 모델 없음 — PC 활동만 사용",
-    CameraStatus.MODEL_ERROR: "얼굴 모델 오류 — PC 활동만 사용",
-}
+CAMERA_LABELS = LocalizedMapping(
+    {
+        CameraStatus.OFF: "Camera off",
+        CameraStatus.STARTING: "Opening camera…",
+        CameraStatus.RUNNING: "Camera in use",
+        CameraStatus.NO_DEVICE: "Cannot open camera (check device and permissions)",
+        CameraStatus.DISCONNECTED: "Camera disconnected — retrying connection",
+        CameraStatus.MODEL_MISSING: "Face model missing — using PC activity only",
+        CameraStatus.MODEL_ERROR: "Face model error — using PC activity only",
+    }
+)
 
-SELF_REPORT_LABELS = {
-    "ACHIEVED": "달성",
-    "PARTIAL": "일부 달성",
-    "NOT_ACHIEVED": "미달성",
-}
+SELF_REPORT_LABELS = LocalizedMapping(
+    {"ACHIEVED": "Achieved", "PARTIAL": "Partially achieved", "NOT_ACHIEVED": "Not achieved"}
+)
 
-CATEGORY_LABELS = {
-    Category.DEVELOPMENT: "개발",
-    Category.STUDY: "공부",
-    Category.DOCUMENTATION: "문서 작성",
-    Category.RESEARCH: "자료 조사",
-    Category.COMMUNICATION: "소통",
-    Category.ENTERTAINMENT: "오락",
-    Category.GAMING: "게임",
-    Category.PRODUCTIVITY: "업무 도구",
-    Category.BREAK: "휴식·비활동",
-    Category.UNKNOWN: "미분류",
-}
+CATEGORY_LABELS = LocalizedMapping(
+    {
+        Category.DEVELOPMENT: "Development",
+        Category.STUDY: "Study",
+        Category.DOCUMENTATION: "Documentation",
+        Category.RESEARCH: "Research",
+        Category.COMMUNICATION: "Communication",
+        Category.ENTERTAINMENT: "Entertainment",
+        Category.GAMING: "Gaming",
+        Category.PRODUCTIVITY: "Productivity tools",
+        Category.BREAK: "Break / inactive",
+        Category.UNKNOWN: "Unclassified",
+    }
+)
 
 CATEGORY_COLORS = {
     Category.DEVELOPMENT: "#3B5BDB",

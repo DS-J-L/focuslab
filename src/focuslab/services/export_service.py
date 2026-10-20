@@ -15,6 +15,7 @@ from focuslab.domain.activity import ActivitySpan
 from focuslab.domain.events import StateSegment
 from focuslab.domain.models import FocusState, SessionRecord, StateSample
 from focuslab.focus.metrics import SessionMetrics, apply_corrections, compute_metrics
+from focuslab.i18n import tr
 from focuslab.services.activity_service import ALL_TIME, rebuild_auto_sessions
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.storage.repository import Repository
@@ -131,9 +132,12 @@ def activity_dict(repo: Repository) -> dict:
     return {
         "spans": [_span_row(s, rules) for s in activity.spans_between(*ALL_TIME)],
         "automatic_sessions": [
-            {**{k: v for k, v in asdict(s).items() if k not in ("start_ms", "end_ms")},
-             "start_utc": _iso(s.start_ms), "end_utc": _iso(s.end_ms),
-             "category": s.category.value}
+            {
+                **{k: v for k, v in asdict(s).items() if k not in ("start_ms", "end_ms")},
+                "start_utc": _iso(s.start_ms),
+                "end_utc": _iso(s.end_ms),
+                "category": s.category.value,
+            }
             for s in rebuild_auto_sessions(repo.conn, *ALL_TIME)
         ],
         "system_events": [
@@ -156,7 +160,9 @@ def export_json(repo: Repository, path: Path, session_ids: list[int] | None = No
     payload = {
         "format": "focuslab-export",
         "app_version": __version__,
-        "note": "관찰 가능한 행동의 추정치이며 집중력·의학적 상태의 측정값이 아닙니다.",
+        "note": tr(
+            "Estimates of observable behavior, not measurements of attention or medical status."
+        ),
         "sessions": sessions,
     }
     if session_ids is None:
@@ -166,8 +172,16 @@ def export_json(repo: Repository, path: Path, session_ids: list[int] | None = No
 
 
 CSV_COLUMNS = [
-    "session_id", "started_at_utc", "goal", "mode", "second_offset", "state",
-    "effective_state", "confidence", "reason_codes", "app_name",
+    "session_id",
+    "started_at_utc",
+    "goal",
+    "mode",
+    "second_offset",
+    "state",
+    "effective_state",
+    "confidence",
+    "reason_codes",
+    "app_name",
 ]
 
 
@@ -181,17 +195,38 @@ def export_csv(repo: Repository, path: Path, session_ids: list[int] | None = Non
                 continue
             r = report.record
             for raw, eff in zip(report.samples, report.effective, strict=True):
-                writer.writerow([
-                    r.id, r.started_at_utc, r.goal, r.mode.value, raw.second_offset,
-                    raw.state.value, eff.state.value, raw.confidence,
-                    ";".join(raw.reason_codes), raw.app_name or "",
-                ])
+                writer.writerow(
+                    [
+                        r.id,
+                        r.started_at_utc,
+                        r.goal,
+                        r.mode.value,
+                        raw.second_offset,
+                        raw.state.value,
+                        eff.state.value,
+                        raw.confidence,
+                        ";".join(raw.reason_codes),
+                        raw.app_name or "",
+                    ]
+                )
     return path
 
 
 ACTIVITY_CSV_COLUMNS = [
-    "start_utc", "end_utc", "duration_s", "kind", "program", "product_name", "site", "category",
-    "confidence", "reason", "source", "stored_category", "user_category", "excluded",
+    "start_utc",
+    "end_utc",
+    "duration_s",
+    "kind",
+    "program",
+    "product_name",
+    "site",
+    "category",
+    "confidence",
+    "reason",
+    "source",
+    "stored_category",
+    "user_category",
+    "excluded",
 ]
 
 

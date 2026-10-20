@@ -36,6 +36,11 @@ def settle(qtbot):
 def isolated_data_dir(tmp_path, monkeypatch):
     """Never touch the real %LOCALAPPDATA%\\FocusLab during tests."""
     monkeypatch.setenv("FOCUSLAB_DATA_DIR", str(tmp_path / "data"))
+    # Existing behavior tests use Korean wording regardless of the CI machine's locale.
+    from focuslab.i18n import set_language
+
+    monkeypatch.setenv("FOCUSLAB_LANGUAGE", "ko")
+    set_language("ko")
     return tmp_path / "data"
 
 
@@ -72,8 +77,9 @@ def daily_scenario():
         def wall() -> int:
             return start_ms + clock.ms - base
 
-        rec = ActivityRecorder(db_path, Probe(), clock=clock, wall=wall,
-                               config=RecorderConfig(idle_threshold_s=300))
+        rec = ActivityRecorder(
+            db_path, Probe(), clock=clock, wall=wall, config=RecorderConfig(idle_threshold_s=300)
+        )
         rec.start(run_thread=False)
         repo = Repository(rec._repo.conn)
         for key in ("consent.recording", "consent.browser"):
@@ -88,8 +94,9 @@ def daily_scenario():
                 if site:
                     seq += 1
                     host.apply(BrowserState("chrome", "w", seq, 0, True, site), wall())
-                state["sample"] = ProbeSample(ForegroundApp(exe, exe.split(".")[0].title()),
-                                              float(idle))
+                state["sample"] = ProbeSample(
+                    ForegroundApp(exe, exe.split(".")[0].title()), float(idle)
+                )
                 rec.tick()
                 clock.advance(1)
         rec.tick()

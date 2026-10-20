@@ -1,54 +1,54 @@
-# 자동 활동 기록 엔진 성능 측정
+# Automatic activity recording: performance measurements
 
-> 측정일 2026-10-20 · Windows 11 Pro 10.0.26200 · Python 3.11.14 (uv) · 같은 개발 PC 1대
-> 재현: `uv run python scripts/activity_smoke.py --seconds 600` (실제 프로브), `uv run python scripts/bench_activity.py` (합성 부하)
+> Measured 2026-10-20 on one development PC: Windows 11 Pro 10.0.26200, Python 3.11.14 (uv).
+> Reproduce with `uv run python scripts/activity_smoke.py --seconds 600` (real probe) and `uv run python scripts/bench_activity.py` (synthetic load).
 
-## 1. 실기기 상시 기록 (실제 Win32 프로브·이벤트 훅)
+## 1. Real-device background recording
 
-| 실행 | 결과 |
+| Run | Result |
 | --- | --- |
-| 10분 (`--seconds 600`) | CPU 0.12 s = **코어 1개의 0.02%**, RSS 31.4 MiB, DB 128 KiB, 포그라운드 훅·세션/전원 알림 등록 확인 |
-| 75초, 유휴 기준 30초 | CPU 0.04%, RSS 31.2 MiB, 활성 36.2 s → 유휴 38.4 s (마지막 입력 시각으로 소급) |
-| 45초 | CPU 0.07%, RSS 29.0 MiB |
+| 10 minutes (`--seconds 600`) | CPU 0.12 seconds = **0.02% of one core**; RSS 31.4 MiB; DB 128 KiB; foreground hook and session/power notifications registered |
+| 75 seconds, 30-second idle threshold | CPU 0.04%; RSS 31.2 MiB; active 36.2 seconds then idle 38.4 seconds, backdated to the last input |
+| 45 seconds | CPU 0.07%; RSS 29.0 MiB |
 
-10분 실행 동안 사용자가 PC를 쓰지 않아 600초 전체가 하나의 `IDLE` 구간으로 기록되었다(시작 시점에 이미 5분 이상 입력이 없었음).
-따라서 이 측정은 상시 대기 비용과 유휴 처리를 확인한 것이며, 잦은 프로그램 전환 부하는 2절의 모의 실행으로 측정했다.
-RSS는 Python + pywin32 + psutil 기본 적재량이 대부분이며 레코더 자체는 열린 구간 1개와 배치 대기 목록만 메모리에 둔다.
+The PC was unused throughout the ten-minute run; all 600 seconds formed one idle interval because there had already been no input for at least five minutes. This measures standby overhead and idle handling, not frequent switching. Switching load is covered by the synthetic run below.
 
-## 2. 24시간 모의 실행 (가짜 시계, 실제 레코더·SQLite)
+Most RSS comes from Python, pywin32, and psutil. The recorder retains one open interval and bounded pending batches.
 
-86,400틱(1초 간격), 약 40초마다 프로그램 전환, 매시간 10분 유휴, 10초 배치 저장.
+## 2. Simulated 24-hour run
 
-| 항목 | 결과 |
+Fake clock with the real recorder and SQLite: 86,400 one-second ticks, program switches about every 40 seconds, ten idle minutes per hour, and ten-second batch saves.
+
+| Metric | Result |
 | --- | --- |
-| 틱당 처리 시간 (저장 포함) | 약 12 µs |
-| 기록된 구간 | 1,992개 |
-| 데이터베이스 크기 | 0.36 MiB / 일 |
-| 프로세스 메모리 (RSS) | 시작 26.1 MiB → 1시간 후 26.1 MiB → 24시간 후 26.0 MiB (증가 없음) |
+| Processing per tick, including saves | About 12 microseconds |
+| Recorded intervals | 1,992 |
+| Database size | 0.36 MiB/day |
+| Process RSS | 26.1 MiB initially; 26.1 MiB after one simulated hour; 26.0 MiB after 24 hours |
 
-열린 구간은 메모리에 1개만 두고, 닫힌 구간은 다음 배치에서 저장 후 버린다. 저장 실패 시에도 대기 목록은
-최대 5,000개로 제한된다. 30일 사용 시 예상 DB 크기는 약 11 MiB(하루 1,500~2,000 구간 기준)이다.
+Closed intervals are discarded after the next successful batch. Save-failure queues are capped at 5,000 items. At 1,500-2,000 intervals/day, the estimated thirty-day database size is about 11 MiB.
 
-## 3. 대시보드 계산 (45,000 구간 = 30일 × 1,500 전환)
+## 3. Dashboard calculations
 
-| 범위 | 계산 시간 (구간 분류·카메라 결합·자동 세션 재계산·통계) |
+Synthetic 45,000 intervals: thirty days with 1,500 transitions/day. Calculations include classification, camera overlay, automatic-session rebuilding, and statistics.
+
+| Range | Calculation time |
 | --- | --- |
-| 하루 | 0.07 s |
-| 7일 | 0.35 s |
-| 30일 | 1.81 s |
+| One day | 0.07 seconds |
+| Seven days | 0.35 seconds |
+| Thirty days | 1.81 seconds |
 
-데이터베이스 3.71 MiB(WAL 체크포인트 후). 활동 화면은 30초마다 오늘만 다시 계산하고(7·30일 통계는 날짜·기간을 바꿀 때만),
-구간을 선택해 정정하는 중에는 자동 새로고침하지 않는다. 회귀 방지: `tests/integration/test_activity_privacy.py::test_a_month_of_activity_stays_fast`
-(하루 < 2 s, 30일 < 20 s, CI 편차를 고려한 느슨한 기준).
+The database was 3.71 MiB after a WAL checkpoint. The activity page refreshes today's data every thirty seconds; long-range charts refresh on date/range changes. Selecting an interval prevents periodic refresh from disrupting correction.
 
-## 4. 쓰기 방식과 내구성
+Reports now run on a worker with a separate SQLite connection; these original measurements are computation baselines, not a new measurement of the complete localized GUI. Regression check: `tests/integration/test_activity_privacy.py::test_a_month_of_activity_stays_fast` uses generous CI limits (one day under two seconds, thirty days under twenty seconds).
 
-- WAL + `synchronous=NORMAL`, 10초마다 한 트랜잭션(열린 구간의 종료 시각 갱신 + 새 구간·이벤트 삽입).
-- 강제 종료(`TerminateProcess`) 후 `PRAGMA integrity_check = ok`, 마지막 배치까지 보존(최대 10초 손실), 다음 시작 시 `RECOVERED` 기록
-  (`tests/integration/test_recorder_crash.py`, 실기기 자동 실행 명령 kill 확인).
-- 절전·로그오프·종료 알림을 받으면 즉시 저장한다.
+## 4. Persistence and durability
 
-## 5. 한계
+- WAL with `synchronous=NORMAL`; one transaction per ten-second batch updates the open interval and inserts closed intervals/events.
+- After `TerminateProcess`, `PRAGMA integrity_check` returned `ok`; the last committed batch remained, with at most about ten seconds lost. Restart records `RECOVERED`. See `tests/integration/test_recorder_crash.py`.
+- Sleep, logoff, and shutdown notifications trigger immediate saves.
 
-- 한 대의 개발 PC에서 측정했다. 저사양 노트북·장기간(수 주) 실사용 측정은 PR-12에서 반복한다.
-- 카메라 추론 부하는 기존 수동 세션 기능의 것으로 이번 측정에 포함하지 않았다.
+## 5. Limitations
+
+- One development PC only. Low-end laptops and several weeks of real use require further validation under PR-12.
+- Camera inference load is part of manual focus sessions and is excluded from these measurements.

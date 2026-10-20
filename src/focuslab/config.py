@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from focuslab.domain.models import SessionMode
+from focuslab.i18n import LocalizedMapping
 
 APP_NAME = "FocusLab"
 RULE_VERSION = "rules-0.1"
@@ -33,7 +34,7 @@ def db_path(base: Path | None = None) -> Path:
 
 
 def face_model_path() -> Path | None:
-    """First existing face model: FOCUSLAB_MODEL_DIR, repo assets, then the data folder."""
+    "First existing face model: FOCUSLAB_MODEL_DIR, repo assets, then the data folder."
     dirs = [Path(d) for d in [os.environ.get("FOCUSLAB_MODEL_DIR")] if d]
     dirs += [REPO_MODEL_DIR, data_dir() / "models"]
     for d in dirs:
@@ -72,38 +73,71 @@ MODE_PROFILES = {
     SessionMode.CUSTOM: ModeProfile(False, False, 20, 15),
 }
 
-MODE_LABELS = {
-    SessionMode.CODING: "코딩",
-    SessionMode.LECTURE: "강의",
-    SessionMode.READING_WRITING: "독서·필기",
-    SessionMode.CUSTOM: "사용자 지정",
-}
+MODE_LABELS = LocalizedMapping(
+    {
+        SessionMode.CODING: "Coding",
+        SessionMode.LECTURE: "Lecture",
+        SessionMode.READING_WRITING: "Reading / writing",
+        SessionMode.CUSTOM: "Custom",
+    }
+)
 
 BROWSERS = (
-    "chrome.exe", "msedge.exe", "firefox.exe", "whale.exe", "brave.exe", "opera.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "whale.exe",
+    "brave.exe",
+    "opera.exe",
 )
 
 # Apps that are neither evidence of work nor of deviation (desktop shell, this app).
 NEUTRAL_APPS = (
-    "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
-    "startmenuexperiencehost.exe", "applicationframehost.exe", SELF_NAME,
+    "explorer.exe",
+    "searchhost.exe",
+    "shellexperiencehost.exe",
+    "startmenuexperiencehost.exe",
+    "applicationframehost.exe",
+    SELF_NAME,
 )
 
 LOCK_APPS = ("lockapp.exe", "logonui.exe")
 
 DEFAULT_ALLOWED_APPS = {
     SessionMode.CODING: (
-        "code.exe", "cursor.exe", "pycharm64.exe", "idea64.exe", "devenv.exe",
-        "windowsterminal.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "notepad++.exe",
-        "claude.exe", *BROWSERS,
+        "code.exe",
+        "cursor.exe",
+        "pycharm64.exe",
+        "idea64.exe",
+        "devenv.exe",
+        "windowsterminal.exe",
+        "cmd.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "notepad++.exe",
+        "claude.exe",
+        *BROWSERS,
     ),
     SessionMode.LECTURE: (
-        *BROWSERS, "vlc.exe", "potplayermini64.exe", "zoom.exe", "ms-teams.exe",
-        "acrobat.exe", "sumatrapdf.exe",
+        *BROWSERS,
+        "vlc.exe",
+        "potplayermini64.exe",
+        "zoom.exe",
+        "ms-teams.exe",
+        "acrobat.exe",
+        "sumatrapdf.exe",
     ),
     SessionMode.READING_WRITING: (
-        "acrobat.exe", "acrord32.exe", "sumatrapdf.exe", "winword.exe", "onenote.exe",
-        "notion.exe", "obsidian.exe", "hwp.exe", "notepad.exe", *BROWSERS,
+        "acrobat.exe",
+        "acrord32.exe",
+        "sumatrapdf.exe",
+        "winword.exe",
+        "onenote.exe",
+        "notion.exe",
+        "obsidian.exe",
+        "hwp.exe",
+        "notepad.exe",
+        *BROWSERS,
     ),
     SessionMode.CUSTOM: (),
 }

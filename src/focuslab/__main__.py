@@ -57,21 +57,38 @@ def main(argv: list[str] | None = None) -> int:
         description="Local-first Windows work-pattern observation (not a diagnostic tool).",
     )
     parser.add_argument("--version", action="version", version=f"FocusLab {__version__}")
-    parser.add_argument("--demo", action="store_true",
-                        help="use scripted sensors; never reads the camera or PC activity")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="use scripted sensors; never reads the camera or PC activity",
+    )
     parser.add_argument("--data-dir", type=Path, help="override the local data folder")
+    parser.add_argument(
+        "--language", choices=("en", "ko"), help="override the interface language for this run"
+    )
     parser.add_argument("--check", action="store_true", help="print environment status and exit")
-    parser.add_argument("--fetch-models", action="store_true",
-                        help="download the MediaPipe face model and verify its SHA256")
-    parser.add_argument("--seed-demo", action="store_true",
-                        help="add synthetic demo sessions to the local database and exit")
-    parser.add_argument("--background", action="store_true",
-                        help="start minimized to the tray (used by the sign-in autostart entry)")
+    parser.add_argument(
+        "--fetch-models",
+        action="store_true",
+        help="download the MediaPipe face model and verify its SHA256",
+    )
+    parser.add_argument(
+        "--seed-demo",
+        action="store_true",
+        help="add synthetic demo sessions to the local database and exit",
+    )
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="start minimized to the tray (used by the sign-in autostart entry)",
+    )
     args = parser.parse_args(raw)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if args.data_dir:
         os.environ["FOCUSLAB_DATA_DIR"] = str(args.data_dir)
+    if args.language:
+        os.environ["FOCUSLAB_LANGUAGE"] = args.language
     if args.check:
         return _check()
     if args.fetch_models:

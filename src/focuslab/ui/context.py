@@ -1,4 +1,4 @@
-"""Application wiring: the session service, sensor factories and persisted user settings."""
+"Application wiring: the session service, sensor factories and persisted user settings."
 
 import json
 import sys
@@ -23,6 +23,7 @@ from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_
 from focuslab.domain.activity import ActivitySpan, Category
 from focuslab.domain.models import SessionConfig, SessionMode
 from focuslab.domain.protocols import ActivitySource, FaceSource
+from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, initialize_language
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.services.session_service import NoActivitySource, SessionService
 from focuslab.services.worker_manager import CameraFaceSource
@@ -43,8 +44,20 @@ class AppContext:
             calibration=self.calibration,
         )
         self.recorder: ActivityRecorder | None = None
+        initialize_language(self.setting("ui.language"))
 
     # settings ---------------------------------------------------------------------
+    @property
+    def language(self) -> str:
+        saved = self.setting("ui.language")
+        return saved if saved in SUPPORTED_LANGUAGES else get_language()
+
+    def set_language_preference(self, language: str) -> None:
+        """Persist the next launch's language without interrupting a live session."""
+        if language not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language: {language}")
+        self.set_setting("ui.language", language)
+
     def setting(self, key: str, default: str | None = None) -> str | None:
         with self.service.lock:
             return self.service.repository.get_setting(key, default)
@@ -177,7 +190,9 @@ class AppContext:
             return False
         if self.recorder is None:
             self.recorder = ActivityRecorder(
-                self.db_path, WindowsProbe(), events=WindowsEventThread,
+                self.db_path,
+                WindowsProbe(),
+                events=WindowsEventThread,
                 config=RecorderConfig(idle_threshold_s=self.idle_threshold_s),
             )
         self.recorder.set_browser_tracking(self.browser_consent)

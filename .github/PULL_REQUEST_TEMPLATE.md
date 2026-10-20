@@ -1,15 +1,18 @@
-## 목적
+## Problem and resulting behavior
 
-## 변경 내용
+## Changes
 
-## 테스트
+## Validation
+
 - [ ] `uv run ruff check .`
 - [ ] `uv run pytest`
 - [ ] `uv build`
-- [ ] Windows 실기기 확인 (해당되는 경우)
+- [ ] Real Windows hardware check, if applicable
+- [ ] English and Korean UI verified, if user-visible text changed
+- [ ] PR base checked (`main` for final integration)
 
-## 개인정보 / 성능 영향
+## Privacy and performance impact
 
-## 알려진 한계
+## Known limitations
 
-## 다음 작업
+## Follow-up work

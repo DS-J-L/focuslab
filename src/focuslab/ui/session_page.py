@@ -1,4 +1,4 @@
-"""Live session: current estimate with reasons, camera status/preview, live timeline, controls."""
+"Live session: current estimate with reasons, camera status/preview, live timeline, controls."
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -20,6 +20,7 @@ from focuslab.domain.models import CameraStatus, FocusState
 from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.metrics import format_duration
 from focuslab.focus.reasons import Reason, describe
+from focuslab.i18n import LocalizedMapping, tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import CAMERA_LABELS, CORRECTION_LABELS, SHORT_LABELS
@@ -32,14 +33,16 @@ from focuslab.ui.widgets import (
     preview_label,
 )
 
-FACE_TEXT = {
-    FaceEvidence.FORWARD: "화면 방향",
-    FaceEvidence.DOWN: "아래쪽",
-    FaceEvidence.AWAY: "화면 외 방향",
-    FaceEvidence.ABSENT: "얼굴 안 보임",
-    FaceEvidence.UNKNOWN: "판단 불가",
-    FaceEvidence.OFF: "카메라 사용 안 함",
-}
+FACE_TEXT = LocalizedMapping(
+    {
+        FaceEvidence.FORWARD: "Facing the screen",
+        FaceEvidence.DOWN: "Looking down",
+        FaceEvidence.AWAY: "Looking away",
+        FaceEvidence.ABSENT: "Face not visible",
+        FaceEvidence.UNKNOWN: "Cannot determine",
+        FaceEvidence.OFF: "Camera not in use",
+    }
+)
 
 
 def _card() -> tuple[QFrame, QVBoxLayout]:
@@ -64,15 +67,19 @@ class SessionPage(QWidget):
 
         header = QHBoxLayout()
         title_col = QVBoxLayout()
-        self.title = QLabel("진행 중인 세션이 없습니다", objectName="PageTitle")
-        self.subtitle = QLabel("홈에서 목표와 모드를 정하고 세션을 시작하세요.", objectName="Muted")
+        self.title = QLabel(tr("No session in progress"), objectName="PageTitle")
+        self.subtitle = QLabel(
+            tr("Choose a goal and mode on Home to start a session."), objectName="Muted"
+        )
         title_col.addWidget(self.title)
         title_col.addWidget(self.subtitle)
         header.addLayout(title_col, 1)
         self.camera_flag = QLabel("", objectName="CameraOn")
         header.addWidget(self.camera_flag, 0, Qt.AlignmentFlag.AlignTop)
-        self.camera_stop = QPushButton("카메라 끄기")
-        self.camera_stop.setToolTip("세션은 계속하고 카메라만 즉시 해제합니다.")
+        self.camera_stop = QPushButton(tr("Turn off camera"))
+        self.camera_stop.setToolTip(
+            tr("Release the camera immediately while keeping the session running.")
+        )
         self.camera_stop.clicked.connect(self.cameraStopRequested)
         self.camera_stop.hide()
         header.addWidget(self.camera_stop, 0, Qt.AlignmentFlag.AlignTop)
@@ -93,7 +100,7 @@ class SessionPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(14)
         state_card, state_layout = _card()
-        state_layout.addWidget(QLabel("현재 추정 상태", objectName="CardTitle"))
+        state_layout.addWidget(QLabel(tr("Current estimated state"), objectName="CardTitle"))
         self.badge = StateBadge()
         state_layout.addWidget(self.badge)
         self.reasons = QLabel("", wordWrap=True)
@@ -101,7 +108,7 @@ class SessionPage(QWidget):
         state_layout.addWidget(self.reasons)
         self.confidence = QProgressBar()
         self.confidence.setRange(0, 100)
-        self.confidence.setFormat("신뢰도 %p%")
+        self.confidence.setFormat(tr("Confidence %p%"))
         self.confidence.setTextVisible(True)
         self.confidence.setMaximumHeight(16)
         state_layout.addWidget(self.confidence)
@@ -111,15 +118,15 @@ class SessionPage(QWidget):
         grid.addWidget(state_card, 0, 0)
 
         cam_card, cam_layout = _card()
-        cam_title = QLabel("카메라 (메모리에서만 처리, 저장 안 함)", objectName="CardTitle")
+        cam_title = QLabel(tr("Camera (memory only; never saved)"), objectName="CardTitle")
         cam_layout.addWidget(cam_title)
-        self.preview = preview_label("미리보기 없음")
+        self.preview = preview_label(tr("No preview"))
         cam_layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
         toggles = QHBoxLayout()
-        self.show_preview = QCheckBox("미리보기")
+        self.show_preview = QCheckBox(tr("Preview"))
         self.show_preview.setChecked(self.ctx.flag("camera.preview", True))
         self.show_preview.toggled.connect(self._preview_toggled)
-        self.show_overlay = QCheckBox("랜드마크 표시")
+        self.show_overlay = QCheckBox(tr("Show landmarks"))
         self.show_overlay.setChecked(self.ctx.flag("camera.overlay", False))
         self.show_overlay.toggled.connect(self._overlay_toggled)
         toggles.addWidget(self.show_preview)
@@ -134,7 +141,7 @@ class SessionPage(QWidget):
         root.addLayout(grid)
 
         tl_card, tl_layout = _card()
-        tl_layout.addWidget(QLabel("타임라인 (마우스를 올리면 근거 표시)", objectName="CardTitle"))
+        tl_layout.addWidget(QLabel(tr("Timeline (hover for evidence)"), objectName="CardTitle"))
         self.timeline = TimelineWidget(40)
         tl_layout.addWidget(self.timeline)
         tl_layout.addWidget(Legend())
@@ -143,18 +150,18 @@ class SessionPage(QWidget):
         root.addWidget(tl_card)
 
         controls = QHBoxLayout()
-        self.pause_button = QPushButton("일시정지")
+        self.pause_button = QPushButton(tr("Pause"))
         self.pause_button.clicked.connect(self.pauseRequested.emit)
-        self.break_button = QPushButton("휴식 시작")
+        self.break_button = QPushButton(tr("Start break"))
         self.break_button.clicked.connect(self._toggle_break)
         self.correct_button = QToolButton()
-        self.correct_button.setText("잘못된 판정 수정")
+        self.correct_button.setText(tr("Correct an estimate"))
         self.correct_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.correct_button)
         for label, text in CORRECTION_LABELS.items():
             menu.addAction(text, lambda lab=label: self._correct(lab))
         self.correct_button.setMenu(menu)
-        self.finish_button = QPushButton("세션 종료", objectName="Danger")
+        self.finish_button = QPushButton(tr("End session"), objectName="Danger")
         self.finish_button.clicked.connect(self.finishRequested.emit)
         for b in (self.pause_button, self.break_button, self.correct_button):
             controls.addWidget(b)
@@ -179,9 +186,11 @@ class SessionPage(QWidget):
 
     def _correct(self, label: FocusState) -> None:
         if self.ctx.service.correct_current(label):
-            self.feedback.setText(f"현재 구간을 '{CORRECTION_LABELS[label]}'(으)로 정정했습니다.")
+            self.feedback.setText(
+                tr("Corrected the current interval to '{p0}'.", p0=CORRECTION_LABELS[label])
+            )
         else:
-            self.feedback.setText("정정할 구간이 아직 없습니다.")
+            self.feedback.setText(tr("No interval to correct yet."))
 
     def _preview_toggled(self, on: bool) -> None:
         self.ctx.set_flag("camera.preview", on)
@@ -190,7 +199,7 @@ class SessionPage(QWidget):
             src.preview_enabled = on
         if not on:
             self.preview.clear()
-            self.preview.setText("미리보기 꺼짐")
+            self.preview.setText(tr("Preview off"))
 
     def _overlay_toggled(self, on: bool) -> None:
         self.ctx.set_flag("camera.overlay", on)
@@ -206,7 +215,7 @@ class SessionPage(QWidget):
         if frame is None:
             if self.preview.pixmap() is not None and not self.preview.pixmap().isNull():
                 self.preview.clear()
-            self.preview.setText("미리보기 없음")
+            self.preview.setText(tr("No preview"))
             return
         self.preview.setPixmap(frame_pixmap(frame))
 
@@ -217,8 +226,8 @@ class SessionPage(QWidget):
         for w in (self.pause_button, self.break_button, self.correct_button, self.finish_button):
             w.setEnabled(active)
         if snap.config is None:
-            self.title.setText("진행 중인 세션이 없습니다")
-            self.subtitle.setText("홈에서 목표와 모드를 정하고 세션을 시작하세요.")
+            self.title.setText(tr("No session in progress"))
+            self.subtitle.setText(tr("Choose a goal and mode on Home to start a session."))
             self.badge.set_state(None)
             self.timeline.set_segments(())
             self.camera_stop.hide()
@@ -227,31 +236,40 @@ class SessionPage(QWidget):
         cfg = snap.config
         self.title.setText(cfg.goal)
         state_word = {
-            Lifecycle.RUNNING: "관찰 중", Lifecycle.PAUSED: "일시정지됨 (관찰·카메라 중지)",
-            Lifecycle.FINISHED: "종료됨", Lifecycle.IDLE: "",
+            Lifecycle.RUNNING: tr("Observing"),
+            Lifecycle.PAUSED: tr("Paused (observation and camera stopped)"),
+            Lifecycle.FINISHED: tr("Ended"),
+            Lifecycle.IDLE: "",
         }[snap.lifecycle]
-        self.subtitle.setText(f"{MODE_LABELS[cfg.mode]} 모드 · {state_word}")
-        self.pause_button.setText("재개" if snap.lifecycle is Lifecycle.PAUSED else "일시정지")
-        self.break_button.setText("휴식 종료" if snap.on_break else "휴식 시작")
+        self.subtitle.setText(tr("{p0} mode · {p1}", p0=MODE_LABELS[cfg.mode], p1=state_word))
+        self.pause_button.setText(
+            tr("Resume") if snap.lifecycle is Lifecycle.PAUSED else tr("Pause")
+        )
+        self.break_button.setText(tr("End break") if snap.on_break else tr("Start break"))
         self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
 
         planned = cfg.planned_minutes * 60
         self.clock.setText(clock_text(snap.active_s))
         if planned:
             self.remaining.setText(
-                f"  남은 시간 {clock_text(planned - snap.active_s)}"
-                f" · 일시정지 {clock_text(snap.paused_s)}"
+                tr(
+                    "  Remaining {p0} · Paused {p1}",
+                    p0=clock_text(planned - snap.active_s),
+                    p1=clock_text(snap.paused_s),
+                )
             )
             self.progress.setRange(0, planned)
             self.progress.setValue(min(planned, snap.active_s))
         else:
-            self.remaining.setText(f"  제한 없음 · 일시정지 {clock_text(snap.paused_s)}")
+            self.remaining.setText(
+                tr("  No time limit · Paused {p0}", p0=clock_text(snap.paused_s))
+            )
             self.progress.setRange(0, 0 if snap.lifecycle is Lifecycle.RUNNING else 1)
 
         decision = snap.decision
         if decision is None:
             self.badge.set_state(None)
-            self.reasons.setText("첫 관찰을 기다리는 중…")
+            self.reasons.setText(tr("Waiting for the first observation…"))
             self.confidence.setValue(0)
         else:
             held = Reason.HYSTERESIS_HOLD in decision.reason_codes
@@ -259,19 +277,23 @@ class SessionPage(QWidget):
             self.reasons.setText("\n".join(f"• {t}" for t in describe(decision.reason_codes)))
             self.confidence.setValue(round(decision.confidence * 100))
 
-        idle = "-" if snap.idle_s is None else f"{snap.idle_s:.0f}초 전"
+        idle = "-" if snap.idle_s is None else tr("{p0:.0f}s ago", p0=snap.idle_s)
         face = FACE_TEXT.get(snap.face_evidence, "-")
         app = snap.app_name or "-"
         if self.ctx.demo:
-            app += " (데모 센서)"
-        self.sensors.setText(f"포그라운드 앱: {app}\n마지막 입력: {idle}\n머리 방향: {face}")
+            app += tr(" (demo sensors)")
+        self.sensors.setText(
+            tr("Foreground app: {p0}\nLast input: {p1}\nHead pose: {p2}", p0=app, p1=idle, p2=face)
+        )
 
         camera_on = snap.camera_status in (CameraStatus.RUNNING, CameraStatus.STARTING)
-        flag = "● 데모 카메라 센서 (실제 카메라 꺼짐)" if self.ctx.demo else "● 카메라 사용 중"
+        flag = (
+            tr("● Demo camera sensor (real camera off)") if self.ctx.demo else tr("● Camera in use")
+        )
         self.camera_flag.setText(flag if camera_on else "")
         self.camera_stop.setVisible(camera_on and active)
         if not cfg.camera_enabled:
-            self.camera_status.setText("이 세션은 카메라 없이 PC 활동만 사용합니다.")
+            self.camera_status.setText(tr("This session uses PC activity only, without a camera."))
         else:
             self.camera_status.setText(CAMERA_LABELS[snap.camera_status])
 
@@ -281,4 +303,4 @@ class SessionPage(QWidget):
             for s in FocusState
             if snap.seconds.get(s)
         ]
-        self.totals.setText(" · ".join(parts) or "아직 기록 없음")
+        self.totals.setText(" · ".join(parts) or tr("No records yet"))
