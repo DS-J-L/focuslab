@@ -29,8 +29,9 @@ function fakeChrome() {
         return port;
       },
     },
-    windows: { onFocusChanged: event(), onRemoved: event(),
-      getLastFocused: async () => world.window },
+    windows: { WINDOW_ID_NONE: -1, onFocusChanged: event(), onRemoved: event(),
+      getLastFocused: async () => world.window,
+      get: async (id) => ({ ...world.window, id }) },
     tabs: { onActivated: event(), onUpdated: event(), onRemoved: event(),
       query: async () => [world.tab] },
     alarms: { onAlarm: event(), created: [], create(name, info) { this.created.push([name, info]); } },
@@ -75,6 +76,26 @@ test("reports the focused tab's hostname, dedupes, and hides private or unfocuse
     assert.deepEqual(fake.sent.map((m) => m.seq), [1, 2, 3, 4]);
     assert.ok(fake.sent.every((m) => !JSON.stringify(m).includes("watch")));
   });
+
+test("focus changes follow the event, even while the window's focused flag lags", async () => {
+  const fake = fakeChrome();
+  globalThis.chrome = fake.chrome;
+  await import(`../background.js?case=${Math.random()}`);
+  await settle();
+  assert.deepEqual([fake.sent.at(-1).focused, fake.sent.at(-1).domain], [true, "github.com"]);
+
+  // Switched to another program: Chrome reports no focused window, the flag still says focused.
+  fake.chrome.windows.onFocusChanged.fire(fake.chrome.windows.WINDOW_ID_NONE);
+  await settle();
+  assert.deepEqual([fake.sent.at(-1).focused, fake.sent.at(-1).domain], [false, null]);
+
+  // Back to Chrome: the flag still says unfocused, the event names the focused window.
+  fake.world.window = { id: 1, focused: false, incognito: false };
+  fake.chrome.windows.onFocusChanged.fire(1);
+  await settle();
+  assert.deepEqual([fake.sent.at(-1).focused, fake.sent.at(-1).domain], [true, "github.com"]);
+  assert.equal(fake.sent.length, 3);
+});
 
 test("a missing host is retried with backoff instead of throwing", async () => {
   const fake = fakeChrome();
