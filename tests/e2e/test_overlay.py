@@ -1,9 +1,9 @@
-"""Floating session overlay: shown on start, pause/end, collapse, hide, position, setting."""
+"""Floating session overlay: parrot controls, hover, animation, collapse, hide, position."""
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QGuiApplication, QMouseEvent
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtGui import QColor, QGuiApplication, QMouseEvent
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.services.session_service import Lifecycle, LiveSnapshot
@@ -137,3 +137,69 @@ def test_setting_turns_the_overlay_off(window):
     assert not window.overlay.isVisible()
     window.session.overlay_button.click()  # still available on demand
     assert window.overlay.isVisible()
+
+
+def test_yellow_parrot_takes_a_break_and_is_unavailable_while_paused(window, qtbot):
+    overlay = window.overlay
+    start(window)
+    assert overlay.break_button.text() == "휴식 시작"
+    overlay.break_button.click()
+    assert snapshot(window).on_break
+    assert overlay.status.text() == "휴식 중"
+    assert overlay.break_button.text() == "휴식 종료"
+    assert overlay.break_button.icon_name == "back"
+    overlay.break_button.click()
+    assert not snapshot(window).on_break
+
+    overlay.pause_button.click()
+    assert not overlay.break_button.isEnabled()
+    assert overlay.pause_button.emblem == "play"
+    overlay.break_button.click()  # disabled: nothing happens
+    assert not snapshot(window).on_break
+
+
+def test_hovering_a_parrot_shows_its_action_in_a_bubble(window):
+    overlay = window.overlay
+    start(window)
+    perch = overlay.perch
+    QApplication.sendEvent(overlay.finish_button, QEvent(QEvent.Type.Enter))
+    assert perch.director.hover == 1
+    assert overlay.finish_button.icon_name == "stop"
+    QApplication.sendEvent(overlay.finish_button, QEvent(QEvent.Type.Leave))
+    assert perch.director.hover is None
+    QApplication.sendEvent(overlay.close_button, QEvent(QEvent.Type.Enter))
+    assert perch.director.hover == "window"
+
+
+def test_parrots_animate_only_while_expanded_and_shown(window):
+    overlay = window.overlay
+    start(window)
+    assert overlay.perch.animating
+    overlay.collapse_button.click()
+    assert not overlay.perch.animating  # the mini overlay has no parrots to move
+    overlay.set_collapsed(False)
+    assert overlay.perch.animating
+    overlay.close_button.click()
+    assert not overlay.perch.animating
+
+
+def test_the_three_parrots_are_drawn_in_their_colours(window):
+    overlay = window.overlay
+    start(window)
+    image = overlay.perch.grab().toImage()
+
+    ratio = image.devicePixelRatio()
+
+    def count(colour, x_range):
+        target = QColor(colour)
+        hits = 0
+        for x in range(*x_range, 2):
+            for y in range(70, 170, 2):
+                c = image.pixelColor(int(x * ratio), int(y * ratio))
+                diff = (c.red() - target.red(), c.green() - target.green())
+                hits += max(map(abs, (*diff, c.blue() - target.blue()))) < 12
+        return hits
+
+    seats = (("#E8483F", (45, 112)), ("#3E72E6", (117, 184)), ("#F8C935", (189, 256)))
+    for colour, x_range in seats:
+        assert count(colour, x_range) > 100, colour
