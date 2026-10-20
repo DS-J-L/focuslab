@@ -81,7 +81,7 @@ class ReportPage(QWidget):
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(14)
+        root.setSpacing(20)
         root.addWidget(QLabel(tr("Reports"), objectName="PageTitle"))
 
         week = QFrame(objectName="Card")
@@ -133,6 +133,7 @@ class ReportPage(QWidget):
         layout.addLayout(head)
 
         cards = QGridLayout()
+        cards.setSpacing(12)
         self.cards = {
             "on": StatCard(tr("Estimated task-related time"), hint=tr("Cumulative ON_TASK")),
             "off": StatCard(tr("Possibly off-task time")),

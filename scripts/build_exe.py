@@ -35,6 +35,7 @@ def main() -> None:
         str(ROOT / "src" / "focuslab" / "__main__.py"),
         "--name=FocusLab",
         "--windowed",
+        f"--icon={ROOT / 'src' / 'focuslab' / 'ui' / 'icons' / 'parrot-telescope.ico'}",
         "--noconfirm",
         "--clean",
         f"--paths={ROOT / 'src'}",

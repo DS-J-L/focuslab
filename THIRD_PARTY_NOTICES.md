@@ -17,6 +17,13 @@ and must be re-verified before shipping binaries (PR-13).
 
 Development-only: pytest (MIT), pytest-qt (MIT), ruff (MIT), hatchling (MIT).
 
+## Bundled UI font
+
+Pretendard Variable v1.3.9 by Kil Hyung-jin is bundled in `src/focuslab/ui/fonts/`.
+Source: https://github.com/orioncactus/pretendard/tree/v1.3.9
+License: SIL Open Font License 1.1; the original notice is included as `fonts/OFL.txt`.
+The font is loaded locally and does not require a system installation or network access.
+
 ## Model assets (not committed to the repository)
 
 | Asset | Source | SHA256 | License status |

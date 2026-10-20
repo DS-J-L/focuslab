@@ -4,7 +4,7 @@ import sys
 from dataclasses import replace
 
 from PySide6.QtCore import QLockFile, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QFont
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -33,7 +33,7 @@ from focuslab.ui.report_page import ReportPage
 from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
-from focuslab.ui.theme import ACCENT, SELF_REPORT_LABELS, STYLESHEET
+from focuslab.ui.theme import SELF_REPORT_LABELS, apply_theme
 from focuslab.ui.tray import Tray, make_icon
 
 HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ctx = ctx
         self.setWindowTitle("FocusLab" + (tr(" (demo sensors)") if ctx.demo else ""))
-        self.setWindowIcon(make_icon(ACCENT))
+        self.setWindowIcon(make_icon())
         self.resize(1180, 820)
         self.setMinimumSize(980, 680)
 
@@ -307,9 +307,7 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     app.setApplicationName("FocusLab")
     app.setQuitOnLastWindowClosed(False)
     app.styleHints().setColorScheme(Qt.ColorScheme.Light)  # the stylesheet is light-only
-    app.setStyleSheet(STYLESHEET)
-    if sys.platform == "win32":
-        app.setFont(QFont("Malgun Gothic", 10))
+    apply_theme(app)
 
     # One instance per data folder: a second one would mark the live session as interrupted.
     lock_path = data_dir() / "focuslab.lock"
