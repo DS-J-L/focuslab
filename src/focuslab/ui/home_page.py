@@ -36,6 +36,7 @@ from focuslab.i18n import LocalizedMapping, tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
 from focuslab.ui.report_worker import ActivityReporter
+from focuslab.ui.theme import style_form
 from focuslab.ui.widgets import StatCard
 
 MODE_HINTS = LocalizedMapping(
@@ -78,7 +79,7 @@ class HomePage(QWidget):
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(12)
+        root.setSpacing(20)
         head = QHBoxLayout()
         head.addWidget(QLabel(tr("Today"), objectName="PageTitle"))
         head.addStretch()
@@ -90,6 +91,7 @@ class HomePage(QWidget):
         root.addLayout(head)
 
         cards = QGridLayout()
+        cards.setSpacing(12)
         # Automatic recording: what the always-on recorder saw today, with or without a session.
         self.card_active = StatCard(
             tr("Input-based active time"),
@@ -110,7 +112,7 @@ class HomePage(QWidget):
             tag=tr(AUTO),
         )
         for i, card in enumerate((self.card_active, self.card_work, self.card_auto)):
-            cards.addWidget(card, 0, i)
+            cards.addWidget(card, 0, i * 4, 1, 4)
         # Manual focus sessions: only the time inside sessions started here.
         self.card_sessions = StatCard(
             tr("Sessions"), "0", tr("Sessions with observations today"), tag=tr(MANUAL)
@@ -131,11 +133,13 @@ class HomePage(QWidget):
             tag=tr(MANUAL),
         )
         for i, card in enumerate((self.card_sessions, self.card_on, self.card_off, self.card_cov)):
-            cards.addWidget(card, 1, i)
+            cards.addWidget(card, 1, i * 3, 1, 3)
+        for column in range(12):
+            cards.setColumnStretch(column, 1)
         root.addLayout(cards)
 
         body = QHBoxLayout()
-        body.setSpacing(16)
+        body.setSpacing(20)
         body.addWidget(self._build_form(), 3)
         recent_box = QGroupBox(tr("Recent sessions"))
         recent_layout = QVBoxLayout(recent_box)
@@ -155,10 +159,13 @@ class HomePage(QWidget):
     def _build_form(self) -> QGroupBox:
         box = QGroupBox(tr("New session"))
         outer = QVBoxLayout(box)
+        outer.setSpacing(16)
         form = QFormLayout()
+        style_form(form)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        form.setVerticalSpacing(10)
         outer.addLayout(form)
         outer.addStretch()
-        form.setVerticalSpacing(10)
         self.goal = QLineEdit(self.ctx.setting("last.goal", "") or "")
         self.goal.setPlaceholderText(tr("For example: solve algorithm problems"))
         form.addRow(tr("Goal"), self.goal)
@@ -186,6 +193,7 @@ class HomePage(QWidget):
         self.apps.setMaximumHeight(130)
         self.apps.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         app_buttons = QHBoxLayout()
+        app_buttons.setSpacing(8)
         add = QPushButton(tr("Add manually…"))
         add.clicked.connect(self._add_app_manual)
         self.add_open = QPushButton(tr("Add from open apps…"))
@@ -198,6 +206,7 @@ class HomePage(QWidget):
             app_buttons.addWidget(b)
         app_buttons.addStretch()
         apps_col = QVBoxLayout()
+        apps_col.setSpacing(10)
         apps_col.addWidget(self.apps)
         apps_col.addLayout(app_buttons)
         note = QLabel(

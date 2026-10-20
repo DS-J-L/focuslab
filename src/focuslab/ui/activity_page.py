@@ -130,7 +130,7 @@ class ActivityPage(QWidget):
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(14)
+        root.setSpacing(20)
 
         head = QHBoxLayout()
         head.addWidget(QLabel(tr("Activity"), objectName="PageTitle"))
@@ -152,6 +152,7 @@ class ActivityPage(QWidget):
         root.addWidget(self.save_warning)
 
         cards = QGridLayout()
+        cards.setSpacing(12)
         self.cards = {
             "total": StatCard(
                 tr("Total PC use"), hint=tr("Active + idle (excludes lock and sleep)")

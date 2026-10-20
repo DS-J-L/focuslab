@@ -1,7 +1,9 @@
 "System tray icon: recording and session state, a visible camera-in-use marker and controls."
 
+from pathlib import Path
+
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon, QWidget
 
 from focuslab.activity.recorder import RecorderState
@@ -16,21 +18,30 @@ PAUSED_COLOR = "#8C94A6"
 SAVE_FAILED_COLOR = "#E8590C"
 
 
-def make_icon(color: str, camera_on: bool = False, size: int = 64) -> QIcon:
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pixmap)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(color))
-    p.drawEllipse(QRectF(4, 4, size - 8, size - 8))
-    p.setBrush(QColor("white"))
-    p.drawEllipse(QRectF(size * 0.34, size * 0.34, size * 0.32, size * 0.32))
-    if camera_on:
-        p.setBrush(QColor("#E03131"))
-        p.drawEllipse(QRectF(size * 0.62, 0, size * 0.38, size * 0.38))
-    p.end()
-    return QIcon(pixmap)
+def make_icon(color: str | None = None, camera_on: bool = False, size: int = 64) -> QIcon:
+    """Parrot mascot with optional recording and camera indicators for the tray."""
+    mascot = QIcon(str(Path(__file__).with_name("icons") / "parrot-telescope.png"))
+    if color is None and not camera_on:
+        return mascot
+
+    icon = QIcon()
+    for edge in sorted({16, 20, 24, 32, 40, 48, size, 128, 256}):
+        pixmap = QPixmap(edge, edge)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pixmap)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        p.drawPixmap(0, 0, mascot.pixmap(edge, edge))
+        p.setPen(QPen(QColor("white"), max(1.0, edge * 0.035)))
+        if color is not None:
+            p.setBrush(QColor(color))
+            p.drawEllipse(QRectF(edge * 0.68, edge * 0.68, edge * 0.28, edge * 0.28))
+        if camera_on:
+            p.setBrush(QColor("#E03131"))
+            p.drawEllipse(QRectF(edge * 0.68, edge * 0.04, edge * 0.28, edge * 0.28))
+        p.end()
+        icon.addPixmap(pixmap)
+    return icon
 
 
 RECORDING_TEXT = LocalizedMapping(
