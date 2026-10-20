@@ -69,7 +69,8 @@ def test_shipped_behaviors_load_and_start_and_end_at_rest():
     for b in behaviors.values():
         if b.loop:
             continue
-        for t in (0.0, b.duration):
+        # Random ones begin from rest too; "land" begins in the air, coming from a flight.
+        for t in (0.0, b.duration) if b.random else (b.duration,):
             pose = b.sample(t)
             for channel in ("x", "y", "tilt", "turn", "head_tilt", "wing_l", "wing_r", "beak_open"):
                 assert abs(getattr(pose, channel)) < 0.5, (b.name, t, channel)

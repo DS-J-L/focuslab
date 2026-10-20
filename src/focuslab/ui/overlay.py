@@ -2,7 +2,8 @@
 
 The parrots are the controls: red pauses or resumes, blue ends the session and yellow
 starts or ends a break. Minimize and close sit in the top-right corner; minimized, the
-overlay is just a small parrot and the time.
+overlay is just a small parrot and the time. If the user opted in, one parrot leaves the
+branch to fly around the screen after a long off-task run (``mascot.flight_overlay``).
 """
 
 import time
@@ -10,6 +11,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
+    QCloseEvent,
     QGuiApplication,
     QHideEvent,
     QMouseEvent,
@@ -36,8 +38,9 @@ from focuslab.i18n import tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.mascot.animation import Pose
-from focuslab.ui.mascot.behavior_policy import BehaviorPolicy
+from focuslab.ui.mascot.behavior_policy import BehaviorPolicy, Mood
 from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
+from focuslab.ui.mascot.flight_overlay import FlightController, screen_area
 from focuslab.ui.mascot.renderer import (
     HEAD_Y,
     TOP_Y,
@@ -261,11 +264,51 @@ class SessionOverlay(QWidget):
         self.mini.hide()
         box.addWidget(self.mini)
         self.policy = BehaviorPolicy()
+        director = self.perch.director
+        self.flight = FlightController(
+            clock=lambda: self.perch.clock(),
+            home=self._seat_on_screen,
+            area=lambda: screen_area(self),
+            plumage=lambda i: director.actors[i].plumage,
+            perched_scale=BIRD_SCALE,
+        )
+        self.flight.departed.connect(lambda i: self._set_away(i, True))
+        self.flight.landed.connect(lambda i: self._set_away(i, False))
+        app = QGuiApplication.instance()
+        if app is not None:  # a monitor coming or going: the flight path is stale
+            app.screenRemoved.connect(lambda *_: self.flight.abort())
+            app.screenAdded.connect(lambda *_: self.flight.abort())
         self.apply_settings()
 
     def apply_settings(self) -> None:
         self.perch.director.set_motion(self.ctx.mascot_motion)
         self.policy.reactions = self.ctx.mascot_reactions
+        self.policy.alarm_after = float(self.ctx.flight_after_s)
+        self.flight.enabled = self.ctx.flight_enabled
+        self.flight.interval_s = self.ctx.flight_interval_min * 60.0
+
+    # flying -------------------------------------------------------------------------
+    def _seat_on_screen(self, i: int) -> QPointF:
+        "Where parrot ``i`` sits, in global coordinates (the time pill when collapsed)."
+        if self.collapsed:
+            return QPointF(self.mini.mapToGlobal(self.mini.rect().center()))
+        return QPointF(self.perch.mapToGlobal(QPoint(int(SEATS[i]), int(SEAT_Y))))
+
+    def _set_away(self, i: int, away: bool) -> None:
+        director = self.perch.director
+        if away and director.hover == i:  # no bubble over an empty seat
+            director.set_hover(None, self.perch.clock())
+        director.set_away(i, away, self.perch.clock())
+        self.perch.parrots[i].setVisible(not away)  # no button on an empty seat
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        self.flight.abort()  # hidden by the user or the session ended: no flying either
+        super().hideEvent(event)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.flight.abort()
+        self.flight.window.close()
+        super().closeEvent(event)
 
     # showing ------------------------------------------------------------------------
     def start(self, snap: LiveSnapshot) -> None:
@@ -310,7 +353,9 @@ class SessionOverlay(QWidget):
             self.hide()
             return
         now = self.perch.clock()
-        self.perch.director.set_mood(self.policy.update(snap, now), now)
+        mood = self.policy.update(snap, now)
+        self.perch.director.set_mood(mood, now)
+        self.flight.consider(mood is Mood.ALARM, self.isVisible())
         paused = snap.lifecycle is Lifecycle.PAUSED
         focusing, paused_text, break_text = status_texts()
         self.status.setText(paused_text if paused else break_text if snap.on_break else focusing)
