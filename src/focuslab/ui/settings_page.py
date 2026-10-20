@@ -157,7 +157,20 @@ class SettingsPage(QWidget):
         )
         self.mascot_motion.currentIndexChanged.connect(self._motion_changed)
         form.addRow(tr("Parrot movement"), self.mascot_motion)
+        self.mascot_reactions = QCheckBox(tr("Parrots react when you seem to be off task"))
+        self.mascot_reactions.setToolTip(
+            tr(
+                "Off task is an estimate. The parrots first just look at you and only get "
+                "cross after 30 seconds without a break in it."
+            )
+        )
+        self.mascot_reactions.toggled.connect(self._reactions_changed)
+        form.addRow("", self.mascot_reactions)
         return box
+
+    def _reactions_changed(self, on: bool) -> None:
+        self.ctx.set_flag("ui.mascot_reactions", on)
+        self.overlayChanged.emit()
 
     def _motion_changed(self) -> None:
         self.ctx.set_setting("ui.mascot_motion", self.mascot_motion.currentData())
@@ -648,6 +661,7 @@ class SettingsPage(QWidget):
             (self.autostart, autostart.is_enabled()),
             (self.close_to_tray, self.ctx.close_to_tray),
             (self.overlay_on_start, self.ctx.overlay_on_start),
+            (self.mascot_reactions, self.ctx.mascot_reactions),
             (self.update_auto, self.ctx.flag("update.auto_check")),
         ):
             widget.blockSignals(True)

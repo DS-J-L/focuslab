@@ -1,14 +1,17 @@
 """Floating session overlay: parrot controls, hover, animation, collapse, hide, position."""
 
+from dataclasses import replace
+
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QMouseEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from focuslab.domain.models import FocusState, SessionConfig, SessionMode
+from focuslab.domain.models import Decision, FocusState, SessionConfig, SessionMode
 from focuslab.services.session_service import Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.main_window import MainWindow
+from focuslab.ui.mascot.behavior_policy import Mood
 from focuslab.ui.mascot.director import MOTION
 from focuslab.ui.overlay import MARGIN, POS_KEY, long_text, session_seconds
 
@@ -215,3 +218,25 @@ def test_parrot_movement_setting_reaches_the_overlay(window):
     assert window.overlay.perch.director.motion == MOTION["minimal"]
     combo.setCurrentIndex(combo.findData("lively"))
     assert window.overlay.perch.director.motion == MOTION["lively"]
+
+
+def test_overlay_parrots_react_to_estimated_off_task_time(window):
+    overlay = window.overlay
+    start(window)
+    t = [1000.0]
+    overlay.perch.clock = lambda: t[0]
+    running = snapshot(window)
+
+    def at(seconds, state):
+        t[0] = 1000.0 + seconds
+        overlay.refresh(replace(running, decision=Decision(state, 0.7)))
+        return overlay.perch.director.mood
+
+    assert at(0, FocusState.POSSIBLY_OFF_TASK) is Mood.WATCH
+    assert at(31, FocusState.POSSIBLY_OFF_TASK) is Mood.WARN
+    assert at(32, FocusState.ON_TASK) is Mood.CHEER
+
+    window.settings.mascot_reactions.setChecked(False)
+    assert not window.ctx.mascot_reactions
+    assert at(40, FocusState.POSSIBLY_OFF_TASK) is Mood.CALM
+    assert at(100, FocusState.POSSIBLY_OFF_TASK) is Mood.CALM

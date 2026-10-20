@@ -4,12 +4,16 @@ Each parrot picks its next behavior on its own, weighted by its personality (red
 startles, blue stares and preens, yellow sings and dances). When one performs, the others
 may turn to watch; now and then two neighbours lean on each other. Per-behavior cooldowns
 and a shared cooldown for interactions keep it from getting busy.
+
+A mood (from the behavior policy) replaces the idle behaviors with a looping reaction:
+watching you, scolding, sleeping through a pause, or waiting while you are away.
 """
 
 import random
 from dataclasses import dataclass
 
 from focuslab.ui.mascot.animation import Behavior, Pose, load_behaviors
+from focuslab.ui.mascot.behavior_policy import Mood
 from focuslab.ui.mascot.bird_actor import CALM, Attention, BirdActor
 from focuslab.ui.mascot.renderer import BLUE, RED, YELLOW
 
@@ -32,6 +36,16 @@ MOTION = {
 }
 DEFAULT_MOTION = "normal"
 
+# Looping reaction per parrot (red, blue, yellow) for each mood that has one.
+MOOD_LOOPS = {
+    Mood.WATCH: ("watch_alert", "watch", "watch"),
+    Mood.WARN: ("scold", "scold", "scold"),
+    Mood.ALARM: ("angry", "scold", "angry"),
+    Mood.PAUSED: ("sleep", "sleep", "sleep"),
+    Mood.AWAY: ("wait", "wait", "wait"),
+}
+LOOP_STAGGER_S = 0.37  # so the three never move in step
+
 
 class Director:
     def __init__(
@@ -48,6 +62,7 @@ class Director:
             BirdActor("yellow", YELLOW, self.rng),
         )
         self.hover: int | str | None = None
+        self.mood = Mood.CALM
         self.motion = MOTION[DEFAULT_MOTION]
         self.set_motion(motion)
         self._next: list[float | None] = [None] * len(self.actors)
@@ -55,10 +70,36 @@ class Director:
         self._interaction_at = 0.0
 
     def set_motion(self, level: str) -> None:
-        self.motion = MOTION.get(level, MOTION[DEFAULT_MOTION])
-        if self.motion.gap is None:
+        motion = MOTION.get(level, MOTION[DEFAULT_MOTION])
+        if motion != self.motion:
+            self.motion = motion
+            for actor in self.actors:  # restart, moving or still
+                actor.stop()
+
+    @property
+    def still(self) -> bool:
+        "Minimal movement: reactions show as expressions without motion."
+        return self.motion.gap is None
+
+    def set_mood(self, mood: Mood, now: float) -> None:
+        if mood == self.mood:
+            return
+        if mood in MOOD_LOOPS or self.mood in MOOD_LOOPS:
             for actor in self.actors:
                 actor.stop()
+        self.mood = mood
+        gap = self.motion.gap or (0.0, 0.0)
+        rest = self.rng.uniform(*gap) if gap[1] else 0.0
+        self._next = [now + rest] * len(self.actors)
+        if self.still:
+            return
+        if mood is Mood.CHEER:
+            cheer = self.behaviors["cheer"]
+            for i, actor in enumerate(self.actors):
+                actor.play(cheer, now + i * 0.12)
+            self._next = [now + cheer.duration + rest] * len(self.actors)
+        elif mood is Mood.BREAK:  # yellow, the break parrot, starts singing
+            self.actors[BREAK].play(self.behaviors["sing"], now)
 
     def set_hover(self, target: int | str | None, now: float) -> None:
         """The pointer moved onto a parrot (its index), the window buttons, or away."""
@@ -83,6 +124,13 @@ class Director:
 
     # scheduling ---------------------------------------------------------------------
     def _schedule(self, now: float) -> None:
+        loops = MOOD_LOOPS.get(self.mood)
+        if loops:
+            for i, actor in enumerate(self.actors):
+                if self.hover != i and not actor.busy(now):
+                    behavior = self.behaviors[loops[i]]
+                    actor.play(behavior, now - i * LOOP_STAGGER_S, still=self.still)
+            return
         gap = self.motion.gap
         if gap is None:
             return
