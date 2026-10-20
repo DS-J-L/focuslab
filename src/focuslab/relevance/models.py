@@ -23,6 +23,7 @@ class RelevanceLevel(StrEnum):
 
 class RelevanceSource(StrEnum):
     INPUT = "INPUT"  # not enough input to judge at all
+    RULE = "RULE"
 
 
 class RelevanceReason(StrEnum):
@@ -31,6 +32,13 @@ class RelevanceReason(StrEnum):
     INACTIVE = "INACTIVE"
     TITLE_UNAVAILABLE = "TITLE_UNAVAILABLE"
     NO_EVIDENCE = "NO_EVIDENCE"
+    TITLE_UNINFORMATIVE = "TITLE_UNINFORMATIVE"
+    TITLE_MATCHES_GOAL = "TITLE_MATCHES_GOAL"
+    TITLE_ENTERTAINMENT = "TITLE_ENTERTAINMENT"
+    TITLE_MIXED_SIGNALS = "TITLE_MIXED_SIGNALS"
+    ENTERTAINMENT_ACTIVITY = "ENTERTAINMENT_ACTIVITY"
+    SUPPORT_TOOL = "SUPPORT_TOOL"
+    COMMUNICATION = "COMMUNICATION"
 
 
 RELEVANCE_REASON_TEXT = LocalizedMapping(
@@ -42,6 +50,21 @@ RELEVANCE_REASON_TEXT = LocalizedMapping(
             "Page title unavailable (not reported, stale, or not permitted)"
         ),
         RelevanceReason.NO_EVIDENCE: "No evidence linking this activity to the goal",
+        RelevanceReason.TITLE_UNINFORMATIVE: "Page title too generic to judge",
+        RelevanceReason.TITLE_MATCHES_GOAL: "Page title shares key terms with the goal",
+        RelevanceReason.TITLE_ENTERTAINMENT: (
+            "Page title suggests entertainment unrelated to the goal"
+        ),
+        RelevanceReason.TITLE_MIXED_SIGNALS: (
+            "Page title mentions the goal but also looks like entertainment"
+        ),
+        RelevanceReason.ENTERTAINMENT_ACTIVITY: (
+            "Game or entertainment program or site unrelated to the goal"
+        ),
+        RelevanceReason.SUPPORT_TOOL: (
+            "Notes, AI assistant or work tool; may serve the task (judgment deferred)"
+        ),
+        RelevanceReason.COMMUNICATION: "Messenger or mail; may or may not concern the task",
     }
 )
 

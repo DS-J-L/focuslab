@@ -524,5 +524,12 @@
   "Current activity unavailable": "현재 활동 정보를 알 수 없음",
   "Screen locked or no recent input; relevance not judged": "화면 잠금 또는 최근 입력 없음 — 관련성 판단 안 함",
   "Page title unavailable (not reported, stale, or not permitted)": "웹페이지 제목을 알 수 없음(미수신·오래됨·수집 미동의)",
-  "No evidence linking this activity to the goal": "현재 목표와 연결할 근거가 없음"
+  "No evidence linking this activity to the goal": "현재 목표와 연결할 근거가 없음",
+  "Page title too generic to judge": "제목만으로 판단하기 어려움",
+  "Page title shares key terms with the goal": "웹페이지 제목에 목표의 핵심어가 포함됨",
+  "Page title suggests entertainment unrelated to the goal": "웹페이지 제목이 목표와 무관한 오락 콘텐츠로 보임",
+  "Game or entertainment program or site unrelated to the goal": "목표와 무관한 게임·오락 프로그램 또는 사이트",
+  "Notes, AI assistant or work tool; may serve the task (judgment deferred)": "메모·AI 도구·업무 도구 — 작업에 쓰일 수 있음(판단 보류)",
+  "Messenger or mail; may or may not concern the task": "메신저·메일 — 작업 관련 여부 불확실",
+  "Page title mentions the goal but also looks like entertainment": "웹페이지 제목이 목표와 겹치지만 오락 콘텐츠로도 보임"
 }
