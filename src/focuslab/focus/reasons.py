@@ -16,6 +16,8 @@ class Reason(StrEnum):
     NOTE_TAKING_POSSIBLE = "NOTE_TAKING_POSSIBLE"
     AI_ASSISTANT_POSSIBLE = "AI_ASSISTANT_POSSIBLE"
     WORK_TOOL_POSSIBLE = "WORK_TOOL_POSSIBLE"
+    PAGE_RELATED_TO_GOAL = "PAGE_RELATED_TO_GOAL"
+    PAGE_UNRELATED_TO_GOAL = "PAGE_UNRELATED_TO_GOAL"
     ACTIVITY_UNAVAILABLE = "ACTIVITY_UNAVAILABLE"
     ACTIVITY_STALE = "ACTIVITY_STALE"
     USER_ACTIVE = "USER_ACTIVE"
@@ -50,6 +52,8 @@ REASON_TEXT = LocalizedMapping(
         Reason.WORK_TOOL_POSSIBLE: (
             "Not on the allow list, but a work or study tool that may serve the task (unconfirmed)"
         ),
+        Reason.PAGE_RELATED_TO_GOAL: "Current page or tool appears related to the session goal",
+        Reason.PAGE_UNRELATED_TO_GOAL: "Current page appears unrelated to the session goal",
         Reason.ACTIVITY_UNAVAILABLE: "PC activity unavailable",
         Reason.ACTIVITY_STALE: "PC activity observation is stale",
         Reason.USER_ACTIVE: "Keyboard or mouse input detected",

@@ -368,6 +368,7 @@ class SessionService:
             face = self._face.latest() if self._face else None
             camera_status = self._face.status if self._face else CameraStatus.OFF
             activity = self._activity.sample(now)
+            relevance = self._judge_relevance(config, activity, now)
             frame = fuse(
                 now, face, activity,
                 camera_enabled=config.camera_enabled,
@@ -375,9 +376,7 @@ class SessionService:
                 calibration=self._calibration,
                 cfg=self._cfg,
                 user_break=self._on_break,
-            )
-            relevance = self._relevance.evaluate(
-                RelevanceInput.of(config.goal, config.mode, activity), now
+                relevance=relevance,
             )
             decision = self._engine.evaluate(frame, dt_s=elapsed)
             if config.planned_minutes:
@@ -399,6 +398,19 @@ class SessionService:
                 self._planned_reached = True
                 self._finish_locked()
             return decision
+
+    def _judge_relevance(
+        self, config: SessionConfig, activity: ActivityObservation, now: int
+    ) -> TaskRelevanceResult | None:
+        """Relevance is optional evidence: a failure here must never stop the session."""
+        try:
+            return self._relevance.evaluate(
+                RelevanceInput.of(config.goal, config.mode, activity), now
+            )
+        except Exception:
+            log.warning("relevance evaluation failed; continuing without it", exc_info=True)
+            self._relevance.reset_context()
+            return None
 
     def _fill_gap(self, seconds: int, first_at_ms: int) -> None:
         observed = min(seconds, self._cfg.max_gap_fill_s)

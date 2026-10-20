@@ -7,7 +7,11 @@ Principles (DEVELOPMENT_PLAN.md section 5):
   list, or a browser whose site is unknown, is UNKNOWN until the user confirms it: neither
   the app name nor the camera proves work or deviation;
 - short deviations keep the previous state (timers), and returns to ON_TASK or
-  UNKNOWN must persist ``enter_dwell_s`` before they take effect.
+  UNKNOWN must persist ``enter_dwell_s`` before they take effect;
+- task relevance only acts on evidence: an activity tied to the goal counts like an allowed
+  app (GOAL_RELATED), and a page judged POSSIBLY_UNRELATED becomes POSSIBLY_OFF_TASK only
+  after ``unrelated_page_s`` and only while someone is evidently there. UNCERTAIN or missing
+  relevance changes nothing.
 """
 
 from dataclasses import dataclass
@@ -16,6 +20,7 @@ from focuslab.config import MODE_PROFILES, RULE_VERSION, RuleConfig
 from focuslab.domain.models import Decision, FocusState, SessionMode
 from focuslab.focus.fusion import AppRelation, FaceEvidence, FusedFrame
 from focuslab.focus.reasons import Reason
+from focuslab.relevance.models import RelevanceLevel
 
 # (state or None to keep the previous state, confidence, reasons)
 Candidate = tuple[FocusState | None, float, tuple[str, ...]]
@@ -28,6 +33,11 @@ _FACE_REASON = {
 }
 
 _ACTIVITY_REASONS = {Reason.ACTIVITY_UNAVAILABLE, Reason.ACTIVITY_STALE}
+_PRESENT = {FaceEvidence.FORWARD, FaceEvidence.DOWN, FaceEvidence.AWAY}
+
+
+def _page_unrelated(f: FusedFrame) -> bool:
+    return f.relevance is not None and f.relevance.level is RelevanceLevel.POSSIBLY_UNRELATED
 
 # Entering these states already waits on a timer, so no extra dwell is needed.
 _IMMEDIATE = {FocusState.BREAK, FocusState.POSSIBLY_OFF_TASK, FocusState.AWAY}
@@ -36,6 +46,7 @@ _IMMEDIATE = {FocusState.BREAK, FocusState.POSSIBLY_OFF_TASK, FocusState.AWAY}
 @dataclass
 class _Timers:
     unrelated_s: float = 0.0
+    unrelated_page_s: float = 0.0
     absent_s: float = 0.0
     head_away_s: float = 0.0
 
@@ -73,6 +84,7 @@ class RuleEngine:
             self._timers = _Timers()
             return
         t.unrelated_s = t.unrelated_s + dt if f.app is AppRelation.UNRELATED else 0.0
+        t.unrelated_page_s = t.unrelated_page_s + dt if _page_unrelated(f) else 0.0
         t.absent_s = t.absent_s + dt if f.face is FaceEvidence.ABSENT else 0.0
         t.head_away_s = t.head_away_s + dt if f.face is FaceEvidence.AWAY else 0.0
 
@@ -108,6 +120,18 @@ class RuleEngine:
         ):
             return FocusState.POSSIBLY_OFF_TASK, 0.5, (Reason.HEAD_TURNED_AWAY, Reason.USER_IDLE)
 
+        if _page_unrelated(f) and f.app is not AppRelation.UNRELATED:
+            if t.unrelated_page_s < c.unrelated_page_s:
+                return None, 0.0, (Reason.PAGE_UNRELATED_TO_GOAL,)
+            present = f.face in _PRESENT or active or (
+                f.face is not FaceEvidence.ABSENT and idle_known and idle < c.pc_only_idle_s
+            )
+            if present:
+                reasons = (Reason.PAGE_UNRELATED_TO_GOAL, *self._face_reasons(f))
+                return FocusState.POSSIBLY_OFF_TASK, 0.6, reasons
+            # Nobody evidently in front of the screen: the page alone proves nothing.
+            return FocusState.UNKNOWN, 0.0, (Reason.PAGE_UNRELATED_TO_GOAL, Reason.USER_IDLE)
+
         if f.app is AppRelation.UNRELATED:
             return None, 0.0, (Reason.UNRELATED_APP,)
         if f.app is AppRelation.NEUTRAL:
@@ -119,7 +143,11 @@ class RuleEngine:
             reasons = tuple(dict.fromkeys((*f.reasons, *self._face_reasons(f))))
             return FocusState.UNKNOWN, 0.0, reasons
 
-        base: tuple[str, ...] = (Reason.ALLOWED_APP,)
+        related = f.relevance is not None and f.relevance.level is RelevanceLevel.RELATED
+        if f.app is AppRelation.GOAL_RELATED:
+            base: tuple[str, ...] = (Reason.PAGE_RELATED_TO_GOAL,)
+        else:
+            base = (Reason.ALLOWED_APP, *((Reason.PAGE_RELATED_TO_GOAL,) if related else ()))
         if f.is_browser and not f.domain:  # an allowed browser may show any site
             reasons = (*base, Reason.BROWSER_DETAIL_UNKNOWN, *self._face_reasons(f))
             return FocusState.UNKNOWN, 0.0, reasons

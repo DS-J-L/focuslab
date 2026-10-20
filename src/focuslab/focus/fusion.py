@@ -3,7 +3,9 @@
 Each observation has a TTL; an expired observation becomes UNKNOWN instead of
 silently repeating the last value. An app missing from the allow list is only UNRELATED
 when nothing suggests it could serve the task: a note-taking app, an AI assistant or
-another work tool is POSSIBLY_RELATED and needs the user's confirmation instead.
+another work tool is POSSIBLY_RELATED and needs the user's confirmation instead. When the
+task relevance engine has evidence that the activity serves the session goal, an app
+outside the allow list is GOAL_RELATED instead.
 """
 
 from dataclasses import dataclass
@@ -20,12 +22,14 @@ from focuslab.domain.models import (
     FaceObservation,
 )
 from focuslab.focus.reasons import Reason
+from focuslab.relevance.models import RelevanceLevel, TaskRelevanceResult
 
 
 class AppRelation(StrEnum):
     ALLOWED = "ALLOWED"
     UNRELATED = "UNRELATED"
     POSSIBLY_RELATED = "POSSIBLY_RELATED"  # not allowed, but may serve the task
+    GOAL_RELATED = "GOAL_RELATED"  # not allowed, but relevance evidence ties it to the goal
     NEUTRAL = "NEUTRAL"
     UNKNOWN = "UNKNOWN"
 
@@ -53,6 +57,7 @@ class FusedFrame:
     domain: str | None = None
     page_title: str | None = None
     support: str | None = None  # why a POSSIBLY_RELATED app may serve the task
+    relevance: TaskRelevanceResult | None = None  # goal vs. this activity, if judged
 
 
 _WORK_CATEGORIES = {Category.DEVELOPMENT, Category.STUDY, Category.RESEARCH, Category.PRODUCTIVITY}
@@ -129,9 +134,18 @@ def fuse(
     calibration: Calibration | None = None,
     cfg: RuleConfig | None = None,
     user_break: bool = False,
+    relevance: TaskRelevanceResult | None = None,
 ) -> FusedFrame:
     cfg = cfg or RuleConfig()
     app, app_reason, support = _activity(now_ms, activity, cfg)
+    if app is AppRelation.UNKNOWN:
+        relevance = None  # judged from a stale or missing observation
+    elif (
+        relevance is not None
+        and relevance.level is RelevanceLevel.RELATED
+        and app in (AppRelation.UNRELATED, AppRelation.POSSIBLY_RELATED)
+    ):
+        app = AppRelation.GOAL_RELATED
     face_ev, face_reason = _face(
         now_ms, face, camera_enabled, camera_status, calibration or Calibration(), cfg
     )
@@ -150,4 +164,5 @@ def fuse(
         domain=activity.domain if activity and fresh else None,
         page_title=activity.page_title if activity and fresh else None,
         support=support,
+        relevance=relevance,
     )

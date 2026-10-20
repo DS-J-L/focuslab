@@ -550,5 +550,7 @@
   "Opened right after task-related work; probably supporting it": "작업 관련 활동 직후에 열림 — 보조 활동일 가능성",
   "Used back and forth with task-related work; probably supporting it": "작업 관련 활동과 번갈아 사용 — 보조 활동일 가능성",
   "A page that reads like leisure has stayed in front for several minutes": "여가 성격으로 보이는 페이지를 몇 분째 보고 있음",
-  "Desktop, app switcher or FocusLab; not judged": "바탕 화면·창 전환·FocusLab — 판단하지 않음"
+  "Desktop, app switcher or FocusLab; not judged": "바탕 화면·창 전환·FocusLab — 판단하지 않음",
+  "Current page or tool appears related to the session goal": "현재 페이지·도구가 세션 목표와 관련 있어 보임",
+  "Current page appears unrelated to the session goal": "현재 페이지가 세션 목표와 관련 없어 보임"
 }

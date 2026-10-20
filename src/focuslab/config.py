@@ -12,7 +12,7 @@ from focuslab.domain.models import SessionMode
 from focuslab.i18n import LocalizedMapping
 
 APP_NAME = "FocusLab"
-RULE_VERSION = "rules-0.2"
+RULE_VERSION = "rules-0.3"
 FACE_MODEL_FILENAME = "face_landmarker.task"
 # Bundled files live under sys._MEIPASS (dist/FocusLab/_internal) in a PyInstaller build,
 # and at the repository root in a source checkout.
@@ -55,6 +55,7 @@ class RuleConfig:
     activity_ttl_ms: int = 3_000
     min_face_quality: float = 0.35
     unrelated_app_s: float = 15
+    unrelated_page_s: float = 60  # a page judged unrelated to the goal, before it counts
     head_away_idle_s: float = 10
     away_idle_s: float = 20
     active_idle_s: float = 30
