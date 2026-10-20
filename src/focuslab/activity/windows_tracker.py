@@ -1,5 +1,6 @@
 """Windows foreground app observation. Reads process names and executable version info only,
-never window titles, document names, URLs or input contents."""
+never window titles, document names, URLs or input contents. A browser's site and (with its
+own consent) tab title come from the browser extension report, not from the OS."""
 
 import ctypes
 import functools
@@ -203,17 +204,21 @@ def visible_window_apps() -> list[str]:
     return sorted(names, key=str.lower)
 
 
+BrowserDetail = tuple[str | None, str | None]  # (site, page title) of one report
+
+
 class WindowsActivitySource:
     """Samples the foreground app and idle time on each session tick (microseconds of work)."""
 
     def __init__(
         self,
         allowed_apps: Iterable[str],
-        domain_of: Callable[[str], str | None] | None = None,
+        browser_of: Callable[[str], BrowserDetail] | None = None,
     ) -> None:
         self._allowed = tuple(allowed_apps)
-        # Current site of a browser, from the always-on recorder (no extra OS reads).
-        self._domain_of = domain_of or (lambda exe: None)
+        # Current site and title of a browser, from the always-on recorder (no extra OS reads).
+        # Both come from one report, so the title always belongs to the site beside it.
+        self._browser_of = browser_of or (lambda exe: (None, None))
 
     def sample(self, now_ms: int) -> ActivityObservation:
         if sys.platform != "win32":
@@ -226,9 +231,9 @@ class WindowsActivitySource:
             log.warning("activity sample failed", exc_info=True)
             return ActivityObservation(now_ms, None, None, None, available=False)
         locked = locked or bool(name and normalize(name) in LOCK_APPS)
-        domain = None if locked or not name else self._domain_of(normalize(name))
+        domain, title = (None, None) if locked or not name else self._browser_of(normalize(name))
         allowed = None if locked else allowed_status(name, self._allowed, domain)
         return ActivityObservation(
             now_ms, None if locked else name, allowed, idle, available=True,
-            screen_locked=locked, domain=domain,
+            screen_locked=locked, domain=domain, page_title=title if domain else None,
         )

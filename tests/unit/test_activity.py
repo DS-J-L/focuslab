@@ -22,9 +22,9 @@ def test_windows_source_reports_process_name_and_idle_only():
     assert obs.idle_seconds is not None and obs.idle_seconds >= 0
     assert set(vars(obs)) == {
         "timestamp_ms", "process_name", "is_allowed_app", "idle_seconds", "available",
-        "screen_locked", "domain",  # hostname from the browser extension only
+        "screen_locked", "domain", "page_title",  # from the browser extension only
     }
-    assert obs.domain is None  # no recorder, no site
+    assert obs.domain is None and obs.page_title is None  # no recorder, no site
 
 
 def test_mock_activity_script_plays_in_order():

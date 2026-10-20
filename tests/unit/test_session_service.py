@@ -271,3 +271,42 @@ def test_withdrawing_consent_stops_the_live_session_sensors(tmp_path, clock, pau
         assert all(Reason.CAMERA_OFF in s.reason_codes for s in after)
     finally:
         ctx.service.shutdown()
+
+
+def test_goal_and_page_title_reach_the_relevance_engine_in_the_same_tick(
+    make_service, clock, monkeypatch
+):
+    from focuslab.relevance.engine import RelevanceEngine
+
+    seen = []
+    original = RelevanceEngine.evaluate
+
+    def spy(self, data):
+        seen.append(data)
+        return original(self, data)
+
+    monkeypatch.setattr(RelevanceEngine, "evaluate", spy)
+    svc = make_service(
+        activity_script=(
+            (2, "chrome.exe", "active", "youtube.com", "Unity AR Foundation Tutorial"),
+            (3600, "chrome.exe", "active", "youtube.com", "게임 플레이 모음"),
+        )
+    )
+    svc.start(SessionConfig("증강현실 공부", SessionMode.LECTURE, 0, ("chrome.exe",), False))
+    tick(svc, clock, 3)
+    assert [(d.goal, d.domain, d.page_title) for d in seen] == [
+        ("증강현실 공부", "youtube.com", "Unity AR Foundation Tutorial"),
+        ("증강현실 공부", "youtube.com", "Unity AR Foundation Tutorial"),
+        ("증강현실 공부", "youtube.com", "게임 플레이 모음"),
+    ]
+    assert svc.snapshot().relevance is not None
+
+
+def test_forgetting_page_titles_drops_the_last_title_and_result(make_service, clock):
+    svc = make_service(activity_script=((3600, "chrome.exe", "active", "youtube.com", "강의"),))
+    svc.start(SessionConfig("공부", SessionMode.LECTURE, 0, ("chrome.exe",), False))
+    tick(svc, clock, 1)
+    assert svc._last_activity.page_title == "강의"
+    svc.forget_page_titles()
+    assert svc._last_activity.page_title is None
+    assert svc.snapshot().relevance is None
