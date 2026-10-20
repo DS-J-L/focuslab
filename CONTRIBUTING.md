@@ -28,6 +28,12 @@ uv build
 7. **Do not declare completion at the merge API response.** Re-fetch `main`, verify the locked PR head is an ancestor of `main`, verify the intended files and important behavior **in `main`**, and wait for the **post-merge main CI** to pass. Put final main SHA, checked paths, and CI URL in the completion report. If verification fails, open a recovery PR.
 8. Retire the merged work branch; start subsequent work from the updated `main` rather than continuing to push to a merged branch. After saving uncommitted work, `git switch main; git pull --ff-only origin main`.
 
+For changes that users expect in the desktop app or the browser extension, also follow
+[user-visible delivery verification](docs/merge-policy.md#user-visible-delivery-verification).
+A green PR only updates the source. It does not replace an already installed `FocusLab.exe`
+or reload an unpacked Chrome/Edge extension. Identify when an independently approved
+versioned release, a fresh source run, or an extension reload is needed.
+
 See [the complete, reproducible checklist](docs/merge-policy.md). Use synthetic observations (`focuslab.mock_sources`, `focuslab --seed-demo`) as default test data. Do not commit raw camera footage, personal records, or secrets. Verify new dependencies on Windows Python 3.11 and update `uv.lock` and third-party notices together.
 
 ## Documentation and translations

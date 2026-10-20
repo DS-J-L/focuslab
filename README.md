@@ -72,6 +72,21 @@ uv run --group build python scripts/build_exe.py
 
 This creates `dist\FocusLab\FocusLab.exe` (no console window, about 340 MB folder). Keep or copy the whole `dist\FocusLab` folder: the exe needs the `_internal` folder next to it. The face model is bundled when `assets\models\face_landmarker.task` exists. The exe accepts the same options as `uv run focuslab`; console output such as `--check` appears only when piped (`.\FocusLab.exe --check | more`). **Start at sign-in** and **Install connection** register the exe's own path, so turn them off and on again after moving the folder. Load the browser extension from `dist\FocusLab\_internal\browser_extension` (Settings > Open extension folder).
 
+### Source changes versus installed-app updates
+
+A GitHub PR merged into `main` updates the source tree only. **It does not automatically update
+a downloaded or already-running `FocusLab.exe` or reload Chrome/Edge extensions.** If
+`git pull` prints "Already up to date", compare `git rev-parse HEAD` to the
+latest `main` commit; to run the new source, use `uv sync --locked` and
+`uv run focuslab`. The previously downloaded EXE stays unchanged.
+
+GitHub Releases are deliberately versioned separately; **the latest release may predate the
+latest main commit**. To update the packaged app, use a newer published release after its
+tagged build succeeds. Changes in `browser_extension/` require refreshing the installed
+extension folder and selecting **Reload** at `chrome://extensions` or
+`edge://extensions`. New optional privacy features may also need additional consent in
+Settings. See [PR and delivery policy](docs/merge-policy.md#user-visible-delivery-verification).
+
 ### Updates
 
 Pushing a version tag publishes a release: bump `version` in `pyproject.toml` and `__version__` in `src/focuslab/__init__.py`, merge to main, then `git tag v0.2.0 && git push origin v0.2.0`. The [Release workflow](.github/workflows/release.yml) checks that the tag matches both, runs the tests, builds `FocusLab.exe`, and attaches `FocusLab-<version>-win64.zip` and its `.sha256` to a GitHub Release.

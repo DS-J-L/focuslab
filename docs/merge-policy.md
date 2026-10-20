@@ -55,6 +55,34 @@ The ancestry check above assumes the required **merge-commit method**. If someon
 - Create a fresh branch from current main and port only missing commits; open a new PR **targeting main**.
 - After merge, perform the full audit above.
 
+
+## User-visible delivery verification
+
+A merged PR and an up-to-date installed application are **different deliverables**. We have previously had a feature merged to main while the published `v0.1.0` executable and already-loaded browser extension still showed hostname-only web activity.
+
+### Before merging
+
+In the PR description, specify which surfaces change:
+
+- **GitHub source:** identify expected changed paths, e.g. `src/focuslab/ui/activity_page.py`.
+- **Built desktop app:** list the changed behavior a new `FocusLab.exe` must expose.
+- **Browser extension:** list any changed manifest/background or Native Messaging behavior, and whether the extension must be reloaded.
+- **New consent / migration:** note user opt-in, DB migration, backwards-compatible fallback and revocation testing.
+- **Delivery:** whether this PR is **source integration only** or whether a **separately approved tagged release** is part of the request.
+
+Do not merge until the exact PR head's checks pass. If a PR adds a UI option, test the setting or panel with an automated GUI test and provide a concise hands-on Windows test recipe. Do not equate successful GUI tests with an actual user's installed app having changed.
+
+### After merging
+
+1. Verify the expected merge SHA, locked PR head ancestry, critical file content **in main**, and successful `main` push CI (the procedure above).
+2. Record the actual source and runtime entrypoints: for source users, `git switch main; git pull --ff-only origin main; uv sync --locked; uv run focuslab`; confirm `git rev-parse HEAD` equals the current main SHA. `Already up to date` may be correct even if a previously downloaded binary remains old.
+3. For EXE users, compare GitHub's latest Release tag commit with the verified merge commit. If the release predates the new functionality, mark **release pending**, do not claim the user can see it in the installed EXE. To deliver an EXE update, request/obtain explicit authorization for a version-bumped release from verified main, confirm built artifacts and hashes, then document how to update.
+4. For Chrome/Edge, verify the new extension source is in main, and tell users to refresh the staged extension files and use `chrome://extensions` or `edge://extensions` → **Reload**. If the old unpacked extension is loaded, it continues running the old JavaScript even if git was updated. Diagnose Native Messaging health and consent if the new data still does not appear.
+5. Mark each user-facing surface **ready**, **pending**, **not requested**, or **needs Windows/real-browser verification**. Include actual commit and release versions, not just GitHub's merged badge.
+6. Never promise that a `git pull` updates an already installed application. For any remaining delivery gap, provide explicit next steps or a separate PR/release task.
+
+A report is complete only for the delivery scopes that were requested and actually verified. Do not silently convert every source merge into a production release.
+
 ## Repository settings needed
 
 The workflow adds automatic checks but **does not itself block a repository administrator from bypassing or disabling checks**. The owner should verify GitHub **Settings → Rules → Rulesets** (or branch protection) for `main`:
