@@ -22,6 +22,17 @@ class BrowserStateStore:
             and get("activity.paused") != "1"
         )
 
+    def title_allowed(self) -> bool:
+        """Separate opt-in; the host never stores unsolicited titles."""
+        return (
+            self.collection_allowed()
+            and self._settings.get_setting("consent.page_titles") == "1"
+        )
+
+    def clear_titles(self) -> None:
+        self.conn.execute("UPDATE browser_state SET page_title = NULL")
+        self.conn.execute("UPDATE activity_span SET page_title = NULL")
+
     def apply(self, state: BrowserState, now_ms: int) -> bool:
         """Store ``state`` unless collection is off (then any old row is removed).
 
@@ -31,13 +42,29 @@ class BrowserStateStore:
         if not self.collection_allowed():
             self.clear(state.browser, state.instance)
             return False
+        # Ignore titles for excluded sites even when detailed recording is enabled.
+        excluded = self._settings.get_setting("privacy.excluded_sites", "[]")
+        try:
+            import json
+
+            excluded_sites = json.loads(excluded or "[]")
+        except (ValueError, TypeError):
+            excluded_sites = []
+        site_blocked = bool(state.domain and any(
+            isinstance(site, str) and (state.domain == site or state.domain.endswith("." + site))
+            for site in excluded_sites
+        ))
+        title = state.title if self.title_allowed() and not site_blocked else None
         self.conn.execute(
-            "INSERT INTO browser_state (browser, instance, seq, focused, domain, updated_ms)"
-            " VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO browser_state "
+            "(browser, instance, seq, focused, domain, page_title, updated_ms)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(browser, instance) DO UPDATE SET seq = excluded.seq,"
             " focused = excluded.focused, domain = excluded.domain,"
+            " page_title = excluded.page_title,"
             " updated_ms = excluded.updated_ms WHERE excluded.seq > browser_state.seq",
-            (state.browser, state.instance, state.seq, int(state.focused), state.domain, now_ms),
+            (state.browser, state.instance, state.seq, int(state.focused),
+             state.domain, title, now_ms),
         )
         return True
 

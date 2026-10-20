@@ -11,7 +11,7 @@ Automatic recording, browser recording, manual-session PC observation, and camer
 | Observation | When | Read | Not collected or recorded |
 | --- | --- | --- | --- |
 | Automatic Windows activity | After consent, while FocusLab runs, including in the tray. Pausing stops OS queries. | Foreground executable name and product description, time since keyboard/mouse input, lock/sleep/logoff/user-switch/display events | Window titles, document names, full URLs, typed content, mouse coordinates, screen contents |
-| Browser sites (optional Chrome/Edge extension) | With browser and automatic-recording consent, after you install the extension | Active tab **hostname** in the focused browser window (for example, `github.com`) | Full URL, paths, search terms, page titles/contents, browsing history, background tabs, InPrivate/incognito windows |
+| Browser sites (optional Chrome/Edge extension) | With browser and automatic-recording consent, after you install the extension | Active tab **hostname** in the focused browser window (for example, `github.com`); **page title only after separate explicit opt-in** | Full URL, paths, search terms, page contents, browsing history, background tabs, InPrivate/incognito windows |
 | Manual-session PC observation | Once per second during a focus session you start | Foreground process name, time since last input, lock status, and current site if automatic recording provides it | The sensitive contents listed above |
 | Optional camera | Only during focus sessions you start; released on pause, finish, camera-off, or consent withdrawal | Face presence, head angles, observation quality | Identity recognition, emotion recognition, diagnosis; video, photos, and face coordinates are not saved |
 
@@ -19,17 +19,17 @@ Automatic recording, browser recording, manual-session PC observation, and camer
 - The camera never runs as part of background automatic recording. Observations overlap with automatic activity only during manual focus sessions. Only estimated absence reduces attended work time; looking away alone does not establish task deviation.
 - Camera frames are processed in memory without disk storage or transmission.
 - Excluded programs/sites leave only unnamed **Excluded** time in the automatic activity timeline. Adding an exclusion does not erase historical records; delete existing records separately if needed.
-- Browser messages with unexpected fields (such as `url`) are rejected. Without consent or while recording is paused, current browser state is not stored. Closing the browser clears its current state.
+- Browser messages with unexpected fields (such as `url`) are rejected. Page-title fields are validated and discarded when separate title consent is off; withdrawing it clears current and historical page-title fields while retaining activity durations. Without consent or while recording is paused, current browser state is not stored. Closing the browser clears its current state.
 - Withdrawing camera or manual PC-observation consent also stops that observation in an ongoing session. Automatic PC recording has its own separate consent switch.
 
 ## What is stored?
 
 Default location: `%LOCALAPPDATA%\FocusLab\focuslab.db`. Override with `--data-dir` or `FOCUSLAB_DATA_DIR`.
 
-- **Activity intervals:** start/end, active/idle/locked state, executable/product names, hostname, category/confidence/evidence/source/classification time, and corrections.
+- **Activity intervals:** start/end, active/idle/locked state, executable/product names, hostname, optional separately consented page title, category/confidence/evidence/source/classification time, and corrections.
 - **System events:** recording start/stop/pause, lock/unlock, sleep/wake, logoff, clock changes, and unclean-exit recovery.
 - **Automatic sessions:** derived summaries of activity intervals; these can be recalculated.
-- **Browser state:** one latest hostname per browser profile, overwritten rather than stored as history.
+- **Browser state:** latest hostname and (only after separate title consent) current tab title per browser profile. Title consent withdrawal clears title values in both current state and saved activity.
 - **Focus sessions:** goal, mode, target time, start/end, pauses, camera setting, rules version, goal-achievement self-report, allowed apps, per-second estimates/confidence/evidence/foreground app/timestamp, state intervals, and corrections.
 - **Settings:** consent, interface language, idle threshold, classification rules, exclusions, camera index, head-pose calibration, retention, and related preferences.
 
@@ -48,5 +48,5 @@ Changing the interface language affects labels and formatted explanations. It do
 ## Features we do not provide
 
 - Nonconsensual observation of other people or remote surveillance.
-- Recording typed content, screen contents, window titles, or full URLs.
+- Recording typed content, screen contents, Windows application window titles, or full URLs. Active browser tab titles are optional and require separate consent.
 - Attention scores, ADHD risk scores, or medical/psychological judgments. Every metric is an estimate of observable behavior.

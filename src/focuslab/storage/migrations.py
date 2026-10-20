@@ -161,6 +161,14 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX state_sample_at ON state_sample(at_ms) WHERE at_ms IS NOT NULL;
         """,
     ),
+    (
+        6,
+        # Separate, opt-in browser page titles. Old records remain title-less.
+        """
+        ALTER TABLE browser_state ADD COLUMN page_title TEXT;
+        ALTER TABLE activity_span ADD COLUMN page_title TEXT;
+        """,
+    ),
 ]
 
 

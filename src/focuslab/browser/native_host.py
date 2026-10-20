@@ -64,7 +64,10 @@ def serve(stdin, stdout, origin: str, database: Path) -> int:
                 continue
             seen.add((state.browser, state.instance))
             stored = store.apply(state, _now_ms())
-            write_message(stdout, {"type": "ack", "seq": state.seq, "stored": stored})
+            response = {"type": "ack", "seq": state.seq, "stored": stored}
+            if store.title_allowed():
+                response["title_allowed"] = True
+            write_message(stdout, response)
     finally:
         for browser, instance in seen:
             store.clear(browser, instance)

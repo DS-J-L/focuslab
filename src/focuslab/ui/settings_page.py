@@ -53,6 +53,7 @@ from focuslab.ui.consent import (
     ask_activity_consent,
     ask_browser_consent,
     ask_camera_consent,
+    ask_page_titles_consent,
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
@@ -65,7 +66,8 @@ COLLECTED = (
     "when automatic recording is enabled; your corrections, self-reports and "
     "settings.<br><b>Never saved</b>: camera video or photos, face coordinates, "
     "audio, typed content, window titles, executable paths, URLs, or "
-    "screenshots.<br>All records stay on this PC and are never sent to a server."
+    "screenshots. Browser page titles are stored ONLY when separately enabled.<br>"
+    "All records stay on this PC and are never sent to a server."
 )
 
 
@@ -228,6 +230,16 @@ class SettingsPage(QWidget):
         self.browser_button = QPushButton()
         self.browser_button.clicked.connect(self._toggle_browser)
         form.addRow(tr("Consent"), _row(self.browser_state, self.browser_button))
+        self.page_titles_check = QCheckBox(tr("Save active page titles (optional)"))
+        self.page_titles_check.toggled.connect(self._toggle_page_titles)
+        form.addRow(tr("Page details"), self.page_titles_check)
+        form.addRow(
+            QLabel(
+                tr("Off by default. Saved only on this PC; turning off deletes saved titles."),
+                wordWrap=True,
+                objectName="Muted",
+            )
+        )
         self.host_state = QLabel(wordWrap=True)
         self.host_install = QPushButton(tr("Install connection"))
         self.host_install.clicked.connect(self._install_host)
@@ -314,6 +326,10 @@ class SettingsPage(QWidget):
         for browser, button in self.ext_buttons.items():
             button.setEnabled(windows and extension.browser_executable(browser) is not None)
         self.browser_button.setEnabled(not self.ctx.demo)
+        self.page_titles_check.blockSignals(True)
+        self.page_titles_check.setChecked(self.ctx.page_titles_consent)
+        self.page_titles_check.setEnabled(windows and consent)
+        self.page_titles_check.blockSignals(False)
 
     def _toggle_browser(self) -> None:
         if self.ctx.browser_consent:
@@ -322,6 +338,13 @@ class SettingsPage(QWidget):
             self.ctx.set_browser_consent(True)
             if not any(browser_install.registered().values()):
                 self._install_host()
+        self.refresh()
+
+    def _toggle_page_titles(self, enabled: bool) -> None:
+        if enabled and not ask_page_titles_consent(self):
+            self.refresh()
+            return
+        self.ctx.set_page_titles_consent(enabled)
         self.refresh()
 
     def _install_host(self) -> bool:

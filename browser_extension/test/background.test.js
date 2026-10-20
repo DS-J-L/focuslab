@@ -124,3 +124,23 @@ test("a missing host is retried with backoff instead of throwing", async () => {
     globalThis.setTimeout = realSetTimeout;
   }
 });
+
+
+test("native host grants title collection only after separate desktop consent", async () => {
+  const fake = fakeChrome();
+  fake.world.tab.title = "Learn AR Basics";
+  globalThis.chrome = fake.chrome;
+  await import("../background.js?case=" + Math.random());
+  await settle();
+  assert.equal(fake.sent.at(-1).title, undefined);
+  fake.ports[0].onMessage.fire({ type: "ack", title_allowed: true });
+  await settle();
+  assert.equal(fake.sent.at(-1).title, "Learn AR Basics");
+  fake.world.tab.title = "AR Tracking";
+  fake.chrome.tabs.onUpdated.fire(7, { title: "AR Tracking" }, { active: true });
+  await settle();
+  assert.equal(fake.sent.at(-1).title, "AR Tracking");
+  fake.ports[0].onMessage.fire({ type: "ack" }); // permission was revoked
+  await settle();
+  assert.equal(fake.sent.at(-1).title, undefined);
+});

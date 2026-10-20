@@ -162,3 +162,24 @@ The [development plan](DEVELOPMENT_PLAN.md) defines scope and completion criteri
 [Contributing](CONTRIBUTING.md) - [Code of conduct](CODE_OF_CONDUCT.md) - [Privacy](PRIVACY.md) - [Security](SECURITY.md) - [Development plan](DEVELOPMENT_PLAN.md) - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Original FocusLab code is licensed under [Apache License 2.0](LICENSE). Dependencies, Qt, and ML models retain their own licenses. Model files are not committed; download them explicitly using `--fetch-models`.
+
+
+## Optional browser page titles
+
+FocusLab records only website hostnames (for example, `youtube.com`) by default. To display
+individual video/document page titles in **Activity > Website / page** and activity exports:
+
+1. In **Settings > Browser site recording**, consent to browser site recording and install
+   the FocusLab Activity Bridge for Chrome/Edge.
+2. Enable **Save active page titles (optional)** and approve the separate consent prompt.
+3. **Update an existing unpacked extension**: use **Install in Chrome/Edge** to refresh the
+   bundled extension folder, then press **Reload** on the existing extension at
+   `chrome://extensions` or `edge://extensions`. An already loaded old extension will
+   continue sending hostnames only until it is reloaded.
+4. Open a public page such as a YouTube lecture. After the browser reports it, the
+   Activity timeline shows the sanitized title next to the hostname. Old intervals
+   stay hostname-only; titles cannot be reconstructed retroactively.
+
+This is local-only and OFF by default. Some sensitive pages and excluded sites do not
+record titles. Turning the option OFF deletes all previously saved titles while retaining
+time and website records. Full URLs, query parameters and page text are never saved.

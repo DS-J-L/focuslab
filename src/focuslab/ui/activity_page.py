@@ -195,10 +195,10 @@ class ActivityPage(QWidget):
 
         tops = QHBoxLayout()
         self.top_apps = _table([tr("Program"), tr("Time"), tr("Share")], 0)
-        self.top_sites = _table([tr("Site"), tr("Time"), tr("Share")], 0)
+        self.top_sites = _table([tr("Website / page"), tr("Time"), tr("Share")], 0)
         for title, table in (
             (tr("Time by program"), self.top_apps),
-            (tr("Time by website"), self.top_sites),
+            (tr("Time by website / page"), self.top_sites),
         ):
             box = QGroupBox(title)
             QVBoxLayout(box).addWidget(table)
@@ -261,7 +261,7 @@ class ActivityPage(QWidget):
                 tr("End"),
                 tr("Duration"),
                 tr("Program"),
-                tr("Site"),
+                tr("Website / page"),
                 tr("Category"),
                 tr("Confidence"),
                 tr("Evidence"),
@@ -454,7 +454,7 @@ class ActivityPage(QWidget):
         _fill(self.top_apps, shares(st.by_app))
         _fill(
             self.top_sites,
-            shares(st.by_site) or [[tr("Connect the browser extension to see sites"), "", ""]],
+            shares(st.by_page) or [[tr("Connect the browser extension to see sites"), "", ""]],
         )
 
     def _fill_timeline(self, day_start: int, day_end: int) -> None:
@@ -501,6 +501,8 @@ class ActivityPage(QWidget):
                 p1=SOURCE_TEXT[label.source],
             ),
         ]
+        if span.page_title:
+            lines.append(tr("Page: {p0}", p0=span.page_title))
         camera = _camera_text(item)
         if camera:
             lines.append(tr("Camera: {p0}", p0=camera))
@@ -523,7 +525,10 @@ class ActivityPage(QWidget):
                     _hm(span.end_ms),
                     _dur(span.duration_ms),
                     name,
-                    span.domain or "",
+                    (
+                        f"{span.page_title} ({span.domain})"
+                        if span.page_title else span.domain or ""
+                    ),
                     CATEGORY_LABELS[label.category],
                     f"{label.confidence:.0%}",
                     f"{CLASS_REASON_TEXT[label.reason]} · {SOURCE_TEXT[label.source]}",

@@ -106,7 +106,24 @@ class AppContext:
     def browser_consent(self) -> bool:
         return self.flag("consent.browser")
 
+    @property
+    def page_titles_consent(self) -> bool:
+        return self.flag("consent.page_titles")
+
+    def set_page_titles_consent(self, on: bool) -> None:
+        """Separate browser-title opt-in; withdrawal scrubs past and pending titles."""
+        if on and not self.browser_consent:
+            raise ValueError("Enable browser site collection before page titles")
+        self.set_flag("consent.page_titles", on)
+        if self.recorder:
+            self.recorder.set_title_tracking(on)
+        if not on:
+            with self.service.lock:
+                BrowserStateStore(self.service.repository.conn).clear_titles()
+
     def set_browser_consent(self, on: bool) -> None:
+        if not on:
+            self.set_page_titles_consent(False)
         self.set_flag("consent.browser", on)
         if not on:  # forget the last reported site right away
             with self.service.lock:
@@ -200,6 +217,7 @@ class AppContext:
                 config=RecorderConfig(idle_threshold_s=self.idle_threshold_s),
             )
         self.recorder.set_browser_tracking(self.browser_consent)
+        self.recorder.set_title_tracking(self.browser_consent and self.page_titles_consent)
         # A pause chosen by the user survives restarts: nothing is read until resumed.
         self.recorder.start(paused=self.flag("activity.paused"))
         return True
