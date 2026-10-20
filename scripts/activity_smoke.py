@@ -59,7 +59,8 @@ def main() -> None:
     print(f"RSS {rss:.1f} MiB, database {size:.0f} KiB")
     print(f"{len(spans)} spans, {len(events)} events: {[e['type'] for e in events]}")
     for s in spans:
-        print(f"  {s.kind:<7} {s.duration_ms / 1000:7.1f}s  {s.exe_name}  ({s.display_name})")
+        print(f"  {s.kind:<7} {s.duration_ms / 1000:7.1f}s  {s.exe_name}  ({s.display_name})"
+              f"  -> {s.category} {s.confidence} {s.reason}")
     covered = sum(s.duration_ms for s in spans) / 1000
     print(f"covered {covered:.1f}s of {t1 - t0:.1f}s")
     if args.keep:

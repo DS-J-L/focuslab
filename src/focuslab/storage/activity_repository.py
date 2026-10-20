@@ -1,17 +1,28 @@
-"""Activity spans, program identities and system events of the always-on recorder."""
+"""Activity spans, program identities, system events, classification rules and corrections."""
 
+import json
 import sqlite3
 from collections.abc import Iterable
 from contextlib import AbstractContextManager
 
-from focuslab.domain.activity import ActivitySpan, SpanKind
+from focuslab.activity.classifier import UserRules
+from focuslab.domain.activity import ActivitySpan, Category, ClassReason, ClassSource, SpanKind
 from focuslab.storage.repository import utc_now
 from focuslab.storage.sqlite_db import transaction
 
 _SPAN_SELECT = (
-    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, a.exe_name, a.display_name"
+    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, s.category, s.confidence, s.reason,"
+    " s.source, s.excluded, a.exe_name, a.display_name, f.category AS user_category"
     " FROM activity_span s LEFT JOIN app a ON a.id = s.app_id"
+    " LEFT JOIN activity_feedback f ON f.span_id = s.id"
 )
+
+EXCLUDED_APPS = "privacy.excluded_apps"
+EXCLUDED_SITES = "privacy.excluded_sites"
+
+
+def _enum(kind, value):
+    return kind(value) if value else None
 
 
 def _span(row: sqlite3.Row) -> ActivitySpan:
@@ -23,6 +34,12 @@ def _span(row: sqlite3.Row) -> ActivitySpan:
         display_name=row["display_name"],
         span_id=row["id"],
         domain=row["domain"],
+        category=_enum(Category, row["category"]),
+        confidence=row["confidence"],
+        reason=_enum(ClassReason, row["reason"]),
+        source=_enum(ClassSource, row["source"]),
+        excluded=bool(row["excluded"]),
+        user_category=_enum(Category, row["user_category"]),
     )
 
 
@@ -55,12 +72,18 @@ class ActivityRepository:
         return row["id"]
 
     # spans ----------------------------------------------------------------------
-    def insert_span(self, span: ActivitySpan) -> int:
+    def insert_span(self, span: ActivitySpan, classified_ms: int | None = None) -> int:
         app = self.app_id(span.exe_name, span.display_name) if span.exe_name else None
         cur = self.conn.execute(
-            "INSERT INTO activity_span (start_ms, end_ms, kind, app_id, domain)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (span.start_ms, span.end_ms, span.kind.value, app, span.domain),
+            "INSERT INTO activity_span (start_ms, end_ms, kind, app_id, domain, category,"
+            " confidence, reason, source, classified_ms, excluded)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                span.start_ms, span.end_ms, span.kind.value, app, span.domain,
+                span.category and span.category.value, span.confidence,
+                span.reason and span.reason.value, span.source and span.source.value,
+                classified_ms if span.category else None, int(span.excluded),
+            ),
         )
         return cur.lastrowid
 
@@ -87,6 +110,68 @@ class ActivityRepository:
     def last_span(self) -> ActivitySpan | None:
         row = self.conn.execute(_SPAN_SELECT + " ORDER BY s.end_ms DESC LIMIT 1").fetchone()
         return _span(row) if row else None
+
+    # corrections and rules ------------------------------------------------------
+    def set_span_category(self, span_id: int, category: Category) -> None:
+        """Correct one span; a newer correction replaces the older one."""
+        self.conn.execute(
+            "INSERT INTO activity_feedback (span_id, category, created_at_utc) VALUES (?, ?, ?)"
+            " ON CONFLICT(span_id) DO UPDATE SET category = excluded.category,"
+            " created_at_utc = excluded.created_at_utc",
+            (span_id, category.value, utc_now()),
+        )
+
+    def clear_span_category(self, span_id: int) -> None:
+        self.conn.execute("DELETE FROM activity_feedback WHERE span_id = ?", (span_id,))
+
+    def set_rule(self, match_type: str, pattern: str, category: Category) -> None:
+        """``match_type`` is ``app`` (executable) or ``site`` (hostname suffix)."""
+        self.conn.execute(
+            "INSERT INTO classification_rule (match_type, pattern, category, created_at_utc)"
+            " VALUES (?, ?, ?, ?) ON CONFLICT(match_type, pattern) DO UPDATE SET"
+            " category = excluded.category, created_at_utc = excluded.created_at_utc",
+            (match_type, pattern.strip().lower(), category.value, utc_now()),
+        )
+
+    def delete_rule(self, match_type: str, pattern: str) -> None:
+        self.conn.execute(
+            "DELETE FROM classification_rule WHERE match_type = ? AND pattern = ?",
+            (match_type, pattern),
+        )
+
+    def rules(self) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM classification_rule ORDER BY match_type, pattern"
+        ).fetchall()
+
+    def user_rules(self) -> UserRules:
+        apps, sites = {}, {}
+        for row in self.rules():
+            target = apps if row["match_type"] == "app" else sites
+            target[row["pattern"]] = Category(row["category"])
+        return UserRules(apps, sites)
+
+    # exclusions -------------------------------------------------------------------
+    def _setting_list(self, key: str) -> frozenset[str]:
+        row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        try:
+            return frozenset(json.loads(row["value"])) if row else frozenset()
+        except (ValueError, TypeError):
+            return frozenset()
+
+    def exclusions(self) -> tuple[frozenset[str], frozenset[str]]:
+        """(excluded executables, excluded hostname suffixes)."""
+        return self._setting_list(EXCLUDED_APPS), self._setting_list(EXCLUDED_SITES)
+
+    def set_exclusions(self, apps: Iterable[str], sites: Iterable[str]) -> None:
+        for key, values in ((EXCLUDED_APPS, apps), (EXCLUDED_SITES, sites)):
+            cleaned = sorted({v.strip().lower() for v in values if v.strip()})
+            self.conn.execute(
+                "INSERT INTO settings (key, value, updated_at_utc) VALUES (?, ?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                " updated_at_utc = excluded.updated_at_utc",
+                (key, json.dumps(cleaned), utc_now()),
+            )
 
     # system events --------------------------------------------------------------
     def add_events(self, events: Iterable[tuple[int, str, str | None]]) -> None:

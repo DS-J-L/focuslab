@@ -5,7 +5,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -15,7 +15,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -34,6 +37,7 @@ from focuslab.config import (
     RuleConfig,
     face_model_path,
 )
+from focuslab.domain.activity import Category
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
 from focuslab.services.export_service import delete_all, export_csv, export_json
 from focuslab.ui.calibration_dialog import CalibrationDialog
@@ -44,6 +48,7 @@ from focuslab.ui.consent import (
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
+from focuslab.ui.theme import CATEGORY_LABELS
 
 COLLECTED = (
     "<b>저장하는 것</b>: 세션 목표·모드·시간, 1초 단위 추정 상태와 근거 코드,"
@@ -90,6 +95,7 @@ class SettingsPage(QWidget):
         root.addWidget(QLabel("설정", objectName="PageTitle"))
         root.addWidget(self._privacy_box())
         root.addWidget(self._browser_box())
+        root.addWidget(self._classify_box())
         root.addWidget(self._camera_box())
         root.addWidget(self._rules_box())
         root.addStretch()
@@ -224,6 +230,92 @@ class SettingsPage(QWidget):
         browser_install.uninstall(self.ctx.data_dir)
         self.refresh()
 
+    def _classify_box(self) -> QGroupBox:
+        box = QGroupBox("활동 분류 규칙과 기록 제외")
+        layout = QVBoxLayout(box)
+        layout.addWidget(QLabel(
+            "활동 화면에서 구간을 정정할 때 '이 앱·사이트에 항상 적용'을 고르면 규칙이 생깁니다."
+            " 정정은 선택 사항이며 기본 규칙만으로도 자동 분류됩니다.",
+            wordWrap=True, objectName="Muted",
+        ))
+        self.rules = QListWidget()
+        self.rules.setMaximumHeight(110)
+        delete_rule = QPushButton("선택한 규칙 삭제")
+        delete_rule.clicked.connect(self._delete_rule)
+        layout.addWidget(QLabel("내 분류 규칙"))
+        layout.addWidget(self.rules)
+        layout.addWidget(_row(delete_rule))
+
+        self.excluded_apps = QListWidget()
+        self.excluded_sites = QListWidget()
+        lists = QHBoxLayout()
+        for title, widget, kind in (
+            ("기록하지 않을 프로그램 (예: keepass.exe)", self.excluded_apps, "app"),
+            ("기록하지 않을 사이트 (예: bank.com)", self.excluded_sites, "site"),
+        ):
+            col = QVBoxLayout()
+            col.addWidget(QLabel(title))
+            widget.setMaximumHeight(100)
+            col.addWidget(widget)
+            add = QPushButton("추가…")
+            add.clicked.connect(lambda _=False, k=kind: self._add_exclusion(k))
+            remove = QPushButton("선택 삭제")
+            remove.clicked.connect(lambda _=False, w=widget: self._remove_exclusion(w))
+            col.addWidget(_row(add, remove))
+            lists.addLayout(col)
+        layout.addLayout(lists)
+        layout.addWidget(QLabel(
+            "제외한 항목은 이름 없이 '제외됨' 시간으로만 남고, 이미 저장된 기록은 바뀌지 않습니다.",
+            wordWrap=True, objectName="Muted",
+        ))
+        return box
+
+    def _refresh_classification(self) -> None:
+        with self.ctx.activity_repo() as repo:
+            rules = repo.rules()
+            apps, sites = repo.exclusions()
+        self.rules.clear()
+        for row in rules:
+            kind = "사이트" if row["match_type"] == "site" else "프로그램"
+            item = QListWidgetItem(
+                f"{kind} {row['pattern']} → {CATEGORY_LABELS[Category(row['category'])]}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, (row["match_type"], row["pattern"]))
+            self.rules.addItem(item)
+        for widget, values in ((self.excluded_apps, apps), (self.excluded_sites, sites)):
+            widget.clear()
+            widget.addItems(sorted(values))
+
+    def _delete_rule(self) -> None:
+        for item in self.rules.selectedItems():
+            self.ctx.delete_rule(*item.data(Qt.ItemDataRole.UserRole))
+        self.refresh()
+
+    def _current_exclusions(self) -> tuple[list[str], list[str]]:
+        def values(w: QListWidget) -> list[str]:
+            return [w.item(i).text() for i in range(w.count())]
+
+        return values(self.excluded_apps), values(self.excluded_sites)
+
+    def _add_exclusion(self, kind: str) -> None:
+        label = "실행 파일 이름 (예: keepass.exe)" if kind == "app" else "사이트 (예: bank.com)"
+        text, ok = QInputDialog.getText(self, "기록 제외 추가", label)
+        value = text.strip().lower()
+        if not ok or not value:
+            return
+        if kind == "site":
+            value = value.split("://")[-1].split("/")[0].removeprefix("www.")
+        apps, sites = self._current_exclusions()
+        (apps if kind == "app" else sites).append(value)
+        self.ctx.set_exclusions(apps, sites)
+        self.refresh()
+
+    def _remove_exclusion(self, widget: QListWidget) -> None:
+        for item in widget.selectedItems():
+            widget.takeItem(widget.row(item))
+        self.ctx.set_exclusions(*self._current_exclusions())
+        self.refresh()
+
     def _camera_box(self) -> QGroupBox:
         box = QGroupBox("카메라")
         form = QFormLayout(box)
@@ -270,6 +362,7 @@ class SettingsPage(QWidget):
     def refresh(self) -> None:
         self._refresh_recording()
         self._refresh_browser()
+        self._refresh_classification()
         activity = self.ctx.activity_consent
         consent_text = {None: "아직 묻지 않음", True: "동의함", False: "동의 안 함"}
         self.activity_state.setText(consent_text[activity])

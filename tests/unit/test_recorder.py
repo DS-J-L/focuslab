@@ -249,11 +249,11 @@ def test_failed_flush_is_retried_without_losing_spans(rig, clock, monkeypatch):
     original = rec._repo.insert_span
     calls = {"n": 0}
 
-    def flaky(span):
+    def flaky(span, *args):
         calls["n"] += 1
         if calls["n"] == 1:
             raise sqlite3.OperationalError("database is locked")
-        return original(span)
+        return original(span, *args)
 
     monkeypatch.setattr(rec._repo, "insert_span", flaky)
     run(rec, 5)
@@ -456,3 +456,30 @@ def test_backdated_idle_end_is_persisted_after_a_flush(rig, clock):
     rec.stop()
     spans, _ = stored()
     assert [(s.kind, (s.end_ms - T0) // 1000) for s in spans][0] == (SpanKind.ACTIVE, 10)
+
+
+def test_spans_store_their_classification_and_exclusions_hide_names(rig, clock):
+    from focuslab.domain.activity import Category, ClassReason
+
+    probe, _, make, run, stored = rig
+    rec = make()
+    rec._repo.set_exclusions(["keepass.exe"], [])
+    rec._repo.set_rule("app", "notepad.exe", Category.STUDY)
+    rec.reload_rules()
+    rec.tick()
+    run(rec, 2)
+    probe.current = app("keepass.exe")
+    run(rec, 2)
+    probe.current = app("notepad.exe")
+    run(rec, 2)
+    rec.stop()
+    spans, _ = stored()
+    assert [(s.exe_name, s.category, s.reason, s.excluded) for s in spans] == [
+        ("code.exe", Category.DEVELOPMENT, ClassReason.APP_RULE, False),
+        (None, Category.UNKNOWN, ClassReason.EXCLUDED, True),
+        ("notepad.exe", Category.STUDY, ClassReason.USER_APP_RULE, False),
+    ]
+    db = connect(rec._db_path)  # the database must not know the excluded program at all
+    names = [r[0] for r in db.execute("SELECT exe_name FROM app")]
+    db.close()
+    assert "keepass.exe" not in names

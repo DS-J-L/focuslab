@@ -1,5 +1,6 @@
 """Colors, labels and the application stylesheet. Wording avoids scores and diagnoses."""
 
+from focuslab.domain.activity import Category
 from focuslab.domain.models import CameraStatus, FocusState
 
 STATE_COLORS = {
@@ -47,6 +48,32 @@ SELF_REPORT_LABELS = {
     "ACHIEVED": "달성",
     "PARTIAL": "일부 달성",
     "NOT_ACHIEVED": "미달성",
+}
+
+CATEGORY_LABELS = {
+    Category.DEVELOPMENT: "개발",
+    Category.STUDY: "공부",
+    Category.DOCUMENTATION: "문서 작성",
+    Category.RESEARCH: "자료 조사",
+    Category.COMMUNICATION: "소통",
+    Category.ENTERTAINMENT: "오락",
+    Category.GAMING: "게임",
+    Category.PRODUCTIVITY: "업무 도구",
+    Category.BREAK: "휴식·비활동",
+    Category.UNKNOWN: "미분류",
+}
+
+CATEGORY_COLORS = {
+    Category.DEVELOPMENT: "#3B5BDB",
+    Category.STUDY: "#2E9E6B",
+    Category.DOCUMENTATION: "#0CA678",
+    Category.RESEARCH: "#1C7ED6",
+    Category.COMMUNICATION: "#AE3EC9",
+    Category.ENTERTAINMENT: "#E8590C",
+    Category.GAMING: "#E03131",
+    Category.PRODUCTIVITY: "#5C7CFA",
+    Category.BREAK: "#ADB5BD",
+    Category.UNKNOWN: "#DEE2E6",
 }
 
 ACCENT = "#3B5BDB"
