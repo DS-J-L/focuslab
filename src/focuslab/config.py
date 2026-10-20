@@ -4,6 +4,7 @@ Thresholds are untuned hypotheses from DEVELOPMENT_PLAN.md section 5, not medica
 """
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,9 +14,14 @@ from focuslab.i18n import LocalizedMapping
 APP_NAME = "FocusLab"
 RULE_VERSION = "rules-0.1"
 FACE_MODEL_FILENAME = "face_landmarker.task"
-REPO_MODEL_DIR = Path(__file__).resolve().parents[2] / "assets" / "models"
+# Source checkout root, or the bundle folder of a PyInstaller FocusLab.exe.
+FROZEN = getattr(sys, "frozen", False)
+RESOURCE_ROOT = (
+    Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parents[2]
+)
+REPO_MODEL_DIR = RESOURCE_ROOT / "assets" / "models"
 # Unpacked Chrome/Edge extension (loaded by the user in developer mode).
-EXTENSION_DIR = Path(__file__).resolve().parents[2] / "browser_extension"
+EXTENSION_DIR = RESOURCE_ROOT / "browser_extension"
 # Foreground process label reported while FocusLab itself has focus.
 SELF_NAME = "focuslab"
 

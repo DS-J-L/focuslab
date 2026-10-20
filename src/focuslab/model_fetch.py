@@ -8,7 +8,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from focuslab.config import FACE_MODEL_FILENAME, REPO_MODEL_DIR, data_dir
+from focuslab.config import FACE_MODEL_FILENAME, FROZEN, REPO_MODEL_DIR, data_dir
 
 FACE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
@@ -27,7 +27,7 @@ def sha256(path: Path) -> str:
 
 def target_dir() -> Path:
     """Repo assets/models in a source checkout, otherwise the user's data folder."""
-    if REPO_MODEL_DIR.parent.is_dir():
+    if not FROZEN and REPO_MODEL_DIR.parent.is_dir():  # never write into the exe bundle
         return REPO_MODEL_DIR
     return data_dir() / "models"
 
