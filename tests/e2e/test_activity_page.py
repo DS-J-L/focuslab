@@ -12,7 +12,7 @@ from focuslab.ui.main_window import ACTIVITY, SETTINGS, MainWindow
 
 
 @pytest.fixture
-def window(qtbot, monkeypatch, daily_scenario):
+def window(qtbot, monkeypatch, daily_scenario, settle):
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
     yesterday = datetime.now().astimezone().date() - timedelta(days=1)
     day_start, _ = local_day_bounds(yesterday)
@@ -23,6 +23,7 @@ def window(qtbot, monkeypatch, daily_scenario):
     win.show()
     win.go(ACTIVITY)
     win.activity.show_day(yesterday)
+    settle(win)
     yield win
     win.close_down()
 
@@ -49,7 +50,7 @@ def test_overview_timeline_and_tables(window):
     assert "기간 합계" in page.range_summary.text()
 
 
-def test_correcting_a_site_always_creates_a_rule(window):
+def test_correcting_a_site_always_creates_a_rule(window, settle):
     page = window.activity
     page.spans.selectRow(2)
     assert page.apply_button.isEnabled() and page.always.isEnabled()
@@ -57,12 +58,14 @@ def test_correcting_a_site_always_creates_a_rule(window):
     page.correct_to.setCurrentIndex(page.correct_to.findData(Category.STUDY))
     page.always.setChecked(True)
     page._apply_correction()
+    settle(window)
     youtube = page._labeled[2]
     assert youtube.label.category is Category.STUDY and youtube.label.source is ClassSource.USER
     with window.ctx.activity_repo() as repo:
         assert repo.user_rules().sites == {"youtube.com": Category.STUDY}
     page.spans.selectRow(2)
     page._clear_correction()
+    settle(window)
     youtube = page._labeled[2]
     assert youtube.label.source is ClassSource.USER_RULE  # the rule still applies
     window.go(SETTINGS)
@@ -77,36 +80,41 @@ def test_idle_rows_cannot_be_corrected_and_timeline_selects_rows(window):
     assert page.spans.selectionModel().selectedRows()[0].row() == 4
 
 
-def test_empty_day_and_navigation(window):
+def test_empty_day_and_navigation(window, settle):
     page = window.activity
     page.show_day(page.day - timedelta(days=3))
+    settle(window)
     assert page.cards["total"]._value.text() == "0초"
     assert "기록이 없습니다" in page.category_legend.text()
     page.show_day(page.day + timedelta(days=30))  # never beyond today
     assert page.day == datetime.now().astimezone().date()
 
 
-def test_page_does_not_depend_on_a_korean_system_locale(window):
+def test_page_does_not_depend_on_a_korean_system_locale(window, settle):
     import locale
 
     previous = locale.setlocale(locale.LC_ALL)
     locale.setlocale(locale.LC_ALL, "C")  # e.g. an English Windows (the CI runner)
     try:
         window.activity.refresh()
+        settle(window)
         assert window.activity.timeline._ticks[0][1].endswith("시")
     finally:
         locale.setlocale(locale.LC_ALL, previous)
 
 
-def test_auto_refresh_keeps_a_selection_and_skips_long_range_charts(window, monkeypatch):
+def test_auto_refresh_keeps_a_selection_and_skips_long_range_charts(window, monkeypatch,
+                                                                    settle):
     page = window.activity
     calls = []
     monkeypatch.setattr(page, "refresh_statistics", lambda: calls.append("stats"))
     page.show_day(datetime.now().astimezone().date())
+    settle(window)
     calls.clear()
     page.auto_refresh()
     assert calls == []  # charts over 7/30 days are not recomputed every 30 s
     page.show_day(page.day - timedelta(days=1))
+    settle(window)
     page.spans.selectRow(0)
     page.auto_refresh()  # not today and a row is selected: nothing changes under the user
     assert page.spans.selectionModel().selectedRows()[0].row() == 0

@@ -24,12 +24,12 @@ from PySide6.QtWidgets import (
 
 from focuslab.activity.auto_sessions import span_label
 from focuslab.activity.classifier import CLASS_REASON_TEXT
-from focuslab.activity.recorder import RecorderState
 from focuslab.activity.stats import ActivityStats, LabeledSpan, local_day_bounds
 from focuslab.domain.activity import Category, ClassSource, SpanKind
 from focuslab.focus.metrics import format_duration
-from focuslab.services.activity_service import activity_report
 from focuslab.ui.context import AppContext
+from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
+from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.theme import CATEGORY_COLORS, CATEGORY_LABELS
 from focuslab.ui.widgets import Bar, BarTimeline, Legend, StackedBars, StatCard
 
@@ -42,6 +42,16 @@ SOURCE_TEXT = {
 }
 RANGES = {"최근 7일": 7, "최근 30일": 30}
 _WEEKDAYS = "월화수목금토일"
+DAY, RANGE = "activity.day", "activity.range"  # ActivityReporter keys
+WORK_HINT = "개발·공부·문서·조사·업무 도구로 분류된 시간의 합계"
+METRICS_NOTE = (
+    "이 화면은 자동 기록입니다. '입력 기준 활성 시간'은 키보드·마우스 입력이 있던 시간이라, 입력"
+    " 없이 강의를 보거나 글을 읽은 시간은 유휴로 잡힐 수 있습니다. '작업 카테고리 시간'은 앱·사이트"
+    " 분류(개발·공부·문서·조사·업무 도구)의 합계입니다. 집중 세션 리포트의 '작업 관련 추정 시간'은"
+    " 세션의 목표·허용 앱과 카메라 관찰로 판정하므로 같은 시간대라도 값이 다를 수 있습니다."
+    " 예를 들어 허용 앱에 없는 문서 편집기는 여기서는 작업이지만"
+    " 세션에서는 이탈 의심일 수 있습니다."
+)
 
 
 def _hm(ms: int) -> str:
@@ -90,9 +100,12 @@ def _fill(table: QTableWidget, rows: list[list[str]], keys: list[object] | None 
 class ActivityPage(QWidget):
     dataChanged = Signal()
 
-    def __init__(self, ctx: AppContext) -> None:
+    def __init__(self, ctx: AppContext, reporter: ActivityReporter) -> None:
         super().__init__()
         self.ctx = ctx
+        self.reporter = reporter
+        reporter.ready.connect(self._report_ready)
+        reporter.failed.connect(self._report_failed)
         self.day = datetime.now().astimezone().date()
         self._labeled: list[LabeledSpan] = []
         self._rows: list[LabeledSpan] = []
@@ -104,7 +117,7 @@ class ActivityPage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         outer.addWidget(scroll)
-        content = QWidget()
+        content = QWidget(objectName="PageContent")
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
@@ -113,6 +126,8 @@ class ActivityPage(QWidget):
         head = QHBoxLayout()
         head.addWidget(QLabel("활동", objectName="PageTitle"))
         head.addStretch()
+        self.loading = QLabel(objectName="Muted")
+        head.addWidget(self.loading)
         self.status = QLabel(objectName="Muted")
         head.addWidget(self.status)
         prev, nxt, today = QPushButton("◀"), QPushButton("▶"), QPushButton("오늘")
@@ -123,19 +138,26 @@ class ActivityPage(QWidget):
         for w in (prev, self.day_label, nxt, today):
             head.addWidget(w)
         root.addLayout(head)
+        self.save_warning = QLabel(objectName="Notice", wordWrap=True)
+        self.save_warning.setStyleSheet(WARNING_STYLE)
+        self.save_warning.hide()
+        root.addWidget(self.save_warning)
 
         cards = QGridLayout()
         self.cards = {
             "total": StatCard("총 PC 사용", hint="활성 + 유휴 (잠금·절전 제외)"),
-            "active": StatCard("실제 활성 사용", hint="키보드·마우스를 쓰던 시간"),
+            "active": StatCard("입력 기준 활성 시간",
+                               hint="키보드·마우스 입력이 있던 시간 (입력 없는 시청·읽기는 유휴)"),
             "idle": StatCard("유휴"),
             "switches": StatCard("작업 전환", hint="프로그램·사이트가 바뀐 횟수"),
             "sessions": StatCard("자동 세션", hint="타이머 없이 감지한 작업 구간"),
-            "work": StatCard("작업 시간", hint="개발·공부·문서·조사·업무 도구"),
+            "work": StatCard("작업 카테고리 시간", hint=WORK_HINT),
         }
         for i, card in enumerate(self.cards.values()):
             cards.addWidget(card, i // 3, i % 3)
         root.addLayout(cards)
+        self.metrics_note = QLabel(METRICS_NOTE, objectName="Muted", wordWrap=True)
+        root.addWidget(self.metrics_note)
 
         self.category_bar = BarTimeline(30)
         self.category_legend = QLabel(objectName="Muted", wordWrap=True)
@@ -234,7 +256,7 @@ class ActivityPage(QWidget):
         lay.addWidget(QLabel("일별 카테고리 시간", objectName="CardTitle"))
         self.daily = StackedBars(list(Category), CATEGORY_COLORS)
         lay.addWidget(self.daily)
-        lay.addWidget(QLabel("시간대별 활성 사용 (기간 합계)", objectName="CardTitle"))
+        lay.addWidget(QLabel("시간대별 입력 기준 활성 시간 (기간 합계)", objectName="CardTitle"))
         self.hourly = StackedBars(["active"], {"active": "#3B5BDB"}, label_every=3, height=120)
         lay.addWidget(self.hourly)
         self.range_summary = QLabel(wordWrap=True)
@@ -249,35 +271,72 @@ class ActivityPage(QWidget):
 
     def auto_refresh(self) -> None:
         """Periodic update while the page is open: only today, never while the user has a
-        span selected (about to correct it), and without recomputing the long-range charts."""
-        if self.day == datetime.now().astimezone().date() and not self.spans.selectedItems():
+        span selected (about to correct it) or a load is still running, and without
+        recomputing the long-range charts."""
+        if (self.day == datetime.now().astimezone().date() and not self.spans.selectedItems()
+                and not self.reporter.pending(DAY)):
             self.refresh(statistics=False)
 
+    @property
+    def loading_now(self) -> bool:
+        return self.reporter.pending(DAY) or self.reporter.pending(RANGE)
+
     def refresh(self, statistics: bool = True) -> None:
+        """Ask the worker for the day (and the long-range charts). The page keeps showing
+        the previous result, and stays usable, until the new one arrives."""
         start, end = local_day_bounds(self.day)
-        with self.ctx.service.lock:
-            self._labeled, self.stats = activity_report(self.ctx.service.repository.conn,
-                                                        start, end)
         self.day_label.setText(f"{self.day:%Y-%m-%d} ({_WEEKDAYS[self.day.weekday()]})")
-        self._refresh_status()
-        self._fill_overview(self.stats)
-        self._fill_timeline(start, end)
-        self._fill_spans()
-        self._fill_sessions(self.stats)
+        self.set_recording_health(self.ctx.recording_health())
+        self._set_correction_enabled(False)  # the rows may change under the selection
+        self.reporter.request(DAY, start, end, (self.day, start, end))
         if statistics:
             self.refresh_statistics()
+        self._show_loading()
 
-    def _refresh_status(self) -> None:
-        state = self.ctx.recording_state
-        if not self.ctx.recording_consent:
-            text = "자동 기록 꺼짐 · 설정에서 켤 수 있습니다"
+    def refresh_statistics(self) -> None:
+        days = RANGES[self.range.currentText()]
+        first = self.day - timedelta(days=days - 1)
+        start, _ = local_day_bounds(first)
+        _, end = local_day_bounds(self.day)
+        self.reporter.request(RANGE, start, end, (first, days))
+        self._show_loading()
+
+    def _show_loading(self, error: str | None = None) -> None:
+        if error:
+            self.loading.setText(f"불러오지 못했습니다: {error}")
         else:
-            text = {
-                RecorderState.RUNNING: "● 자동 기록 중",
-                RecorderState.PAUSED: "기록 일시정지됨",
-                RecorderState.STOPPED: "기록 중지됨",
-            }[state]
-        self.status.setText(text)
+            self.loading.setText("불러오는 중…" if self.loading_now else "")
+
+    def _report_ready(self, key: str, context, result) -> None:
+        if key == DAY:
+            day, start, end = context
+            if day == self.day:
+                self._labeled, self.stats = result
+                self._fill_overview(self.stats)
+                self._fill_timeline(start, end)
+                self._fill_spans()
+                self._fill_sessions(self.stats)
+        elif key == RANGE:
+            self._fill_statistics(*context, result[1])
+        else:
+            return
+        self._show_loading()
+
+    def _report_failed(self, key: str, context, message: str) -> None:
+        if key in (DAY, RANGE):
+            self._show_loading(message)
+
+    def set_recording_health(self, health: RecordingHealth) -> None:
+        """Observing and saving, separately; a failing save stays visible until a save works."""
+        self.status.setText(health.text)
+        self.status.setStyleSheet(WARNING_STYLE if health.saving_failed else "")
+        self.status.setToolTip(health.detail)
+        self.save_warning.setVisible(health.saving_failed)
+        if health.saving_failed:
+            self.save_warning.setText(
+                "자동 기록이 관찰은 하고 있지만 저장하지 못하고 있습니다. 관찰한 내용은"
+                f" 저장될 때까지 보관하며 계속 다시 시도합니다. 오류: {health.detail}"
+            )
 
     def _fill_overview(self, st: ActivityStats) -> None:
         self.cards["total"].set(_dur(st.total_ms), f"화면 잠금 {_dur(st.locked_ms)} 별도")
@@ -288,7 +347,7 @@ class ActivityPage(QWidget):
             f"{len(st.sessions)}개",
             f"평균 {_dur(st.mean_session_ms)}" if st.sessions else "감지된 세션 없음",
         )
-        hint = "개발·공부·문서·조사·업무 도구"
+        hint = WORK_HINT
         if st.camera_covered_ms:
             hint = (f"카메라 기준 자리 비움 제외 {_dur(st.attended_work_ms)}"
                     f" (카메라 관찰 {_dur(st.camera_covered_ms)})")
@@ -376,13 +435,7 @@ class ActivityPage(QWidget):
             ])
         _fill(self.sessions, rows or [["감지된 자동 세션이 없습니다", "", "", "", "", "", "", ""]])
 
-    def refresh_statistics(self) -> None:
-        days = RANGES[self.range.currentText()]
-        first = self.day - timedelta(days=days - 1)
-        start, _ = local_day_bounds(first)
-        _, end = local_day_bounds(self.day)
-        with self.ctx.service.lock:
-            _, st = activity_report(self.ctx.service.repository.conn, start, end)
+    def _fill_statistics(self, first: date, days: int, st: ActivityStats) -> None:
         columns = []
         for i in range(days):
             d = first + timedelta(days=i)
@@ -400,9 +453,10 @@ class ActivityPage(QWidget):
             f"{a} → {b} {n}회" for (a, b), n in st.transitions.most_common(5)) or "없음"
         active_days = sum(1 for counts in st.daily.values() if sum(counts.values()))
         self.range_summary.setText(
-            f"<b>기간 합계</b>: PC 사용 {_dur(st.total_ms)}, 활성 {_dur(st.active_ms)},"
-            f" 유휴 {_dur(st.idle_ms)} · 기록이 있는 날 {active_days}일"
-            f" · 하루 평균 활성 {_dur(st.active_ms / max(1, active_days))}<br>"
+            f"<b>기간 합계</b>: PC 사용 {_dur(st.total_ms)},"
+            f" 입력 기준 활성 {_dur(st.active_ms)}, 유휴 {_dur(st.idle_ms)}"
+            f" · 기록이 있는 날 {active_days}일"
+            f" · 하루 평균 입력 기준 활성 {_dur(st.active_ms / max(1, active_days))}<br>"
             f"<b>상위 프로그램</b>: {top(st.by_app)}<br>"
             f"<b>상위 사이트</b>: {top(st.by_site)}<br>"
             f"<b>자주 한 전환</b>: {transitions}<br>"

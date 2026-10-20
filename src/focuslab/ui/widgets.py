@@ -49,12 +49,15 @@ def frame_pixmap(frame: np.ndarray) -> QPixmap:
 
 
 class StatCard(QFrame):
-    def __init__(self, title: str, value: str = "-", hint: str = "") -> None:
+    def __init__(self, title: str, value: str = "-", hint: str = "", tag: str = "") -> None:
         super().__init__()
         self.setObjectName("Card")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(2)
+        self._tag = QLabel(tag, objectName="CardTag")  # where the number comes from
+        self._tag.setVisible(bool(tag))
+        layout.addWidget(self._tag)
         self._title = QLabel(title, objectName="CardTitle")
         self._value = QLabel(value, objectName="CardValue")
         self._hint = QLabel(hint, objectName="CardHint")

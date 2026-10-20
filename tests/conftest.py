@@ -22,6 +22,16 @@ def clock() -> FakeClock:
     return FakeClock()
 
 
+@pytest.fixture
+def settle(qtbot):
+    """Wait until a window's activity report worker has delivered every requested result."""
+
+    def wait(window) -> None:
+        qtbot.waitUntil(lambda: not window.reporter.pending(), timeout=15_000)
+
+    return wait
+
+
 @pytest.fixture(autouse=True)
 def isolated_data_dir(tmp_path, monkeypatch):
     """Never touch the real %LOCALAPPDATA%\\FocusLab during tests."""

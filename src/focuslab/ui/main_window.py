@@ -29,6 +29,7 @@ from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
 from focuslab.ui.onboarding import OnboardingDialog
 from focuslab.ui.report_page import ReportPage
+from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
 from focuslab.ui.theme import ACCENT, SELF_REPORT_LABELS, STYLESHEET
@@ -67,8 +68,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(sidebar)
 
         self.stack = QStackedWidget()
-        self.home = HomePage(ctx)
-        self.activity = ActivityPage(ctx)
+        # Activity statistics run on a worker thread with its own database connection.
+        self.reporter = ActivityReporter(ctx.db_path, self)
+        self.home = HomePage(ctx, self.reporter)
+        self.activity = ActivityPage(ctx, self.reporter)
         self.session = SessionPage(ctx)
         self.report = ReportPage(ctx)
         self.settings = SettingsPage(ctx)
@@ -80,6 +83,7 @@ class MainWindow(QMainWindow):
         self.nav.currentRowChanged.connect(self._navigate)
         self.home.startRequested.connect(self.start_session)
         self.home.openReport.connect(self.open_report)
+        self.home.openActivity.connect(lambda: self.go(ACTIVITY))
         self.session.pauseRequested.connect(self.toggle_pause)
         self.session.finishRequested.connect(self.finish_session)
         self.session.cameraStopRequested.connect(self.stop_camera)
@@ -96,11 +100,9 @@ class MainWindow(QMainWindow):
         self._timer = QTimer(self, interval=500)
         self._timer.timeout.connect(self.poll)
         self._timer.start()
-        # The activity page follows the recorder while it is open (cheap: one day of spans).
+        # The home and activity pages follow the recorder while open (one day, on the worker).
         self._activity_timer = QTimer(self, interval=ACTIVITY_REFRESH_MS)
-        self._activity_timer.timeout.connect(
-            lambda: self.activity.auto_refresh() if self.stack.currentIndex() == ACTIVITY else None
-        )
+        self._activity_timer.timeout.connect(self._follow_recorder)
         self._activity_timer.start()
         self.nav.setCurrentRow(HOME)
         self.home.refresh()
@@ -117,6 +119,12 @@ class MainWindow(QMainWindow):
         elif index == SETTINGS:
             self.settings.refresh()
             self.settings.set_session_active(self._last_lifecycle in ACTIVE)
+
+    def _follow_recorder(self) -> None:
+        if self.stack.currentIndex() == ACTIVITY:
+            self.activity.auto_refresh()
+        elif self.stack.currentIndex() == HOME:
+            self.home.refresh_activity()
 
     def go(self, index: int) -> None:
         self.nav.setCurrentRow(index)
@@ -188,7 +196,12 @@ class MainWindow(QMainWindow):
     def poll(self) -> None:
         snap = self.ctx.service.snapshot()
         self.session.refresh(snap)
-        self.tray.update_state(snap, self.ctx.recording_state)
+        health = self.ctx.recording_health()
+        self.tray.update_state(snap, self.ctx.recording_state, health)
+        if self.stack.currentIndex() == ACTIVITY:
+            self.activity.set_recording_health(health)
+        elif self.stack.currentIndex() == HOME:
+            self.home.set_recording_health(health)
         if self._last_lifecycle in ACTIVE and snap.lifecycle is Lifecycle.FINISHED:
             self._last_lifecycle = snap.lifecycle
             self._on_finished(snap)
@@ -249,9 +262,10 @@ class MainWindow(QMainWindow):
 
     def close_down(self) -> None:
         """Stop the UI timers first so no late tick touches the closed database, then the
-        recorder and the session service."""
+        report worker, the recorder and the session service."""
         self._timer.stop()
         self._activity_timer.stop()
+        self.reporter.shutdown()
         self.ctx.stop_recording()
         self.ctx.service.shutdown()
         self.tray.hide()

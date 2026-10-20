@@ -419,6 +419,8 @@ class SettingsPage(QWidget):
             current = status.current
             name = (current.display_name or current.exe_name) if current else None
             text = "기록 중" + (f" · 현재: {name}" if name else "")
+        if status is not None and status.save_error:
+            text += " · ⚠ 저장 실패 (활동 화면에서 자세히)"
         self.recording_state.setText(text)
         self.recording_button.setText("끄기" if self.ctx.recording_consent else "켜기")
         self.recording_button.setEnabled(not self.ctx.demo)

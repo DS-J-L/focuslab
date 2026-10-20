@@ -90,10 +90,20 @@ class RecorderState(StrEnum):
 
 @dataclass(frozen=True)
 class RecorderStatus:
+    """Observing (reading the OS) and saving (writing the database) fail independently: a
+    probe that works says nothing about whether the spans reach the disk."""
+
     state: RecorderState
     current: ActivitySpan | None = None
     events_hooked: bool = False
-    error: str | None = None
+    probe_error: str | None = None  # cleared by the next successful sample
+    save_error: str | None = None  # cleared only by the next successful save
+    save_failing_since_ms: int | None = None  # wall ms of the first failure in a row
+    last_save_ms: int | None = None  # wall ms of the last successful save
+
+    @property
+    def error(self) -> str | None:
+        return self.save_error or self.probe_error
 
 
 @dataclass(eq=False)  # identity: two spans with equal fields are still different rows
@@ -150,7 +160,10 @@ class ActivityRecorder:
         self._thread: threading.Thread | None = None
         self._repo: ActivityRepository | None = None
         self._state = RecorderState.STOPPED
-        self._error: str | None = None
+        self._probe_error: str | None = None
+        self._save_error: str | None = None
+        self._save_failing_since_ms: int | None = None
+        self._last_save_ms: int | None = None
         self._browser_tracking = False
         self._user_rules = UserRules.empty()
         self._excluded: tuple[frozenset[str], frozenset[str]] = (frozenset(), frozenset())
@@ -299,7 +312,10 @@ class ActivityRecorder:
                 self._state,
                 self._open.frozen() if self._open else None,
                 bool(self._events and getattr(self._events, "running", False)),
-                self._error,
+                self._probe_error,
+                self._save_error,
+                self._save_failing_since_ms,
+                self._last_save_ms,
             )
 
     # ticking --------------------------------------------------------------------
@@ -322,11 +338,11 @@ class ActivityRecorder:
             self._check_continuity(mono, wall)
             try:
                 sample: ProbeSample | None = self._probe.sample()
-                self._error = None
+                self._probe_error = None
             except Exception as exc:  # OS errors end the span; time stays unobserved
-                if str(exc) != self._error:
+                if str(exc) != self._probe_error:
                     log.warning("activity probe failed: %s", exc)
-                self._error = str(exc)
+                self._probe_error = str(exc)
                 sample = None
             self._observe(sample, wall)
             self._last_mono, self._last_wall = mono, wall
@@ -470,8 +486,12 @@ class ActivityRecorder:
             for span in inserted:  # those ids were rolled back
                 span.span_id = None
             log.warning("activity flush failed, will retry: %s", exc)
-            self._error = f"저장 실패: {exc}"
+            self._save_error = str(exc)
+            if self._save_failing_since_ms is None:
+                self._save_failing_since_ms = self._wall()
             return
+        self._save_error = self._save_failing_since_ms = None
+        self._last_save_ms = self._wall()
         self._dirty.clear()
         self._deleted.clear()
         self._pending_events.clear()
