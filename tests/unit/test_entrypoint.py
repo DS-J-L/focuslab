@@ -19,3 +19,10 @@ def test_check_reports_environment_without_creating_data(capsys, isolated_data_d
     assert f"FocusLab {__version__}" in out
     assert "Face model:" in out and "PySide6" in out
     assert not isolated_data_dir.exists()
+
+
+def test_packaged_exe_downloads_models_into_data_folder(monkeypatch, isolated_data_dir):
+    from focuslab import model_fetch
+
+    monkeypatch.setattr(model_fetch, "FROZEN", True)  # never write into the exe bundle
+    assert model_fetch.target_dir() == isolated_data_dir / "models"

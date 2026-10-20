@@ -63,7 +63,7 @@ def test_onboarding_choice_requires_acceptance(qtbot):
     dialog.autostart.setChecked(True)
     dialog.idle.setValue(10)
     dialog.done(QDialog.DialogCode.Accepted)
-    assert dialog.choice() == OnboardingChoice(True, True, True, 10)
+    assert dialog.choice() == OnboardingChoice(True, True, True, 10, "ko")
     dialog.done(QDialog.DialogCode.Rejected)
     assert dialog.choice().recording is False
 
@@ -74,9 +74,10 @@ def test_apply_onboarding_sets_consent_threshold_and_autostart(no_os, monkeypatc
     ctx = AppContext(demo=False)
     try:
         assert ctx.needs_onboarding
-        ctx.apply_onboarding(OnboardingChoice(True, sys.platform == "win32", False, 7))
+        ctx.apply_onboarding(OnboardingChoice(True, sys.platform == "win32", False, 7, "en"))
         assert not ctx.needs_onboarding and ctx.recording_consent
         assert ctx.idle_threshold_s == 420 and ctx.close_to_tray is False
+        assert ctx.language == "en"
         assert calls == (["on"] if sys.platform == "win32" else [])
     finally:
         ctx.service.shutdown()

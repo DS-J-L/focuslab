@@ -22,18 +22,16 @@ from focuslab.ui.theme import STATE_LABELS
 
 
 @pytest.mark.parametrize(
-    "system,saved,override,expected",
+    "saved,override,expected",
     [
-        ("ko", None, None, "ko"),
-        ("en", None, None, "en"),
-        ("ko", "en", None, "en"),
-        ("en", "ko", None, "ko"),
-        ("en", "ko", "en", "en"),
-        ("en", "bad-value", None, "en"),
+        (None, None, "en"),
+        ("en", None, "en"),
+        ("ko", None, "ko"),
+        ("ko", "en", "en"),
+        ("bad-value", None, "en"),
     ],
 )
-def test_language_precedence(monkeypatch, system, saved, override, expected):
-    monkeypatch.setattr("focuslab.i18n.system_language", lambda: system)
+def test_language_precedence(monkeypatch, saved, override, expected):
     monkeypatch.delenv("FOCUSLAB_LANGUAGE", raising=False)
     if override:
         monkeypatch.setenv("FOCUSLAB_LANGUAGE", override)

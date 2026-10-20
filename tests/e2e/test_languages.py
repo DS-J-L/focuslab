@@ -6,17 +6,18 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QAbstractButton, QLabel, QMessageBox, QScrollArea
+from PySide6.QtWidgets import QAbstractButton, QDialog, QLabel, QMessageBox, QScrollArea
 
 from focuslab.activity.stats import local_day_bounds
 from focuslab.demo import seed_demo_sessions
 from focuslab.domain.activity import ActivitySpan, SpanKind
 from focuslab.domain.models import SessionConfig, SessionMode
-from focuslab.i18n import get_language
+from focuslab.i18n import get_language, initialize_language
 from focuslab.ui import consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.main_window import ACTIVITY, REPORT, SETTINGS, MainWindow
 from focuslab.ui.onboarding import OnboardingDialog
+from focuslab.ui.widgets import StatCard
 
 HANGUL = re.compile("[가-힣]")
 
@@ -59,6 +60,16 @@ def test_pages_reports_tray_and_session_use_selected_language(
             else ["홈", "활동", "세션", "리포트", "설정"]
         )
         assert [window.nav.item(i).text() for i in range(5)] == expected
+        assert {card._tag.text() for card in window.home.findChildren(StatCard)} == (
+            {"Automatic recording", "Manual focus sessions"}
+            if language == "en"
+            else {"자동 기록", "수동 집중 세션"}
+        )
+        assert window.findChild(QLabel, "BrandSub").text() == (
+            "Know your workflow,\nnot just your screen time."
+            if language == "en"
+            else "화면 시간이 아닌\n작업 흐름을 이해하세요."
+        )
         for index in (ACTIVITY, REPORT, SETTINGS):
             window.go(index)
             settle(window)
@@ -94,8 +105,9 @@ def test_language_preference_survives_restart_without_interrupting_a_session(
     qtbot, monkeypatch, settle
 ):
     monkeypatch.delenv("FOCUSLAB_LANGUAGE")
-    monkeypatch.setattr("focuslab.i18n.system_language", lambda: "ko")
     ctx = AppContext(demo=True)
+    ctx.set_language_preference("ko")
+    initialize_language("ko")
     window = MainWindow(ctx)
     qtbot.addWidget(window)
     try:
@@ -154,3 +166,19 @@ def test_onboarding_and_all_consent_explanations_are_localized(qtbot, monkeypatc
     finally:
         onboarding.reject()
         ctx.service.shutdown()
+
+
+def test_onboarding_language_choice_applies_immediately(qtbot):
+    onboarding = OnboardingDialog()
+    qtbot.addWidget(onboarding)
+    try:
+        assert HANGUL.search(onboarding.recording.text())
+        onboarding.language_combo.setCurrentIndex(onboarding.language_combo.findData("en"))
+        assert get_language() == "en"
+        assert onboarding.windowTitle() == "Welcome to FocusLab"
+        assert not HANGUL.search(onboarding.recording.text())
+        assert not HANGUL.search(onboarding.save.text())
+        onboarding.done(QDialog.DialogCode.Rejected)
+        assert onboarding.choice().language == "en" and not onboarding.choice().recording
+    finally:
+        onboarding.reject()

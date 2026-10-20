@@ -43,7 +43,7 @@ Without a face model or camera, sessions can continue using PC observations. The
 
 ### Interface language
 
-The app supports **English and Korean**. On first launch it uses Korean for a Korean system locale and English otherwise. Choose **Settings > Appearance > Language** to save a preference, then restart FocusLab to apply it. A language change does not interrupt your current session or translate your saved goals, app names, or records.
+The app supports **English and Korean**. English is the default; the first-run setup lets you pick the language, and it applies right away. Later, choose **Settings > Appearance > Language** to save a preference, then restart FocusLab to apply it. A language change does not interrupt your current session or translate your saved goals, app names, or records.
 
 `--language en|ko` or `FOCUSLAB_LANGUAGE=en|ko` overrides the saved preference for a run. Repository documentation is maintained in English. See the [translation guide](docs/internationalization.md).
 
@@ -63,6 +63,14 @@ uv build
 uv run python scripts/activity_smoke.py --seconds 60   # Real Win32 probe, temporary database
 uv run python scripts/bench_activity.py                # Synthetic load and performance
 ```
+
+### Build FocusLab.exe
+
+```powershell
+uv run --group build python scripts/build_exe.py
+```
+
+This creates `dist\FocusLab\FocusLab.exe` (no console window, about 340 MB folder). Keep or copy the whole `dist\FocusLab` folder: the exe needs the `_internal` folder next to it. The face model is bundled when `assets\models\face_landmarker.task` exists. The exe accepts the same options as `uv run focuslab`; console output such as `--check` appears only when piped (`.\FocusLab.exe --check | more`). **Start at sign-in** and **Install connection** register the exe's own path, so turn them off and on again after moving the folder. Load the browser extension from `dist\FocusLab\_internal\browser_extension` (Settings > Open extension folder).
 
 GitHub Actions checks lint, tests, the diagnostic CLI, and package builds on a Windows runner. Camera hardware, permissions, and long-running GUI behavior require separate Windows testing.
 

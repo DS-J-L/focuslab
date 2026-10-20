@@ -53,8 +53,8 @@ class StatCard(QFrame):
         super().__init__()
         self.setObjectName("Card")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(2)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(6)
         self._tag = QLabel(tag, objectName="CardTag")  # where the number comes from
         self._tag.setVisible(bool(tag))
         layout.addWidget(self._tag)

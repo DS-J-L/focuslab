@@ -55,7 +55,7 @@ from focuslab.ui.consent import (
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
-from focuslab.ui.theme import CATEGORY_LABELS
+from focuslab.ui.theme import CATEGORY_LABELS, style_form
 
 COLLECTED = (
     "<b>Saved</b>: session goals, modes and times; per-second estimated states and "
@@ -98,7 +98,7 @@ class SettingsPage(QWidget):
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(14)
+        root.setSpacing(20)
         root.addWidget(QLabel(tr("Settings"), objectName="PageTitle"))
         root.addWidget(self._language_box())
         root.addWidget(self._privacy_box())
@@ -113,6 +113,7 @@ class SettingsPage(QWidget):
     def _language_box(self) -> QGroupBox:
         box = QGroupBox(tr("Appearance"))
         form = QFormLayout(box)
+        style_form(form)
         self.language_combo = QComboBox()
         for code, name in SUPPORTED_LANGUAGES.items():
             self.language_combo.addItem(name, code)
@@ -132,12 +133,13 @@ class SettingsPage(QWidget):
         self.language_notice.setText(
             tr("Restart FocusLab to apply the selected language. Your session continues.")
             if self.ctx.language != get_language()
-            else tr("Uses your system language on first launch. Changes apply after restarting.")
+            else tr("Changes apply after restarting.")
         )
 
     def _privacy_box(self) -> QGroupBox:
         box = QGroupBox(tr("Privacy and data"))
         form = QFormLayout(box)
+        style_form(form)
         info = QLabel(tr(COLLECTED), wordWrap=True)
         info.setStyleSheet("font-weight:400;")
         form.addRow(info)
@@ -205,6 +207,7 @@ class SettingsPage(QWidget):
     def _browser_box(self) -> QGroupBox:
         box = QGroupBox(tr("Browser site recording (Chrome / Edge, optional)"))
         form = QFormLayout(box)
+        style_form(form)
         self.browser_state = QLabel(wordWrap=True)
         self.browser_button = QPushButton()
         self.browser_button.clicked.connect(self._toggle_browser)
@@ -427,6 +430,7 @@ class SettingsPage(QWidget):
     def _camera_box(self) -> QGroupBox:
         box = QGroupBox(tr("Camera"))
         form = QFormLayout(box)
+        style_form(form)
         self.device = QComboBox()
         self.device.currentIndexChanged.connect(self._device_changed)
         form.addRow(tr("Device"), self.device)
@@ -726,6 +730,7 @@ def _row(*widgets: QWidget) -> QWidget:
     holder = QWidget()
     layout = QHBoxLayout(holder)
     layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(12)
     for w in widgets:
         layout.addWidget(w)
     layout.addStretch()
