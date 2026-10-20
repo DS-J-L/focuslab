@@ -10,7 +10,7 @@ watching you, scolding, sleeping through a pause, or waiting while you are away.
 """
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from focuslab.ui.mascot.animation import Behavior, Pose, load_behaviors
 from focuslab.ui.mascot.behavior_policy import Mood
@@ -63,6 +63,7 @@ class Director:
         )
         self.hover: int | str | None = None
         self.mood = Mood.CALM
+        self.away: set[int] = set()  # flying around the screen; their seat is empty
         self.motion = MOTION[DEFAULT_MOTION]
         self.set_motion(motion)
         self._next: list[float | None] = [None] * len(self.actors)
@@ -118,26 +119,40 @@ class Director:
                 attention = CALM
             actor.attend(attention, now)
 
+    def set_away(self, i: int, away: bool, now: float) -> None:
+        "Parrot ``i`` left the branch to fly around, or came back and lands."
+        actor = self.actors[i]
+        actor.stop()
+        if away:
+            self.away.add(i)
+        elif i in self.away:
+            self.away.discard(i)
+            actor.play(self.behaviors["land"], now)
+
     def poses(self, now: float) -> list[Pose]:
         self._schedule(now)
-        return [actor.pose(now) for actor in self.actors]
+        poses = [actor.pose(now) for actor in self.actors]
+        return [replace(p, alpha=0.0) if i in self.away else p for i, p in enumerate(poses)]
+
+    def _idle(self, i: int, now: float) -> bool:
+        return i not in self.away and self.hover != i and not self.actors[i].busy(now)
 
     # scheduling ---------------------------------------------------------------------
     def _schedule(self, now: float) -> None:
         loops = MOOD_LOOPS.get(self.mood)
         if loops:
             for i, actor in enumerate(self.actors):
-                if self.hover != i and not actor.busy(now):
+                if self._idle(i, now):
                     behavior = self.behaviors[loops[i]]
                     actor.play(behavior, now - i * LOOP_STAGGER_S, still=self.still)
             return
         gap = self.motion.gap
         if gap is None:
             return
-        for i, actor in enumerate(self.actors):
+        for i in range(len(self.actors)):
             if self._next[i] is None:  # stagger the first behaviors
                 self._next[i] = now + self.rng.uniform(gap[0] * 0.3, gap[1])
-            if self.hover == i or actor.busy(now) or now < self._next[i]:
+            if not self._idle(i, now) or now < self._next[i]:
                 continue
             behavior = self._pick(i, now)
             if behavior is None:
@@ -165,8 +180,7 @@ class Director:
             j
             for j in (i - 1, i + 1)
             if 0 <= j < len(self.actors)
-            and self.hover != j
-            and not self.actors[j].busy(now)
+            and self._idle(j, now)
             and now >= self._cooldown.get((j, behavior.name), 0.0)
         ]
 
@@ -188,7 +202,7 @@ class Director:
                 and self.rng.random() < self.motion.watch
             ):
                 for j, other in enumerate(self.actors):
-                    if j != i and self.hover != j and not other.busy(now):
+                    if j != i and self._idle(j, now):
                         other.watch(1.0 if i > j else -1.0, now + behavior.duration * 0.7)
                 self._interaction_at = now + self.motion.interaction_cooldown
         for k in cast:

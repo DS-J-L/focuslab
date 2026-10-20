@@ -166,7 +166,46 @@ class SettingsPage(QWidget):
         )
         self.mascot_reactions.toggled.connect(self._reactions_changed)
         form.addRow("", self.mascot_reactions)
+        self.mascot_flight = QCheckBox(tr("A parrot flies around the screen if it goes on"))
+        self.mascot_flight.setToolTip(
+            tr(
+                "It hovers in front of your work saying \"Focus!\" and flies back when you "
+                "return, pause or take a break, or when you click it. Keyboard input is never "
+                "blocked, and it does not fly over full-screen programs."
+            )
+        )
+        self.mascot_flight.toggled.connect(self._flight_changed)
+        self.flight_after = QSpinBox()
+        self.flight_after.setRange(30, 600)
+        self.flight_after.setSingleStep(10)
+        self.flight_after.setSuffix(tr(" s off task"))
+        self.flight_after.valueChanged.connect(
+            lambda v: self._overlay_setting("ui.mascot_flight_after_s", v)
+        )
+        self.flight_interval = QSpinBox()
+        self.flight_interval.setRange(1, 60)
+        self.flight_interval.setPrefix(tr("at most every "))
+        self.flight_interval.setSuffix(tr(" min"))
+        self.flight_interval.valueChanged.connect(
+            lambda v: self._overlay_setting("ui.mascot_flight_interval_min", v)
+        )
+        form.addRow("", self.mascot_flight)
+        form.addRow(tr("Fly after"), _row(self.flight_after, self.flight_interval))
         return box
+
+    def _flight_changed(self, on: bool) -> None:
+        self.ctx.set_flag("ui.mascot_flight", on)
+        self._refresh_flight()
+        self.overlayChanged.emit()
+
+    def _overlay_setting(self, key: str, value: int) -> None:
+        self.ctx.set_setting(key, str(value))
+        self.overlayChanged.emit()
+
+    def _refresh_flight(self) -> None:
+        on = self.ctx.flight_enabled
+        self.flight_after.setEnabled(on)
+        self.flight_interval.setEnabled(on)
 
     def _reactions_changed(self, on: bool) -> None:
         self.ctx.set_flag("ui.mascot_reactions", on)
@@ -662,12 +701,16 @@ class SettingsPage(QWidget):
             (self.close_to_tray, self.ctx.close_to_tray),
             (self.overlay_on_start, self.ctx.overlay_on_start),
             (self.mascot_reactions, self.ctx.mascot_reactions),
+            (self.mascot_flight, self.ctx.flight_enabled),
+            (self.flight_after, self.ctx.flight_after_s),
+            (self.flight_interval, self.ctx.flight_interval_min),
             (self.update_auto, self.ctx.flag("update.auto_check")),
         ):
             widget.blockSignals(True)
             (widget.setValue if isinstance(widget, QSpinBox) else widget.setChecked)(value)
             widget.blockSignals(False)
         self.autostart.setEnabled(not self.ctx.demo)
+        self._refresh_flight()
 
     def set_session_active(self, active: bool) -> None:
         self.calib_button.setEnabled(

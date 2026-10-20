@@ -167,6 +167,19 @@ class AppContext:
         return self.flag("ui.mascot_reactions", True)
 
     @property
+    def flight_enabled(self) -> bool:
+        "Opt-in: a parrot flies around the screen after a long off-task run."
+        return self.flag("ui.mascot_flight", False)
+
+    @property
+    def flight_after_s(self) -> int:
+        return int(self.setting("ui.mascot_flight_after_s") or 60)
+
+    @property
+    def flight_interval_min(self) -> int:
+        return int(self.setting("ui.mascot_flight_interval_min") or 5)
+
+    @property
     def camera_index(self) -> int:
         return int(self.setting("camera.index", "0") or 0)
 
