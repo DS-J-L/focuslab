@@ -26,6 +26,8 @@ from focuslab.domain.models import SessionConfig, SessionMode
 from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, initialize_language
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
+from focuslab.relevance import model_manager
+from focuslab.relevance.embedding import SemanticAnalyzer
 from focuslab.services.session_service import NoActivitySource, SessionService
 from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
@@ -49,6 +51,7 @@ class AppContext:
         )
         self.recorder: ActivityRecorder | None = None
         initialize_language(self.setting("ui.language"))
+        self.apply_relevance_ai()
 
     # settings ---------------------------------------------------------------------
     @property
@@ -135,6 +138,34 @@ class AppContext:
                 BrowserStateStore(self.service.repository.conn).clear_all()
         if self.recorder:
             self.recorder.set_browser_tracking(on)
+
+    @property
+    def relevance_ai(self) -> bool:
+        """The user turned on the local language model for page-title relevance."""
+        return self.flag("relevance.ai")
+
+    def set_relevance_ai(self, on: bool) -> None:
+        self.set_flag("relevance.ai", on)
+        self.apply_relevance_ai()
+
+    def apply_relevance_ai(self) -> None:
+        """Hand the session an analyzer when the feature is on and the model is installed.
+
+        The model itself loads lazily on its own thread the first time a title needs it.
+        """
+        folder = None
+        if self.relevance_ai and not self.demo and model_manager.runtime_available():
+            folder = model_manager.installed_dir()
+        self.service.set_semantic(
+            SemanticAnalyzer(lambda: model_manager.load(folder), model_manager.MODEL_VERSION)
+            if folder
+            else None
+        )
+
+    def relevance_ai_state(self) -> str | None:
+        """Analyzer state (IDLE / LOADING / READY / FAILED) while one is in use."""
+        analyzer = self.service.semantic
+        return analyzer.state if analyzer else None
 
     def browser_last_report_ms(self) -> int | None:
         with self.service.lock:

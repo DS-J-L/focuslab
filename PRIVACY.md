@@ -20,6 +20,7 @@ Automatic recording, browser recording, manual-session PC observation, and camer
 - Camera frames are processed in memory without disk storage or transmission.
 - Excluded programs/sites leave only unnamed **Excluded** time in the automatic activity timeline. Adding an exclusion does not erase historical records; delete existing records separately if needed.
 - Browser messages with unexpected fields (such as `url`) are rejected. Page-title fields are validated and discarded when separate title consent is off; withdrawing it clears current and historical page-title fields while retaining activity durations. Without consent or while recording is paused, current browser state is not stored. Closing the browser clears its current state.
+- During a focus session the session goal is compared with the current page title (only with title consent) to estimate task relevance. Rules run by default; the optional **Task relevance AI** uses a small language model downloaded only after you turn it on in Settings, and it runs on this PC only. Titles and the vectors derived from them are kept in memory only and are dropped when title consent is withdrawn; Settings → Remove model deletes the model.
 - Withdrawing camera or manual PC-observation consent also stops that observation in an ongoing session. Automatic PC recording has its own separate consent switch.
 
 ## What is stored?

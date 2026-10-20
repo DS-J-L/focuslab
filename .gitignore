@@ -27,7 +27,7 @@ dist/
 *.avi
 *.mov
 *.mkv
-data/
+/data/
 exports/
 logs/
 # Large model files: add only after license and checksum review
@@ -38,3 +38,6 @@ assets/models/*.onnx
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Optional relevance model (downloaded on request from Settings)
+assets/models/relevance/

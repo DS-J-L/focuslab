@@ -24,6 +24,7 @@ class RelevanceLevel(StrEnum):
 class RelevanceSource(StrEnum):
     INPUT = "INPUT"  # not enough input to judge at all
     RULE = "RULE"
+    EMBEDDING = "EMBEDDING"  # local language model similarity
 
 
 class RelevanceReason(StrEnum):
@@ -39,6 +40,8 @@ class RelevanceReason(StrEnum):
     ENTERTAINMENT_ACTIVITY = "ENTERTAINMENT_ACTIVITY"
     SUPPORT_TOOL = "SUPPORT_TOOL"
     COMMUNICATION = "COMMUNICATION"
+    TITLE_SIMILAR_TO_GOAL = "TITLE_SIMILAR_TO_GOAL"
+    TITLE_CLOSER_TO_LEISURE = "TITLE_CLOSER_TO_LEISURE"
 
 
 RELEVANCE_REASON_TEXT = LocalizedMapping(
@@ -65,6 +68,12 @@ RELEVANCE_REASON_TEXT = LocalizedMapping(
             "Notes, AI assistant or work tool; may serve the task (judgment deferred)"
         ),
         RelevanceReason.COMMUNICATION: "Messenger or mail; may or may not concern the task",
+        RelevanceReason.TITLE_SIMILAR_TO_GOAL: (
+            "The local language model finds the page title close in meaning to the goal"
+        ),
+        RelevanceReason.TITLE_CLOSER_TO_LEISURE: (
+            "The page title reads closer to leisure topics than to the goal (not conclusive)"
+        ),
     }
 )
 

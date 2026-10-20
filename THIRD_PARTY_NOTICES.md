@@ -14,6 +14,8 @@ and must be re-verified before shipping binaries (PR-13).
 | NumPy | 2.4.6 | BSD-3-Clause | |
 | psutil | 7.2.2 | BSD-3-Clause | |
 | pywin32 | 312 | PSF-2.0 | Windows only. |
+| ONNX Runtime (`onnxruntime`) | 1.31.0 | MIT | CPU inference for the optional relevance model; imported only when that feature is on. |
+| SentencePiece (`sentencepiece`) | 0.2.2 | Apache-2.0 | Tokenizer for the optional relevance model; no further dependencies. |
 
 Development-only: pytest (MIT), pytest-qt (MIT), ruff (MIT), hatchling (MIT).
 
@@ -30,8 +32,14 @@ The font is loaded locally and does not require a system installation or network
 | --- | --- | --- | --- |
 | `face_landmarker.task` (float16, v1) | `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` | `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` | Published by Google MediaPipe; the model card lists Apache-2.0. Confirm redistribution terms before bundling it in an installer. |
 
-The model is downloaded only when the user runs `focuslab --fetch-models` (or the settings button)
-and is verified against the SHA256 above. `assets/models/*.task` is git-ignored.
+| `multilingual-e5-small-qint8.onnx` (= upstream `onnx/model_qint8_avx512_vnni.onnx`) | `https://huggingface.co/intfloat/multilingual-e5-small`, revision `614241f622f53c4eeff9890bdc4f31cfecc418b3` | `dd476dd0c2514e9b9be83aeb3853fac0763e0bdf4a71645407587d77c48a2d88` | MIT (model card). Optional task-relevance model, 118 MB. |
+| `sentencepiece.bpe.model` | same repository and revision, `onnx/sentencepiece.bpe.model` | `cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865` | MIT (model card). Tokenizer of the model above. |
+
+The face model is downloaded only when the user runs `focuslab --fetch-models` (or the settings
+button) and is verified against the SHA256 above. `assets/models/*.task` is git-ignored.
+The relevance model is downloaded only after the user turns on "Task relevance AI" in Settings
+and confirms; it is verified against the SHA256 values above, never bundled in the EXE, and
+`assets/models/relevance/` is git-ignored. Settings → "Remove model" deletes it.
 
 ## Activity tracking engine and browser extension
 
