@@ -117,10 +117,12 @@ class _Span:
     excluded: bool = False
     label: Classification | None = None  # decided when the span starts
     span_id: int | None = None
+    page_title: str | None = None
 
-    def same(self, kind: SpanKind, exe: str | None, domain: str | None, excluded: bool) -> bool:
-        return (self.kind, self.exe_name, self.domain, self.excluded) == (
-            kind, exe, domain, excluded
+    def same(self, kind: SpanKind, exe: str | None, domain: str | None, excluded: bool,
+             page_title: str | None = None) -> bool:
+        return (self.kind, self.exe_name, self.domain, self.excluded, self.page_title) == (
+            kind, exe, domain, excluded, page_title
         )
 
     def frozen(self) -> ActivitySpan:
@@ -131,6 +133,7 @@ class _Span:
             category=label and label.category, confidence=label and label.confidence,
             reason=label and label.reason, source=label and label.source,
             excluded=self.excluded,
+            page_title=self.page_title,
         )
 
 
@@ -165,6 +168,7 @@ class ActivityRecorder:
         self._save_failing_since_ms: int | None = None
         self._last_save_ms: int | None = None
         self._browser_tracking = False
+        self._title_tracking = False
         self._user_rules = UserRules.empty()
         self._excluded: tuple[frozenset[str], frozenset[str]] = (frozenset(), frozenset())
         self._reset_timeline()
@@ -259,6 +263,15 @@ class ActivityRecorder:
         """Attach the site reported by the browser extension to browser spans."""
         with self._lock:
             self._browser_tracking = on
+
+    def set_title_tracking(self, on: bool) -> None:
+        """Stop retaining titles in buffered spans immediately on withdrawal."""
+        with self._lock:
+            self._title_tracking = on
+            if not on:
+                for span in (self._open, self._prev, *self._dirty):
+                    if span is not None:
+                        span.page_title = None
 
     def reload_rules(self) -> None:
         """Pick up new user rules and exclusions; spans started from now on use them."""
@@ -378,15 +391,15 @@ class ActivityRecorder:
         kind = self._kind(sample)
         app = sample.app if kind is SpanKind.ACTIVE else None
         exe = app.exe_name if app else None
-        domain = self._domain(exe, wall)
+        domain, page_title = self._browser_detail(exe, wall)
         app_out, site_out = is_excluded(exe, domain, *self._excluded)
         if app_out:  # neither the program nor its site is stored, only that time passed
-            app, exe, domain = None, None, None
+            app, exe, domain, page_title = None, None, None, None
         elif site_out:
-            domain = None
+            domain, page_title = None, None
         excluded = app_out or site_out
         span = self._open
-        if span and span.same(kind, exe, domain, excluded):
+        if span and span.same(kind, exe, domain, excluded, page_title):
             span.end_ms = max(span.end_ms, wall)
             self._mark(span)
             return
@@ -398,7 +411,7 @@ class ActivityRecorder:
         if span:
             self._close(at)
         prev = self._prev
-        if prev and prev.end_ms == at and prev.same(kind, exe, domain, excluded):
+        if prev and prev.end_ms == at and prev.same(kind, exe, domain, excluded, page_title):
             prev.end_ms = wall  # A, short blip, A -> one span of A
             self._open, self._prev = prev, None
             self._mark(prev)
@@ -408,18 +421,23 @@ class ActivityRecorder:
             user=self._user_rules,
         )
         self._open = _Span(
-            at, wall, kind, exe, app.display_name if app else None, domain, excluded, label
+            at, wall, kind, exe, app.display_name if app else None, domain, excluded, label,
+            page_title=page_title,
         )
         self._mark(self._open)
 
-    def _domain(self, exe: str | None, wall: int) -> str | None:
+    def _browser_detail(self, exe: str | None, wall: int) -> tuple[str | None, str | None]:
         browser = BROWSER_EXES.get(exe or "")
         if not (browser and self._browser_tracking):
-            return None
+            return None, None
         try:
-            return self._repo.browser_domain(browser, wall - STATE_TTL_MS)
+            domain, title = self._repo.browser_detail(browser, wall - STATE_TTL_MS)
+            return domain, title if self._title_tracking else None
         except sqlite3.Error:  # the host is writing; the next sample will see it
-            return None
+            return None, None
+
+    def _domain(self, exe: str | None, wall: int) -> str | None:
+        return self._browser_detail(exe, wall)[0]
 
     def _close_open(self) -> None:
         if self._open:

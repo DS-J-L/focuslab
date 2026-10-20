@@ -1,6 +1,6 @@
 // FocusLab Activity Bridge service worker.
 //
-// Reports which site is in the active tab of the focused browser window, as a hostname only,
+// Reports the focused tab hostname, plus its sanitized title ONLY after explicit opt-in,
 // to the FocusLab desktop app through Chrome Native Messaging. Background tabs, unfocused
 // windows and private windows are never reported. Nothing is stored in the browser.
 
@@ -21,6 +21,7 @@ let seq = 0;
 let last = null;
 let attempts = 0;
 let reconnectTimer = null;
+let titleAllowed = false; // the native host grants this only after desktop consent
 
 function connect() {
   if (port) return port;
@@ -38,7 +39,14 @@ function connect() {
     scheduleReconnect();
   });
   port.onMessage.addListener((message) => {
-    if (message && message.type === "ack") attempts = 0;
+    if (message && message.type === "ack") {
+      attempts = 0;
+      const granted = message.title_allowed === true;
+      if (granted !== titleAllowed) {
+        titleAllowed = granted;
+        void report("title-policy"); // resend without/with title after consent changes
+      }
+    }
   });
   return port;
 }
@@ -68,7 +76,7 @@ async function currentState(focusedWindowId) {
   }
   if (!window || !window.focused || window.incognito) return stateOf(window, null);
   const [tab] = await chrome.tabs.query({ active: true, windowId: window.id });
-  return stateOf(window, tab);
+  return stateOf(window, tab, titleAllowed);
 }
 
 export async function report(reason, focusedWindowId) {
@@ -89,7 +97,7 @@ export async function report(reason, focusedWindowId) {
 
 chrome.tabs.onActivated.addListener(() => void report("tab"));
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-  if (tab.active && (change.url || change.status === "complete")) void report("navigate");
+  if (tab.active && (change.url || change.title || change.status === "complete")) void report("navigate");
 });
 chrome.tabs.onRemoved.addListener(() => void report("tab-closed"));
 chrome.windows.onFocusChanged.addListener((windowId) => void report("focus", windowId));

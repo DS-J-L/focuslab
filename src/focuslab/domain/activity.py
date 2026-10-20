@@ -110,6 +110,7 @@ class ActivitySpan:
     source: ClassSource | None = None
     excluded: bool = False  # the program or site is on the user's exclusion list
     user_category: Category | None = None  # the user's correction of this span
+    page_title: str | None = None  # separately consented, sanitized browser title
 
     @property
     def duration_ms(self) -> int:

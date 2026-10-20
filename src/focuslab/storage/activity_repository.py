@@ -11,7 +11,7 @@ from focuslab.storage.repository import utc_now
 from focuslab.storage.sqlite_db import transaction
 
 _SPAN_SELECT = (
-    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, s.category, s.confidence, s.reason,"
+    "SELECT s.id, s.start_ms, s.end_ms, s.kind, s.domain, s.page_title, s.category, s.confidence, s.reason,"
     " s.source, s.excluded, a.exe_name, a.display_name, f.category AS user_category"
     " FROM activity_span s LEFT JOIN app a ON a.id = s.app_id"
     " LEFT JOIN activity_feedback f ON f.span_id = s.id"
@@ -34,6 +34,7 @@ def _span(row: sqlite3.Row) -> ActivitySpan:
         display_name=row["display_name"],
         span_id=row["id"],
         domain=row["domain"],
+        page_title=row["page_title"],
         category=_enum(Category, row["category"]),
         confidence=row["confidence"],
         reason=_enum(ClassReason, row["reason"]),
@@ -75,11 +76,11 @@ class ActivityRepository:
     def insert_span(self, span: ActivitySpan, classified_ms: int | None = None) -> int:
         app = self.app_id(span.exe_name, span.display_name) if span.exe_name else None
         cur = self.conn.execute(
-            "INSERT INTO activity_span (start_ms, end_ms, kind, app_id, domain, category,"
+            "INSERT INTO activity_span (start_ms, end_ms, kind, app_id, domain, page_title, category,"
             " confidence, reason, source, classified_ms, excluded)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                span.start_ms, span.end_ms, span.kind.value, app, span.domain,
+                span.start_ms, span.end_ms, span.kind.value, app, span.domain, span.page_title,
                 span.category and span.category.value, span.confidence,
                 span.reason and span.reason.value, span.source and span.source.value,
                 classified_ms if span.category else None, int(span.excluded),
@@ -113,14 +114,17 @@ class ActivityRepository:
         finally:
             cursor.close()
 
-    def browser_domain(self, browser: str, since_ms: int) -> str | None:
-        """Site in the most recently focused window of ``browser`` reported since ``since_ms``."""
+    def browser_detail(self, browser: str, since_ms: int) -> tuple[str | None, str | None]:
+        """Latest browser site and optionally permitted page title."""
         row = self.conn.execute(
-            "SELECT domain FROM browser_state WHERE browser = ? AND focused = 1"
+            "SELECT domain, page_title FROM browser_state WHERE browser = ? AND focused = 1"
             " AND updated_ms >= ? ORDER BY updated_ms DESC LIMIT 1",
             (browser, since_ms),
         ).fetchone()
-        return row["domain"] if row else None
+        return (row["domain"], row["page_title"]) if row else (None, None)
+
+    def browser_domain(self, browser: str, since_ms: int) -> str | None:
+        return self.browser_detail(browser, since_ms)[0]
 
     def last_span(self) -> ActivitySpan | None:
         row = self.conn.execute(_SPAN_SELECT + " ORDER BY s.end_ms DESC LIMIT 1").fetchone()

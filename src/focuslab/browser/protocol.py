@@ -2,7 +2,8 @@
 
 Chrome frames each message as a 4-byte native-endian (little-endian on Windows) length followed
 by UTF-8 JSON. Anything that is not exactly the documented schema is rejected, so a buggy or
-hostile sender cannot smuggle full URLs, titles or oversized payloads into the database.
+hostile sender cannot smuggle full URLs or oversized payloads into the database.
+Optional page titles require explicit separate consent and strict validation.
 """
 
 import json
@@ -15,6 +16,7 @@ MAX_MESSAGE_BYTES = 4096  # a valid state message is ~200 bytes
 PROTOCOL_VERSION = 1
 BROWSERS = frozenset({"chrome", "edge"})
 FIELDS = frozenset({"v", "type", "browser", "instance", "seq", "ts", "focused", "domain"})
+TITLE_FIELDS = FIELDS | {"title"}
 SPECIAL_DOMAINS = frozenset({"localhost", "local-address"})
 
 _HOSTNAME = re.compile(r"^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$")
@@ -33,6 +35,7 @@ class BrowserState:
     ts_ms: int
     focused: bool
     domain: str | None
+    title: str | None = None
 
 
 def read_message(stream: BinaryIO) -> dict | None:
@@ -71,7 +74,7 @@ def valid_domain(domain: object) -> bool:
 
 def parse_state(message: dict) -> BrowserState:
     """Validate a ``state`` message; raises ProtocolError with the first problem found."""
-    if set(message) != FIELDS:
+    if set(message) not in (FIELDS, TITLE_FIELDS):
         raise ProtocolError("unexpected or missing fields")
     if message["v"] != PROTOCOL_VERSION or message["type"] != "state":
         raise ProtocolError("unsupported version or type")
@@ -89,6 +92,12 @@ def parse_state(message: dict) -> BrowserState:
         raise ProtocolError("bad focused flag")
     if domain is not None and not valid_domain(domain):
         raise ProtocolError("bad domain")
+    title = message.get("title")
+    if title is not None:
+        if (not isinstance(title, str) or not 0 < len(title) <= 160
+                or any(ord(c) < 32 or ord(c) == 127 for c in title)
+                or "://" in title or not focused or not domain):
+            raise ProtocolError("invalid page title")
     return BrowserState(
-        message["browser"], instance, seq, ts, focused, domain if focused else None
+        message["browser"], instance, seq, ts, focused, domain if focused else None, title
     )
