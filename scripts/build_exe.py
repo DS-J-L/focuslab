@@ -43,13 +43,21 @@ def main() -> None:
         f"--workpath={ROOT / 'build'}",
         f"--specpath={ROOT / 'build'}",
         "--collect-data=focuslab",  # locales/ko.json, read through importlib.resources
+        # mediapipe loads tasks/c/libmediapipe.dll through ctypes, which no hook detects.
+        "--collect-binaries=mediapipe",
         *(data(EXTENSION / name, "browser_extension") for name in EXTENSION_FILES),
     ]
+    if (EXTENSION / "icons").is_dir():  # manifest icons, once the extension ships them
+        args.append(data(EXTENSION / "icons", "browser_extension/icons"))
     if MODEL.is_file():
         args.append(data(MODEL, "assets/models"))
     else:
         print("note: no face model in assets/models; FocusLab.exe will download it on first use")
     PyInstaller.__main__.run(args)
+    dll = ROOT / "dist" / "FocusLab" / "_internal" / "mediapipe" / "tasks" / "c"
+    dll /= "libmediapipe.dll"
+    if not dll.is_file():
+        raise SystemExit(f"build is missing {dll}; the face model would fail to load")
     print(f"\nBuilt {ROOT / 'dist' / 'FocusLab' / 'FocusLab.exe'}")
 
 
