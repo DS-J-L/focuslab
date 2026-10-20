@@ -43,7 +43,8 @@ def allowed_status(
 
     When the allow-list names sites and the browser extension reports the current site, a
     browser counts as allowed only on those sites (subdomains included). Without a reported
-    site the browser is judged by its program name as before.
+    site the browser is judged by its program name, and the rule engine then treats it as
+    "site unknown" rather than as task work.
     """
     if not process_name:
         return None

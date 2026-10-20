@@ -1,3 +1,5 @@
+import pytest
+
 from focuslab.camera.calibration import Calibration, calibrate
 from focuslab.domain.models import (
     ActivityObservation,
@@ -75,7 +77,8 @@ def test_head_directions_use_calibration_limits():
 
 def test_neutral_and_unrelated_apps():
     assert fuse(NOW, None, act(allowed=None), camera_enabled=False).app is AppRelation.NEUTRAL
-    assert fuse(NOW, None, act(allowed=False), camera_enabled=False).app is AppRelation.UNRELATED
+    game = act(name="steam.exe", allowed=False)
+    assert fuse(NOW, None, game, camera_enabled=False).app is AppRelation.UNRELATED
 
 
 def test_browser_flag_and_lock():
@@ -103,3 +106,27 @@ def test_calibration_learns_offsets_and_down_sign():
 def test_calibration_json_fallback():
     assert Calibration.from_json("not json") == Calibration()
     assert Calibration.from_json(None) == Calibration()
+
+
+@pytest.mark.parametrize(
+    "name,domain,relation,support",
+    [
+        ("notepad.exe", None, AppRelation.POSSIBLY_RELATED, Reason.NOTE_TAKING_POSSIBLE),
+        ("claude.exe", None, AppRelation.POSSIBLY_RELATED, Reason.AI_ASSISTANT_POSSIBLE),
+        ("chrome.exe", "claude.ai", AppRelation.POSSIBLY_RELATED, Reason.AI_ASSISTANT_POSSIBLE),
+        ("code.exe", None, AppRelation.POSSIBLY_RELATED, Reason.WORK_TOOL_POSSIBLE),
+        ("leagueclient.exe", None, AppRelation.UNRELATED, None),
+        ("kakaotalk.exe", None, AppRelation.UNRELATED, None),
+        ("chrome.exe", "netflix.com", AppRelation.UNRELATED, None),
+        ("unknown-tool.exe", None, AppRelation.UNRELATED, None),
+    ],
+)
+def test_not_allowed_app_that_may_serve_the_task(name, domain, relation, support):
+    obs = ActivityObservation(NOW, name, False, 1.0, True, domain=domain)
+    f = fuse(NOW, None, obs, camera_enabled=False)
+    assert f.app is relation and f.support == support
+
+
+def test_allowed_app_carries_no_support_hint():
+    f = fuse(NOW, None, act(name="notepad.exe", allowed=True), camera_enabled=False)
+    assert f.app is AppRelation.ALLOWED and f.support is None

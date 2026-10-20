@@ -99,11 +99,12 @@ GitHub Actions checks lint, tests, the diagnostic CLI, and package builds on a W
 Sensors publish observations; the mode-aware [rule engine](src/focuslab/focus/rules.py) combines them over time and returns states with evidence codes.
 
 - A non-allowed app for at least 15 seconds produces `POSSIBLY_OFF_TASK`; brief switches retain the previous state.
+- A non-allowed app that may serve the task (a note-taking app such as Notepad, an AI assistant such as Claude, or another work/study tool) is `UNKNOWN` with a "check needed" reason instead: the app name alone neither confirms work nor establishes deviation, and neither does facing the camera.
 - An absent face for 20 seconds (60 in reading/writing) plus at least 20 seconds without input can produce `AWAY`.
 - Looking away for 15 seconds (30 in reading/writing) plus ten seconds without input can produce `POSSIBLY_OFF_TASK`. **Looking down alone does not trigger this estimate.**
 - Camera off, occlusion, darkness, errors, and stale observations are missing evidence. Face observations expire after two seconds and PC observations after three; camera loss alone does not establish deviation or absence.
 - Entering task-related/unknown states requires three seconds of sustained evidence to prevent flicker. A user-requested break is immediate.
-- Without browser details, the app explains that browser activity is unknown. Allowed-app lists can include sites such as `github.com`.
+- An allowed browser without site details is `UNKNOWN` (it may show any site), not task-related. Allowed-app lists can include sites such as `github.com`; with the browser extension connected, the reported site decides.
 
 Automatic recording uses input-based idle detection, so reading or watching a lecture without input may count as idle. Work-category totals are category sums; manual-session estimates also consider your goal and allowed apps. These are different measurements, and the UI explains the distinction.
 

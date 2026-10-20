@@ -3,6 +3,9 @@
 Principles (DEVELOPMENT_PLAN.md section 5):
 - missing or unreliable input -> UNKNOWN, never "distracted";
 - looking down alone never triggers POSSIBLY_OFF_TASK;
+- an app that may serve the task (notes, AI assistant, work tool) but is not on the allow
+  list, or a browser whose site is unknown, is UNKNOWN until the user confirms it: neither
+  the app name nor the camera proves work or deviation;
 - short deviations keep the previous state (timers), and returns to ON_TASK or
   UNKNOWN must persist ``enter_dwell_s`` before they take effect.
 """
@@ -109,13 +112,17 @@ class RuleEngine:
             return None, 0.0, (Reason.UNRELATED_APP,)
         if f.app is AppRelation.NEUTRAL:
             return None, 0.0, (Reason.NEUTRAL_APP,)
+        if f.app is AppRelation.POSSIBLY_RELATED:
+            hint = (f.support,) if f.support else ()
+            return FocusState.UNKNOWN, 0.0, (*hint, *self._face_reasons(f))
         if f.app is AppRelation.UNKNOWN:
             reasons = tuple(dict.fromkeys((*f.reasons, *self._face_reasons(f))))
             return FocusState.UNKNOWN, 0.0, reasons
 
         base: tuple[str, ...] = (Reason.ALLOWED_APP,)
-        if f.is_browser and not f.domain:
-            base += (Reason.BROWSER_DETAIL_UNKNOWN,)
+        if f.is_browser and not f.domain:  # an allowed browser may show any site
+            reasons = (*base, Reason.BROWSER_DETAIL_UNKNOWN, *self._face_reasons(f))
+            return FocusState.UNKNOWN, 0.0, reasons
         if f.face is FaceEvidence.FORWARD:
             return FocusState.ON_TASK, 0.85, (*base, Reason.FACE_FORWARD)
         if f.face is FaceEvidence.DOWN:
