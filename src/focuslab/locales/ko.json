@@ -449,5 +449,6 @@
   "Restart FocusLab to apply the selected language. Your session continues.": "선택한 언어를 적용하려면 FocusLab을 다시 실행하세요. 현재 세션은 계속됩니다.",
   "Changes apply after restarting.": "변경은 앱을 다시 실행하면 적용됩니다.",
   "Language": "언어",
-  "Pause": "일시정지"
+  "Pause": "일시정지",
+  "Know your workflow,\nnot just your screen time.": "화면 시간이 아닌\n작업 흐름을 이해하세요."
 }

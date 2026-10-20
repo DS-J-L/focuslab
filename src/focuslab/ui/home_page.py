@@ -53,7 +53,9 @@ MODE_HINTS = LocalizedMapping(
     }
 )
 TODAY = "home.today"  # ActivityReporter key
-AUTO, MANUAL = "Automatic recording", "Manual focus sessions"
+# Card tags; translated where shown, since the language is chosen after import.
+AUTO = "Automatic recording"
+MANUAL = "Manual focus sessions"
 
 
 class HomePage(QWidget):
@@ -93,40 +95,40 @@ class HomePage(QWidget):
             tr("Input-based active time"),
             tr("0s"),
             tr("Time with keyboard or mouse input"),
-            tag=AUTO,
+            tag=tr(AUTO),
         )
         self.card_work = StatCard(
             tr("Work-category time"),
             tr("0s"),
             tr("Time classified as development, study, documentation, etc."),
-            tag=AUTO,
+            tag=tr(AUTO),
         )
         self.card_auto = StatCard(
             tr("Automatic sessions"),
             tr("0 sessions"),
             tr("Work intervals detected without a timer"),
-            tag=AUTO,
+            tag=tr(AUTO),
         )
         for i, card in enumerate((self.card_active, self.card_work, self.card_auto)):
             cards.addWidget(card, 0, i)
         # Manual focus sessions: only the time inside sessions started here.
         self.card_sessions = StatCard(
-            tr("Sessions"), "0", tr("Sessions with observations today"), tag=MANUAL
+            tr("Sessions"), "0", tr("Sessions with observations today"), tag=tr(MANUAL)
         )
         self.card_on = StatCard(
             tr("Estimated task-related time"),
             tr("0s"),
             tr("Does not prove actual attention"),
-            tag=MANUAL,
+            tag=tr(MANUAL),
         )
         self.card_off = StatCard(
-            tr("Possibly off-task time"), tr("0s"), tr("Includes your corrections"), tag=MANUAL
+            tr("Possibly off-task time"), tr("0s"), tr("Includes your corrections"), tag=tr(MANUAL)
         )
         self.card_cov = StatCard(
             tr("Observation coverage"),
             tr("Not measurable"),
             tr("Share excluding unknown states"),
-            tag=MANUAL,
+            tag=tr(MANUAL),
         )
         for i, card in enumerate((self.card_sessions, self.card_on, self.card_off, self.card_cov)):
             cards.addWidget(card, 1, i)

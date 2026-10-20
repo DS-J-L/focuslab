@@ -17,6 +17,7 @@ from focuslab.ui import consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.main_window import ACTIVITY, REPORT, SETTINGS, MainWindow
 from focuslab.ui.onboarding import OnboardingDialog
+from focuslab.ui.widgets import StatCard
 
 HANGUL = re.compile("[가-힣]")
 
@@ -59,6 +60,16 @@ def test_pages_reports_tray_and_session_use_selected_language(
             else ["홈", "활동", "세션", "리포트", "설정"]
         )
         assert [window.nav.item(i).text() for i in range(5)] == expected
+        assert {card._tag.text() for card in window.home.findChildren(StatCard)} == (
+            {"Automatic recording", "Manual focus sessions"}
+            if language == "en"
+            else {"자동 기록", "수동 집중 세션"}
+        )
+        assert window.findChild(QLabel, "BrandSub").text() == (
+            "Know your workflow,\nnot just your screen time."
+            if language == "en"
+            else "화면 시간이 아닌\n작업 흐름을 이해하세요."
+        )
         for index in (ACTIVITY, REPORT, SETTINGS):
             window.go(index)
             settle(window)
