@@ -44,8 +44,7 @@ def window(qtbot, no_os):
     win = MainWindow(ctx)
     qtbot.addWidget(win)
     yield win
-    ctx.stop_recording()
-    ctx.service.shutdown()
+    win.close_down()
 
 
 def test_onboarding_defaults_collect_nothing(qtbot):
@@ -141,7 +140,7 @@ def test_camera_can_be_stopped_immediately_from_the_session(qtbot, monkeypatch):
         win.poll()
         assert not win.session.camera_stop.isVisibleTo(win.session)
     finally:
-        ctx.service.shutdown()
+        win.close_down()
 
 
 @windows_only

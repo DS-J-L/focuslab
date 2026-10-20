@@ -20,7 +20,7 @@ def window(qtbot, monkeypatch):
     qtbot.addWidget(win)
     win.show()
     yield win
-    ctx.service.shutdown()
+    win.close_down()
 
 
 def config(minutes=0):
@@ -95,3 +95,15 @@ def test_quit_releases_all_workers(qtbot, monkeypatch):
     win.quit_app()
     assert snapshot(win).lifecycle is Lifecycle.FINISHED
     assert not [t for t in threading.enumerate() if t.name.startswith("focuslab-")]
+
+
+def test_no_timer_tick_reaches_the_database_after_close_down(qtbot, monkeypatch):
+    monkeypatch.setattr(MainWindow, "_ask_self_report", lambda self, sid: None)
+    ctx = AppContext(demo=True)
+    win = MainWindow(ctx)
+    qtbot.addWidget(win)
+    win.home.startRequested.emit(config())
+    qtbot.waitUntil(lambda: snapshot(win).active_s >= 1, timeout=6000)
+    win.close_down()
+    qtbot.wait(1200)  # longer than the 500 ms poll interval
+    assert not win._timer.isActive() and not win._activity_timer.isActive()

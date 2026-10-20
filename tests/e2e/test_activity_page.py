@@ -24,7 +24,7 @@ def window(qtbot, monkeypatch, daily_scenario):
     win.go(ACTIVITY)
     win.activity.show_day(yesterday)
     yield win
-    ctx.service.shutdown()
+    win.close_down()
 
 
 def cell(table, row, col):
