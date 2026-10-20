@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QMessageBox
 from focuslab.activity.recorder import ActivityRecorder, RecorderConfig
 from focuslab.activity.stats import local_day_bounds
 from focuslab.domain.activity import ForegroundApp, ProbeSample
+from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import AUTO, MANUAL, TODAY
 from focuslab.ui.main_window import ACTIVITY, HOME, MainWindow
@@ -47,8 +48,8 @@ def test_every_home_card_says_whether_it_is_automatic_or_manual(home):
     page = home.home
     auto = (page.card_active, page.card_work, page.card_auto)
     manual = (page.card_sessions, page.card_on, page.card_off, page.card_cov)
-    assert [c._tag.text() for c in auto] == [AUTO] * 3
-    assert [c._tag.text() for c in manual] == [MANUAL] * 4
+    assert [c._tag.text() for c in auto] == [tr(AUTO)] * 3
+    assert [c._tag.text() for c in manual] == [tr(MANUAL)] * 4
     assert all(c._tag.isVisibleTo(page) for c in auto + manual)
 
 

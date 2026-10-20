@@ -58,7 +58,9 @@ class MainWindow(QMainWindow):
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(0, 0, 0, 12)
         side.addWidget(QLabel("FocusLab", objectName="Brand"))
-        tagline = QLabel("Know your workflow,\nnot just your screen time.", objectName="BrandSub")
+        tagline = QLabel(
+            tr("Know your workflow,\nnot just your screen time."), objectName="BrandSub"
+        )
         side.addWidget(tagline)
         self.nav = QListWidget()
         self.nav.addItems(
