@@ -41,6 +41,7 @@ class ActivityStats:
     by_category: Counter = field(default_factory=Counter)  # Category -> ms (idle/locked: BREAK)
     by_app: Counter = field(default_factory=Counter)  # program label -> active ms
     by_site: Counter = field(default_factory=Counter)  # hostname -> active ms
+    by_page: Counter = field(default_factory=Counter)  # page title + site, or hostname fallback
     switches: int = 0
     transitions: Counter = field(default_factory=Counter)  # (from, to) -> count
     hourly_ms: list[int] = field(default_factory=lambda: [0] * 24)  # local hour -> active ms
@@ -135,6 +136,8 @@ def compute_stats(
         stats.by_app[span.display_name or span.exe_name or name] += ms
         if span.domain:
             stats.by_site[span.domain] += ms
+            page = f"{span.page_title} ({span.domain})" if span.page_title else span.domain
+            stats.by_page[page] += ms
         if label.category in WORK:
             stats.work_ms += ms
             stats.attended_work_ms += attended_ms(span, item.camera)
