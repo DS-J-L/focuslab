@@ -1,10 +1,10 @@
-"One parrot: breathing, blinking and how it reacts to the pointer."
+"One parrot: the behavior it is playing, breathing, blinking, and reactions to the pointer."
 
 import math
 import random
 from dataclasses import dataclass, replace
 
-from focuslab.ui.mascot.animation import NEUTRAL, Pose, approach, blend
+from focuslab.ui.mascot.animation import NEUTRAL, Behavior, Pose, approach, blend
 from focuslab.ui.mascot.renderer import Plumage
 
 BLINK_S = 0.14
@@ -37,18 +37,46 @@ class BirdActor:
         self._glance = 0.0  # smoothed toward
         self._up = 0.0
         self._emote_since = 0.0
+        self.behavior: Behavior | None = None
+        self._started = 0.0
+        self._side = 1
+        self._watch = 0.0  # direction of a neighbour being watched, until _watch_until
+        self._watch_until = 0.0
+
+    # behaviors ----------------------------------------------------------------------
+    def play(self, behavior: Behavior, now: float, side: int = 1) -> None:
+        self.behavior, self._started, self._side = behavior, now, side
+
+    def stop(self) -> None:
+        self.behavior = None
+
+    def busy(self, now: float) -> bool:
+        b = self.behavior
+        if b is not None and not b.loop and now - self._started >= b.duration:
+            self.behavior = None
+        return self.behavior is not None
+
+    def watch(self, toward: float, until: float) -> None:
+        "Turn to look at a neighbour doing something (``toward`` -1 left, 1 right)."
+        self._watch, self._watch_until = toward, until
 
     def attend(self, attention: Attention, now: float) -> None:
         if attention.emote != self.attention.emote:
             self._emote_since = now
         self.attention = attention
 
-    def pose(self, now: float, base: Pose = NEUTRAL) -> Pose:
+    def pose(self, now: float) -> Pose:
         dt = 0.0 if self._last is None else now - self._last
         self._last = now
+        base = NEUTRAL
+        if self.busy(now):
+            base = self.behavior.sample(now - self._started, self._side)
         a = self.attention
+        toward = a.toward
+        if a == CALM and now < self._watch_until:
+            toward = self._watch
         self._perk = approach(self._perk, 1.0 if a.hovered else 0.0, dt, HOVER_S)
-        self._glance = approach(self._glance, a.toward, dt, HOVER_S * 1.5)
+        self._glance = approach(self._glance, toward, dt, HOVER_S * 2.5)
         self._up = approach(self._up, 1.0 if a.up else 0.0, dt, HOVER_S * 1.5)
 
         breath = math.sin(now * math.tau / 3.4 + self._phase)

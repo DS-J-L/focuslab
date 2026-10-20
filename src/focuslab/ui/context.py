@@ -157,6 +157,11 @@ class AppContext:
         return self.flag("ui.overlay_on_start", True)
 
     @property
+    def mascot_motion(self) -> str:
+        "How much the overlay parrots move on their own: minimal, normal or lively."
+        return self.setting("ui.mascot_motion") or "normal"
+
+    @property
     def camera_index(self) -> int:
         return int(self.setting("camera.index", "0") or 0)
 
