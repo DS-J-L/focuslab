@@ -36,6 +36,7 @@ from focuslab.i18n import tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.mascot.animation import Pose
+from focuslab.ui.mascot.behavior_policy import BehaviorPolicy
 from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
 from focuslab.ui.mascot.renderer import (
     HEAD_Y,
@@ -259,10 +260,12 @@ class SessionOverlay(QWidget):
         self.mini.setToolTip(tr("Click to expand"))
         self.mini.hide()
         box.addWidget(self.mini)
+        self.policy = BehaviorPolicy()
         self.apply_settings()
 
     def apply_settings(self) -> None:
         self.perch.director.set_motion(self.ctx.mascot_motion)
+        self.policy.reactions = self.ctx.mascot_reactions
 
     # showing ------------------------------------------------------------------------
     def start(self, snap: LiveSnapshot) -> None:
@@ -306,6 +309,8 @@ class SessionOverlay(QWidget):
         if snap.lifecycle not in ACTIVE:
             self.hide()
             return
+        now = self.perch.clock()
+        self.perch.director.set_mood(self.policy.update(snap, now), now)
         paused = snap.lifecycle is Lifecycle.PAUSED
         focusing, paused_text, break_text = status_texts()
         self.status.setText(paused_text if paused else break_text if snap.on_break else focusing)

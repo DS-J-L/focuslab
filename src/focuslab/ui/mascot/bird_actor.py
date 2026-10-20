@@ -40,12 +40,15 @@ class BirdActor:
         self.behavior: Behavior | None = None
         self._started = 0.0
         self._side = 1
+        self._still = False
         self._watch = 0.0  # direction of a neighbour being watched, until _watch_until
         self._watch_until = 0.0
 
     # behaviors ----------------------------------------------------------------------
-    def play(self, behavior: Behavior, now: float, side: int = 1) -> None:
+    def play(self, behavior: Behavior, now: float, side: int = 1, still: bool = False) -> None:
+        "Start ``behavior`` at ``now``; ``still`` holds its expression without moving."
         self.behavior, self._started, self._side = behavior, now, side
+        self._still = still
 
     def stop(self) -> None:
         self.behavior = None
@@ -70,7 +73,8 @@ class BirdActor:
         self._last = now
         base = NEUTRAL
         if self.busy(now):
-            base = self.behavior.sample(now - self._started, self._side)
+            t = self.behavior.duration * 0.25 if self._still else now - self._started
+            base = self.behavior.sample(t, self._side)
         a = self.attention
         toward = a.toward
         if a == CALM and now < self._watch_until:

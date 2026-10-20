@@ -490,6 +490,8 @@
   "Minimal: breathing and blinking": "최소: 숨쉬기와 눈 깜빡임만",
   "Normal: dozing, singing, playing": "보통: 졸기, 노래, 놀기",
   "Lively: more often, more together": "활발: 더 자주, 더 함께",
+  "Parrots react when you seem to be off task": "딴짓으로 추정되면 앵무새가 반응",
+  "Off task is an estimate. The parrots first just look at you and only get cross after 30 seconds without a break in it.": "딴짓 판정은 추정입니다. 앵무새는 처음에는 쳐다보기만 하고, 30초 동안 계속되어야 화를 냅니다.",
   "FocusLab {p0} → {p1}": "FocusLab {p0} → {p1}",
   "FocusLab restarts to finish the update; your records and settings are kept.": "업데이트를 마치려면 FocusLab이 다시 시작되며, 기록과 설정은 유지됩니다.",
   "{p0} MB/s": "{p0} MB/s",

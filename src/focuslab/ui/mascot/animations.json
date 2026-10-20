@@ -109,6 +109,78 @@
         "blush": [[0, 0], [0.2, 1], [0.8, 1], [1, 0]]
       },
       "emotes": [[0.2, "heart"], [0.8, null]]
+    },
+    "watch": {
+      "duration": 5.0, "loop": true, "random": false,
+      "tracks": {
+        "eyes": [[0, "wide"], [1, "wide"]],
+        "look_y": [[0, 0.3], [1, 0.3]],
+        "crest": [[0, 8], [1, 8]],
+        "puff": [[0, 0.15], [1, 0.15]]
+      },
+      "waves": {"head_tilt": [3, 0.4, 0]}
+    },
+    "watch_alert": {
+      "duration": 6.0, "loop": true, "random": false,
+      "tracks": {
+        "eyes": [[0, "wide"], [1, "wide"]],
+        "look_y": [[0, 0.3], [1, 0.3]],
+        "crest": [[0, 10], [1, 10]],
+        "puff": [[0, 0.2], [1, 0.2]]
+      },
+      "waves": {"head_tilt": [3, 0.33, 0]},
+      "emotes": [[0, "alert"], [0.35, null]]
+    },
+    "scold": {
+      "duration": 1.6, "loop": true, "random": false,
+      "tracks": {
+        "eyes": [[0, "angry"], [1, "angry"]],
+        "puff": [[0, 0.5], [1, 0.5]],
+        "look_y": [[0, 0.3], [1, 0.3]]
+      },
+      "waves": {"wing_l": [12, 1.25, 18], "wing_r": [12, 1.25, 18], "y": [-1.5, 2.5, 0], "tilt": [3, 1.25, 0]},
+      "emotes": [[0, "anger"]]
+    },
+    "angry": {
+      "duration": 1.0, "loop": true, "random": false,
+      "tracks": {
+        "eyes": [[0, "angry"], [1, "angry"]],
+        "puff": [[0, 0.9], [1, 0.9]],
+        "blush": [[0, 1], [1, 1]],
+        "look_y": [[0, 0.3], [1, 0.3]]
+      },
+      "waves": {"wing_l": [30, 3, 45], "wing_r": [30, 3, 45], "y": [-3, 4, -1], "tilt": [5, 2, 0]},
+      "emotes": [[0, "anger"]]
+    },
+    "cheer": {
+      "duration": 2.4, "random": false,
+      "tracks": {
+        "eyes": [[0, "happy"], [1, "happy"]],
+        "y": [[0, 0], [0.15, -9], [0.3, 0], [0.45, -7], [0.6, 0], [1, 0]],
+        "squash": [[0, 1], [0.15, 1.08], [0.3, 0.92], [0.45, 1.06], [0.6, 0.94], [0.75, 1], [1, 1]],
+        "wing_l": [[0, 0], [0.15, 60], [0.6, 40], [1, 0]],
+        "wing_r": [[0, 0], [0.15, 60], [0.6, 40], [1, 0]],
+        "blush": [[0, 0], [0.2, 1], [0.8, 1], [1, 0]]
+      },
+      "emotes": [[0.05, "sparkle"], [0.9, null]]
+    },
+    "sleep": {
+      "duration": 4.0, "loop": true, "random": false,
+      "tracks": {
+        "eye_open": [[0, 0.05], [1, 0.05]],
+        "head_tilt": [[0, -10], [1, -10]],
+        "squash": [[0, 0.95], [1, 0.95]],
+        "puff": [[0, 0.3], [1, 0.3]]
+      },
+      "waves": {"y": [0.6, 0.25, 1.5]},
+      "emotes": [[0, "zzz"]]
+    },
+    "wait": {
+      "duration": 8.0, "loop": true, "random": false,
+      "tracks": {
+        "turn": [[0, 0], [0.2, -0.8], [0.4, -0.8], [0.6, 0.8], [0.8, 0.8], [1, 0]],
+        "look_x": [[0, 0], [0.2, -1], [0.4, -1], [0.6, 1], [0.8, 1], [1, 0]]
+      }
     }
   }
 }

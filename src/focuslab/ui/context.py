@@ -162,6 +162,11 @@ class AppContext:
         return self.setting("ui.mascot_motion") or "normal"
 
     @property
+    def mascot_reactions(self) -> bool:
+        "The parrots react to estimated off-task time (they never do during breaks)."
+        return self.flag("ui.mascot_reactions", True)
+
+    @property
     def camera_index(self) -> int:
         return int(self.setting("camera.index", "0") or 0)
 
