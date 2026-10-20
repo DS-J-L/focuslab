@@ -80,7 +80,7 @@ ACCENT = "#3B5BDB"
 
 STYLESHEET = f"""
 QWidget {{ color: #1F2430; }}
-QMainWindow, QStackedWidget > QWidget {{ background: #F5F6F8; }}
+QMainWindow, QStackedWidget > QWidget, #PageContent {{ background: #F5F6F8; }}
 #Sidebar {{ background: #1F2430; border: none; }}
 #Sidebar QListWidget {{ background: transparent; border: none; color: #C9CED8; font-size: 14px;
                         outline: 0; }}
@@ -92,6 +92,7 @@ QMainWindow, QStackedWidget > QWidget {{ background: #F5F6F8; }}
 #Muted {{ color: #6B7385; }}
 #Card {{ background: white; border: 1px solid #E3E6EC; border-radius: 12px; }}
 #CardTitle {{ color: #6B7385; font-size: 12px; }}
+#CardTag {{ color: {ACCENT}; font-size: 11px; font-weight: 700; }}
 #CardValue {{ font-size: 22px; font-weight: 700; }}
 #CardHint {{ color: #8C94A6; font-size: 11px; }}
 #Notice {{ background: #FFF8E6; border: 1px solid #F1D79B; border-radius: 8px; padding: 8px 10px;

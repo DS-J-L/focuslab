@@ -1,4 +1,5 @@
-"""Home: today's summary, new session form (goal, mode, time, allowed apps, camera), recents."""
+"""Home: today's automatic recording and manual focus sessions side by side (each card says
+which one it comes from), new session form (goal, mode, time, allowed apps, camera), recents."""
 
 from datetime import datetime
 
@@ -7,6 +8,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -30,6 +33,8 @@ from focuslab.config import MODE_LABELS, NEUTRAL_APPS
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.focus.metrics import compute_metrics, format_duration, format_ratio
 from focuslab.ui.context import AppContext
+from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
+from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.widgets import StatCard
 
 MODE_HINTS = {
@@ -40,27 +45,59 @@ MODE_HINTS = {
     ),
     SessionMode.CUSTOM: "허용 앱을 직접 지정합니다.",
 }
+TODAY = "home.today"  # ActivityReporter key
+AUTO, MANUAL = "자동 기록", "수동 집중 세션"
 
 
 class HomePage(QWidget):
     startRequested = Signal(object)  # SessionConfig
     openReport = Signal(int)
+    openActivity = Signal()
 
-    def __init__(self, ctx: AppContext) -> None:
+    def __init__(self, ctx: AppContext, reporter: ActivityReporter) -> None:
         super().__init__()
         self.ctx = ctx
-        root = QVBoxLayout(self)
+        self.reporter = reporter
+        reporter.ready.connect(self._report_ready)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()  # two rows of cards and the form: scroll on small windows
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        outer.addWidget(scroll)
+        content = QWidget(objectName="PageContent")
+        scroll.setWidget(content)
+        root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(16)
-        root.addWidget(QLabel("오늘", objectName="PageTitle"))
+        root.setSpacing(12)
+        head = QHBoxLayout()
+        head.addWidget(QLabel("오늘", objectName="PageTitle"))
+        head.addStretch()
+        self.recording_status = QLabel(objectName="Muted")
+        head.addWidget(self.recording_status)
+        self.to_activity = QPushButton("활동 보기")
+        self.to_activity.clicked.connect(self.openActivity)
+        head.addWidget(self.to_activity)
+        root.addLayout(head)
 
         cards = QGridLayout()
-        self.card_sessions = StatCard("세션", "0", "오늘 기록이 있는 세션")
-        self.card_on = StatCard("작업 관련 추정 시간", "0초", "실제 집중의 증명은 아닙니다")
-        self.card_off = StatCard("이탈 의심 시간", "0초", "정정 내용 반영")
-        self.card_cov = StatCard("측정 커버리지", "측정 불가", "판단 불가를 제외한 비율")
-        for i, card in enumerate((self.card_sessions, self.card_on, self.card_off, self.card_cov)):
+        # Automatic recording: what the always-on recorder saw today, with or without a session.
+        self.card_active = StatCard("입력 기준 활성 시간", "0초", "키보드·마우스 입력이 있던 시간",
+                                    tag=AUTO)
+        self.card_work = StatCard("작업 카테고리 시간", "0초", "개발·공부·문서 등 분류 합계",
+                                  tag=AUTO)
+        self.card_auto = StatCard("자동 세션", "0개", "타이머 없이 감지한 작업 구간", tag=AUTO)
+        for i, card in enumerate((self.card_active, self.card_work, self.card_auto)):
             cards.addWidget(card, 0, i)
+        # Manual focus sessions: only the time inside sessions started here.
+        self.card_sessions = StatCard("세션", "0", "오늘 기록이 있는 세션", tag=MANUAL)
+        self.card_on = StatCard("작업 관련 추정 시간", "0초", "실제 집중의 증명은 아닙니다",
+                                tag=MANUAL)
+        self.card_off = StatCard("이탈 의심 시간", "0초", "정정 내용 반영", tag=MANUAL)
+        self.card_cov = StatCard("측정 커버리지", "측정 불가", "판단 불가를 제외한 비율",
+                                 tag=MANUAL)
+        for i, card in enumerate((self.card_sessions, self.card_on, self.card_off, self.card_cov)):
+            cards.addWidget(card, 1, i)
         root.addLayout(cards)
 
         body = QHBoxLayout()
@@ -111,6 +148,7 @@ class HomePage(QWidget):
         form.addRow("목표 시간", self.minutes)
 
         self.apps = QListWidget()
+        self.apps.setMinimumHeight(90)
         self.apps.setMaximumHeight(130)
         self.apps.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         app_buttons = QHBoxLayout()
@@ -220,6 +258,7 @@ class HomePage(QWidget):
     # summary ----------------------------------------------------------------------
     def refresh(self) -> None:
         today = datetime.now().astimezone().date()
+        self.refresh_activity()
         with self.ctx.service.lock:
             repo = self.ctx.service.repository
             todays = session_samples(repo, *local_day_bounds(today))  # by each second's time
@@ -241,6 +280,27 @@ class HomePage(QWidget):
             self.recent.addItem(item)
         if not sessions:
             self.recent.addItem("아직 기록된 세션이 없습니다.")
+
+    def refresh_activity(self) -> None:
+        """Today's automatic recording, computed on the report worker (never on this thread)."""
+        self.set_recording_health(self.ctx.recording_health())
+        today = datetime.now().astimezone().date()
+        self.reporter.request(TODAY, *local_day_bounds(today), today)
+
+    def _report_ready(self, key: str, day, result) -> None:
+        if key != TODAY:
+            return
+        st = result[1]
+        self.card_active.set(format_duration(st.active_ms / 1000))
+        self.card_work.set(format_duration(st.work_ms / 1000))
+        self.card_auto.set(f"{len(st.sessions)}개")
+
+    def set_recording_health(self, health: RecordingHealth) -> None:
+        self.recording_status.setText(health.text)
+        self.recording_status.setStyleSheet(
+            WARNING_STYLE if health.saving_failed else ""
+        )
+        self.recording_status.setToolTip(health.detail)
 
     def set_running(self, running: bool) -> None:
         self.start_button.setEnabled(not running)

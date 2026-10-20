@@ -264,6 +264,58 @@ def test_failed_flush_is_retried_without_losing_spans(rig, clock, monkeypatch):
     assert rel(spans) == [(0, 10, SpanKind.ACTIVE, "code.exe")]
 
 
+def test_save_errors_persist_until_a_save_succeeds(rig, clock, monkeypatch):
+    _, wall, make, run, _ = rig
+    rec = make(flush_s=5)
+    started = rec.status()
+    assert started.last_save_ms == T0 and started.save_error is None  # START event saved
+    original = rec._repo.insert_span
+    failing = {"on": True}
+
+    def flaky(span, *args):
+        if failing["on"]:
+            raise sqlite3.OperationalError("disk I/O error")
+        return original(span, *args)
+
+    monkeypatch.setattr(rec._repo, "insert_span", flaky)
+    rec.tick()
+    run(rec, 5)
+    first_failure = wall()
+    status = rec.status()
+    assert status.save_error == "disk I/O error" and status.probe_error is None
+    assert status.save_failing_since_ms == first_failure and status.last_save_ms == T0
+    run(rec, 5)  # the probe keeps working: observing is fine, saving is not
+    status = rec.status()
+    assert status.save_error and status.current is not None
+    assert status.save_failing_since_ms == first_failure  # since the first failure in a row
+    failing["on"] = False
+    run(rec, 5)
+    status = rec.status()
+    assert status.save_error is None and status.save_failing_since_ms is None
+    assert status.last_save_ms == wall()
+
+
+def test_a_probe_error_does_not_hide_or_clear_a_save_error(rig, clock, monkeypatch):
+    probe, _, make, run, _ = rig
+    rec = make(flush_s=5)
+    rec.tick()
+
+    def locked(*args):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(rec._repo, "add_events", locked)
+    run(rec, 5)
+    probe.current = OSError("access denied")
+    run(rec, 1)
+    status = rec.status()
+    assert status.probe_error == "access denied" and status.save_error == "database is locked"
+    assert status.error == "database is locked"  # saving is the one that loses data
+    probe.current = app("code.exe")
+    run(rec, 1)
+    assert rec.status().probe_error is None and rec.status().save_error == "database is locked"
+    monkeypatch.undo()  # let the fixture stop the recorder cleanly
+
+
 def test_threaded_recorder_starts_and_stops_cleanly(tmp_path):
     import threading
 

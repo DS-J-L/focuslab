@@ -12,6 +12,7 @@ from focuslab.activity.recorder import (
     ActivityRecorder,
     RecorderConfig,
     RecorderState,
+    RecorderStatus,
 )
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
@@ -27,6 +28,7 @@ from focuslab.services.session_service import NoActivitySource, SessionService
 from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
+from focuslab.ui.recording_status import RecordingHealth, describe
 
 
 class AppContext:
@@ -190,6 +192,13 @@ class AppContext:
     @property
     def recording_state(self) -> RecorderState:
         return self.recorder.state if self.recorder else RecorderState.STOPPED
+
+    def recording_status(self) -> RecorderStatus | None:
+        return self.recorder.status() if self.recorder else None
+
+    def recording_health(self) -> RecordingHealth:
+        """Observing and saving, separately, in words for the pages and the tray."""
+        return describe(self.recording_status(), self.recording_consent)
 
     def set_recording_paused(self, paused: bool) -> None:
         self.set_flag("activity.paused", paused)

@@ -7,10 +7,12 @@ from PySide6.QtWidgets import QMenu, QSystemTrayIcon, QWidget
 from focuslab.activity.recorder import RecorderState
 from focuslab.domain.models import CameraStatus
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
+from focuslab.ui.recording_status import RecordingHealth
 from focuslab.ui.theme import ACCENT, STATE_COLORS, STATE_LABELS
 from focuslab.ui.widgets import clock_text
 
 PAUSED_COLOR = "#8C94A6"
+SAVE_FAILED_COLOR = "#E8590C"
 
 
 def make_icon(color: str, camera_on: bool = False, size: int = 64) -> QIcon:
@@ -42,6 +44,9 @@ class Tray(QSystemTrayIcon):
         super().__init__(make_icon(ACCENT), window)
         self.setToolTip("FocusLab")
         menu = QMenu()
+        self.health_action: QAction = menu.addAction("")  # observing and saving, as text
+        self.health_action.setEnabled(False)
+        menu.addSeparator()
         menu.addAction("열기", window.show_normal)
         self.recording_action: QAction = menu.addAction(
             "기록 일시정지", window.toggle_recording_pause
@@ -61,8 +66,20 @@ class Tray(QSystemTrayIcon):
             else None
         )
         self._key: tuple | None = None
+        self._save_failed = False
 
-    def update_state(self, snap: LiveSnapshot, recording: RecorderState) -> None:
+    def update_state(
+        self, snap: LiveSnapshot, recording: RecorderState, health: RecordingHealth | None = None
+    ) -> None:
+        health = health or RecordingHealth(RECORDING_TEXT[recording])
+        self.health_action.setText(health.text)
+        if health.saving_failed and not self._save_failed:  # once per failure, not every poll
+            self.showMessage(
+                "FocusLab",
+                "자동 기록을 저장하지 못하고 있습니다. 저장되면 이 경고는 사라집니다.",
+                QSystemTrayIcon.MessageIcon.Warning,
+            )
+        self._save_failed = health.saving_failed
         active = snap.lifecycle in ACTIVE
         camera_on = snap.camera_status in (CameraStatus.RUNNING, CameraStatus.STARTING)
         self.pause_action.setEnabled(active)
@@ -75,15 +92,19 @@ class Tray(QSystemTrayIcon):
             "기록 재개" if recording is RecorderState.PAUSED else "기록 일시정지"
         )
         state = snap.decision.state if active and snap.decision else None
-        key = (state, camera_on, snap.lifecycle, recording)
+        key = (state, camera_on, snap.lifecycle, recording, health.saving_failed)
         if key != self._key:
             if state:
                 color = STATE_COLORS[state]
+            elif health.saving_failed:
+                color = SAVE_FAILED_COLOR
             else:
                 color = ACCENT if recording is RecorderState.RUNNING else PAUSED_COLOR
             self.setIcon(make_icon(color, camera_on))
             self._key = key
         parts = ["FocusLab", RECORDING_TEXT[recording]]
+        if health.saving_failed:  # Windows cuts tooltips at 127 characters: keep it short
+            parts.append("⚠ 저장 실패")
         if active:
             parts.append(f"세션 {clock_text(snap.active_s)}")
             parts.append("일시정지" if snap.lifecycle is Lifecycle.PAUSED else
