@@ -13,6 +13,7 @@ from focuslab.activity.recorder import (
     RecorderConfig,
     RecorderState,
     RecorderStatus,
+    wall_ms,
 )
 from focuslab.activity.win_events import WindowsEventThread
 from focuslab.activity.windows_tracker import WindowsActivitySource
@@ -30,6 +31,9 @@ from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
 from focuslab.ui.recording_status import RecordingHealth, describe
+
+# The recorder extends its open span on every poll (1 s); older browser detail is stale.
+BROWSER_DETAIL_TTL_MS = 5_000
 
 
 class AppContext:
@@ -118,6 +122,7 @@ class AppContext:
         if self.recorder:
             self.recorder.set_title_tracking(on)
         if not on:
+            self.service.forget_page_titles()
             with self.service.lock:
                 BrowserStateStore(self.service.repository.conn).clear_titles()
 
@@ -217,15 +222,23 @@ class AppContext:
             return MockActivitySource(config.allowed_apps)
         if not self.activity_consent:
             return NoActivitySource()
-        return WindowsActivitySource(config.allowed_apps, domain_of=self._current_domain)
+        return WindowsActivitySource(config.allowed_apps, browser_of=self._current_browser)
 
-    def _current_domain(self, exe_name: str) -> str | None:
-        """The site the recorder attached to the foreground browser right now, if any."""
+    def _current_browser(self, exe_name: str) -> tuple[str | None, str | None]:
+        """Site and page title the recorder attached to the foreground browser right now.
+
+        A span the recorder has not extended recently (stalled thread, paused recording) is
+        stale and yields nothing. The title is dropped unless page titles are still allowed,
+        so a withdrawal takes effect on the very next session tick.
+        """
         status = self.recorder.status() if self.recorder else None
         current = status.current if status else None
-        if current and current.exe_name == exe_name:
-            return current.domain
-        return None
+        if not current or current.exe_name != exe_name:
+            return None, None
+        if wall_ms() - current.end_ms > BROWSER_DETAIL_TTL_MS:
+            return None, None
+        title = current.page_title if self.page_titles_consent else None
+        return current.domain, title
 
     # always-on recording -------------------------------------------------------------
     def start_recording(self) -> bool:

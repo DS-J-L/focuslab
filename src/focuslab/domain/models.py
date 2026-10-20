@@ -74,7 +74,9 @@ class ActivityObservation:
     """Minimal activity observation without window titles or keystrokes.
 
     ``is_allowed_app`` is None when the foreground app is neutral (desktop shell,
-    FocusLab itself) or unavailable.
+    FocusLab itself) or unavailable. ``page_title`` is the active tab title reported by the
+    browser extension, present only while the user has opted in to page titles; it is never
+    read from the OS window.
     """
 
     timestamp_ms: int
@@ -84,6 +86,7 @@ class ActivityObservation:
     available: bool
     screen_locked: bool = False
     domain: str | None = None  # browser site from the extension, if known
+    page_title: str | None = None  # same report as ``domain``, only with title consent
 
 
 @dataclass(frozen=True)

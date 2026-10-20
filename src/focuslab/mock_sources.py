@@ -75,12 +75,15 @@ class MockFaceSource:
 
 
 class MockActivitySource:
-    """Plays ``(seconds, process_name, "active" | "idle" | "locked" | "unavailable")`` steps."""
+    """Plays ``(seconds, process_name, "active" | "idle" | "locked" | "unavailable")`` steps.
+
+    A step may add ``domain`` and ``page_title`` as if the browser extension reported them.
+    """
 
     def __init__(
         self,
         allowed_apps: Sequence[str],
-        script: Sequence[tuple[float, str, str]] = DEMO_ACTIVITY_SCRIPT,
+        script: Sequence[tuple] = DEMO_ACTIVITY_SCRIPT,
         loop: bool = True,
     ) -> None:
         self._allowed = tuple(allowed_apps)
@@ -92,16 +95,17 @@ class MockActivitySource:
         if self._t0 is None:
             self._t0 = now_ms
         pos = _position(sum(s[0] for s in self._script), (now_ms - self._t0) / 1000, self._loop)
-        _, name, kind = self._script[-1]
-        for duration, step_name, step_kind in self._script:
-            if pos < duration:
-                name, kind = step_name, step_kind
+        step = self._script[-1]
+        for candidate in self._script:
+            if pos < candidate[0]:
+                step = candidate
                 break
-            pos -= duration
+            pos -= candidate[0]
+        _, name, kind, domain, title = (*step, None, None)[:5]
         if kind == "unavailable":
             return ActivityObservation(now_ms, None, None, None, available=False)
         idle = pos if kind == "idle" else 0.0
         return ActivityObservation(
-            now_ms, name, allowed_status(name, self._allowed), idle, available=True,
-            screen_locked=kind == "locked",
+            now_ms, name, allowed_status(name, self._allowed, domain), idle, available=True,
+            screen_locked=kind == "locked", domain=domain, page_title=title,
         )

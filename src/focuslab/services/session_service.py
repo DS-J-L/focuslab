@@ -31,6 +31,8 @@ from focuslab.domain.protocols import ActivitySource, Clock, FaceSource, Monoton
 from focuslab.focus.fusion import FaceEvidence, fuse
 from focuslab.focus.reasons import Reason
 from focuslab.focus.rules import RuleEngine
+from focuslab.relevance.engine import RelevanceEngine
+from focuslab.relevance.models import RelevanceInput, TaskRelevanceResult
 from focuslab.storage.repository import Repository, utc_now
 from focuslab.storage.sqlite_db import connect
 
@@ -94,6 +96,7 @@ class LiveSnapshot:
     seconds: dict[FocusState, int] = field(default_factory=dict)
     segments: tuple[StateSegment, ...] = ()
     planned_reached: bool = False
+    relevance: TaskRelevanceResult | None = None  # goal vs. the current activity
 
 
 class NoActivitySource:
@@ -129,6 +132,7 @@ class SessionService:
         self._wall = wall or (lambda: time.time_ns() // 1_000_000)
         self._cfg = rule_config or RuleConfig()
         self._calibration_provider = calibration
+        self._relevance = RelevanceEngine()
         self._auto_tick = auto_tick
         self._lock = threading.RLock()
         self._thread: threading.Thread | None = None
@@ -155,6 +159,7 @@ class SessionService:
         self._last_activity: ActivityObservation | None = None
         self._last_face: FaceObservation | None = None
         self._last_face_evidence: FaceEvidence | None = None
+        self._last_relevance: TaskRelevanceResult | None = None
         self._planned_reached = False
 
     @property
@@ -235,6 +240,16 @@ class SessionService:
                 return
             self._activity = NoActivitySource()
             self._last_activity = None
+            self._last_relevance = None
+            self._relevance.forget_titles()
+
+    def forget_page_titles(self) -> None:
+        """Page-title consent withdrawn: drop the last title and anything derived from it."""
+        with self._lock:
+            if self._last_activity is not None:
+                self._last_activity = replace(self._last_activity, page_title=None)
+            self._last_relevance = None
+            self._relevance.forget_titles()
 
     def finish(self) -> int | None:
         """Stop observing and close the session. Returns the finished session id."""
@@ -346,6 +361,9 @@ class SessionService:
                 cfg=self._cfg,
                 user_break=self._on_break,
             )
+            relevance = self._relevance.evaluate(
+                RelevanceInput.of(config.goal, config.mode, activity, self._cfg.active_idle_s)
+            )
             decision = self._engine.evaluate(frame, dt_s=elapsed)
             if config.planned_minutes:
                 elapsed = min(elapsed, config.planned_minutes * 60 - self._active_s)
@@ -361,6 +379,7 @@ class SessionService:
             self._last_activity = activity
             self._last_face = face
             self._last_face_evidence = frame.face
+            self._last_relevance = relevance
             if config.planned_minutes and self._active_s >= config.planned_minutes * 60:
                 self._planned_reached = True
                 self._finish_locked()
@@ -426,6 +445,7 @@ class SessionService:
                 seconds=dict(self._counts),
                 segments=tuple(self._segments),
                 planned_reached=self._planned_reached,
+                relevance=self._last_relevance,
             )
 
     def recover_interrupted(self) -> list[int]:

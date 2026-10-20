@@ -51,6 +51,7 @@ class FusedFrame:
     user_break: bool = False
     is_browser: bool = False
     domain: str | None = None
+    page_title: str | None = None
     support: str | None = None  # why a POSSIBLY_RELATED app may serve the task
 
 
@@ -147,5 +148,6 @@ def fuse(
         user_break=user_break,
         is_browser=bool(name and normalize(name) in BROWSERS),
         domain=activity.domain if activity and fresh else None,
+        page_title=activity.page_title if activity and fresh else None,
         support=support,
     )
