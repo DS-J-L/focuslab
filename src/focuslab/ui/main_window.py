@@ -3,7 +3,7 @@
 import sys
 from dataclasses import replace
 
-from PySide6.QtCore import QLockFile, QTimer
+from PySide6.QtCore import QLockFile, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -299,12 +299,19 @@ def run_onboarding(ctx: AppContext, parent: QWidget | None = None) -> None:
     ctx.apply_onboarding(dialog.choice())
 
 
+def apply_theme(app: QApplication) -> None:
+    """The stylesheet is a light design: keep Qt's palette light even in Windows dark mode,
+    otherwise popups and unstyled areas get dark backgrounds under the dark stylesheet text."""
+    app.styleHints().setColorScheme(Qt.ColorScheme.Light)
+    app.setStyleSheet(STYLESHEET)
+
+
 def run_app(demo: bool = False, background: bool = False) -> int:
     _set_windows_app_id()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("FocusLab")
     app.setQuitOnLastWindowClosed(False)
-    app.setStyleSheet(STYLESHEET)
+    apply_theme(app)
     if sys.platform == "win32":
         app.setFont(QFont("Malgun Gothic", 10))
 

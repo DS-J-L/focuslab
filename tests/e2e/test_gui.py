@@ -107,3 +107,24 @@ def test_no_timer_tick_reaches_the_database_after_close_down(qtbot, monkeypatch)
     win.close_down()
     qtbot.wait(1200)  # longer than the 500 ms poll interval
     assert not win._timer.isActive() and not win._activity_timer.isActive()
+
+
+def test_popups_stay_readable_on_a_dark_system_palette(qapp, qtbot):
+    from PySide6.QtGui import QColor, QPalette
+
+    from focuslab.ui.main_window import apply_theme
+
+    previous_palette, previous_sheet = qapp.palette(), qapp.styleSheet()
+    dark = QPalette(QColor("#1e1e1e"))  # what Windows dark mode hands Qt
+    qapp.setPalette(dark)
+    try:
+        apply_theme(qapp)
+        box = QMessageBox(QMessageBox.Icon.Information, "t", "popup text")
+        qtbot.addWidget(box)
+        box.ensurePolished()
+        # The stylesheet's dark text (#1F2430) must sit on a light popup background.
+        assert box.palette().window().color().lightness() > 200
+        assert box.palette().windowText().color().lightness() < 100
+    finally:
+        qapp.setPalette(previous_palette)
+        qapp.setStyleSheet(previous_sheet)

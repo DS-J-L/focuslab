@@ -94,7 +94,7 @@ class SettingsPage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         outer.addWidget(scroll)
-        content = QWidget()
+        content = QWidget(objectName="PageContent")
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
