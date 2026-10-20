@@ -1,6 +1,6 @@
 # Contributing
 
-Read the [development plan](DEVELOPMENT_PLAN.md) and [privacy principles](PRIVACY.md) first. The project is a developer prototype; field validation, threshold tuning, and a distributable installer remain separate work packages.
+Read the [development plan](DEVELOPMENT_PLAN.md), [privacy principles](PRIVACY.md), and [PR merge safety policy](docs/merge-policy.md) first. The project is a developer prototype; field validation, threshold tuning, and a distributable installer remain separate work packages.
 
 ## Windows PowerShell setup
 
@@ -17,16 +17,18 @@ node --test "browser_extension/test/*.test.js"
 uv build
 ```
 
-## Workflow
+## Development and PR workflow
 
-1. Describe scope and privacy impact in an issue.
-2. Implement one purpose on a `feat/<scope>` or `fix/<scope>` branch.
-3. Sensors publish observations only. Keep them separate from judgments, UI, and storage. Test the recorder with scripted probes and a fake clock rather than live OS activity (`tests/unit/test_recorder.py`).
-4. Record lint, test, and applicable real-Windows validation results in the PR.
-5. Confirm the PR base is `main` for final integration, then merge after validation and review. When using stacked branches, merging into a parent feature branch alone does not integrate the changes into `main`.
-6. After a remote merge, update your local `main` with `git pull --ff-only` after saving ongoing work.
+1. Open a small, scoped issue/PR describing behavior, tests, privacy and performance impact.
+2. **Start each work branch from updated `main`**, not a previous feature branch. Use `feat/<scope>`, `fix/<scope>` or `chore/<scope>`. If work depends on another PR, wait until that PR is verified in `main`.
+3. Keep sensors separate from judgments, UI, and storage. Test the recorder with scripted probes and a fake clock rather than live OS activity (`tests/unit/test_recorder.py`).
+4. **Target `main` directly** in every PR. The CI job **PR targets main** fails for feature-to-feature PRs, which previously appeared merged without reaching the default branch.
+5. Finish all intended changes **before** validation. Push the branch, record the *full head SHA*, and wait for both **PR targets main** and **Windows Python 3.11** checks on that SHA. New commits invalidate the old validation; rerun the checks and freeze the new head.
+6. Review, then merge using the **merge-commit** method and `expected_head_sha` / GitHub's current PR head SHA. Do not assume an already-merged PR includes later commits pushed to its branch.
+7. **Do not declare completion at the merge API response.** Re-fetch `main`, verify the locked PR head is an ancestor of `main`, verify the intended files and important behavior **in `main`**, and wait for the **post-merge main CI** to pass. Put final main SHA, checked paths, and CI URL in the completion report. If verification fails, open a recovery PR.
+8. Retire the merged work branch; start subsequent work from the updated `main` rather than continuing to push to a merged branch. After saving uncommitted work, `git switch main; git pull --ff-only origin main`.
 
-Use synthetic observations (`focuslab.mock_sources`, `focuslab --seed-demo`) as default test data. Do not commit raw camera footage, personal records, or secrets. Verify new dependencies on Windows Python 3.11 and update `uv.lock` and third-party notices together.
+See [the complete, reproducible checklist](docs/merge-policy.md). Use synthetic observations (`focuslab.mock_sources`, `focuslab --seed-demo`) as default test data. Do not commit raw camera footage, personal records, or secrets. Verify new dependencies on Windows Python 3.11 and update `uv.lock` and third-party notices together.
 
 ## Documentation and translations
 
