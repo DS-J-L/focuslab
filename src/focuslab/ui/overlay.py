@@ -1,10 +1,26 @@
-"Floating session overlay: session time on top of other programs, with pause and end."
+"""Floating session overlay: three parrots on a branch above the session time.
 
+The parrots are the controls: red pauses or resumes, blue ends the session and yellow
+starts or ends a break. Minimize and close sit in the top-right corner; minimized, the
+overlay is just a small parrot and the time.
+"""
+
+import time
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QGuiApplication, QMouseEvent, QPixmap, QResizeEvent
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QGuiApplication,
+    QHideEvent,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPixmap,
+    QResizeEvent,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QApplication,
     QFrame,
     QHBoxLayout,
@@ -19,18 +35,39 @@ from focuslab.domain.models import FocusState
 from focuslab.i18n import tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
+from focuslab.ui.mascot.animation import Pose
+from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
+from focuslab.ui.mascot.renderer import (
+    HEAD_Y,
+    TOP_Y,
+    paint_bird,
+    paint_branch,
+    paint_bubble,
+    paint_emote,
+    paint_plaque,
+)
 from focuslab.ui.widgets import clock_text
 
 MARGIN = 16
 POS_KEY = "ui.overlay_pos"  # top-right corner, so collapsing keeps the right edge in place
+FRAME_MS = 33  # about 30 frames per second, only while the parrots are on screen
+
+# Scene geometry (px) of the expanded overlay.
+SCENE_W, SCENE_H = 300, 244
+SEATS = (78.0, 150.0, 222.0)  # x of each parrot's feet
+BRANCH = QRectF(16, 164, 268, 15)
+SEAT_Y = BRANCH.top() + 3
+PLAQUE = QRectF(48, 194, 204, 40)
+STRINGS = (92.0, 208.0)
+BIRD_SCALE = 1.04
 
 STYLE = """
-#Overlay { background: rgba(31, 36, 48, 238); border-radius: 12px; }
+#Overlay { background: rgba(31, 36, 48, 238); border-radius: 14px; }
 #Overlay QLabel { color: white; background: transparent; }
-#Overlay QLabel#OverlayStatus { color: #C9CED8; font-size: 12px; }
-#Overlay QLabel#OverlayTime { font-size: 22px; font-weight: 700; }
+#Overlay QLabel#OverlayStatus { color: #A0A9BC; font-size: 12px; }
+#Overlay QLabel#OverlayTime { color: #E6E9EF; font-size: 19px; font-weight: 700; }
 #Overlay QPushButton { background: transparent; border: none; border-radius: 6px;
-                       color: #C9CED8; padding: 2px 6px; min-height: 0; }
+                       color: #C9CED8; padding: 2px 6px; min-height: 0; font-size: 14px; }
 #Overlay QPushButton:hover { color: white; background: #343F60; }
 """
 
@@ -63,9 +100,109 @@ def _mascot() -> QLabel:
     return label
 
 
+class ParrotButton(QAbstractButton):
+    """An invisible click target over one parrot; the scene draws the parrot itself."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.icon_name = ""  # shown in the speech bubble while hovered
+        self.emblem = ""  # drawn on the parrot's belly
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        pass
+
+
+class PerchView(QWidget):
+    """The expanded overlay: parrots on a branch, the time plaque, and window buttons."""
+
+    def __init__(self, parent: QWidget | None = None, clock=time.monotonic) -> None:
+        super().__init__(parent)
+        self.setFixedSize(SCENE_W, SCENE_H)
+        self.clock = clock
+        self.director = Director()
+
+        self.status = QLabel(self, objectName="OverlayStatus")
+        self.status.setGeometry(14, 8, 150, 20)
+        self.collapse_button = QPushButton("−", self)
+        self.collapse_button.setToolTip(tr("Collapse"))
+        self.close_button = QPushButton("×", self)
+        self.close_button.setToolTip(tr("Hide the overlay. The session continues."))
+        for i, button in enumerate((self.collapse_button, self.close_button)):
+            button.setGeometry(SCENE_W - 62 + i * 29, 6, 26, 24)
+            button.installEventFilter(self)
+
+        self.parrots = tuple(ParrotButton(self) for _ in SEATS)
+        for seat, button in zip(SEATS, self.parrots, strict=True):
+            button.setGeometry(int(seat - 36), 76, 72, 92)
+            button.installEventFilter(self)
+        self.time = QLabel(self, objectName="OverlayTime", alignment=Qt.AlignmentFlag.AlignCenter)
+        self.time.setGeometry(PLAQUE.toRect())
+        self.time.setToolTip(tr("Session time without pauses and breaks, not estimated focus"))
+
+        self._timer = QTimer(self, interval=FRAME_MS)
+        self._timer.timeout.connect(self.update)
+
+    @property
+    def animating(self) -> bool:
+        return self._timer.isActive()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        self._timer.start()
+        super().showEvent(event)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        self._timer.stop()
+        super().hideEvent(event)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        kind = event.type()
+        if kind in (QEvent.Type.Enter, QEvent.Type.Leave):
+            entered = kind is QEvent.Type.Enter
+            if watched in self.parrots:
+                index = self.parrots.index(watched)
+                target = index if entered and watched.isEnabled() else None
+            else:
+                target = WINDOW if entered else None
+            self.director.set_hover(target, self.clock())
+        return False
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        poses = self.director.poses(self.clock())
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        paint_plaque(p, PLAQUE, STRINGS, BRANCH.bottom())
+        paint_branch(p, BRANCH)
+        for seat, pose, actor, button in zip(
+            SEATS, poses, self.director.actors, self.parrots, strict=True
+        ):
+            p.save()
+            p.translate(seat, SEAT_Y)
+            p.scale(BIRD_SCALE, BIRD_SCALE)
+            paint_bird(p, pose, actor.plumage, button.emblem)
+            p.restore()
+        # Symbols and bubbles last, so a neighbour never covers them.
+        for seat, pose in zip(SEATS, poses, strict=True):
+            if pose.emote:
+                paint_emote(p, pose.emote, scene_point(seat, pose, HEAD_Y), pose.emote_t)
+        hovered = self.director.hover
+        if isinstance(hovered, int) and self.parrots[hovered].icon_name:
+            tip = scene_point(SEATS[hovered], poses[hovered], TOP_Y) + QPointF(4, 0)
+            paint_bubble(p, tip, self.parrots[hovered].icon_name)
+        p.end()
+
+
+def scene_point(seat: float, pose: Pose, height: float) -> QPointF:
+    "Where a point ``height`` px above a parrot's feet (at scale 1) is in the scene."
+    lift = height * pose.scale * pose.squash
+    return QPointF(seat + pose.x * BIRD_SCALE, SEAT_Y + (pose.y + lift) * BIRD_SCALE)
+
+
 class SessionOverlay(QWidget):
     pauseRequested = Signal()
     finishRequested = Signal()
+    breakRequested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         # No parent: a window owned by the main window would vanish when it is minimized.
@@ -90,47 +227,31 @@ class SessionOverlay(QWidget):
         panel = QFrame(objectName="Overlay")
         outer.addWidget(panel)
         box = QVBoxLayout(panel)
-        box.setContentsMargins(12, 6, 6, 8)
+        box.setContentsMargins(0, 0, 0, 0)
         box.setSpacing(0)
 
-        self.full = QWidget()
-        full = QVBoxLayout(self.full)
-        full.setContentsMargins(0, 0, 0, 0)
-        full.setSpacing(2)
-        header = QHBoxLayout()
-        header.setSpacing(6)
-        header.addWidget(_mascot())
-        self.status = QLabel(objectName="OverlayStatus")
-        header.addWidget(self.status)
-        header.addStretch()
-        self.collapse_button = QPushButton("─")
-        self.collapse_button.setToolTip(tr("Collapse"))
+        self.full = PerchView()
+        self.perch = self.full
+        self.status = self.full.status
+        self.time = self.full.time
+        self.collapse_button = self.full.collapse_button
         self.collapse_button.clicked.connect(lambda: self.set_collapsed(True))
-        self.close_button = QPushButton("×")
-        self.close_button.setToolTip(tr("Hide the overlay. The session continues."))
+        self.close_button = self.full.close_button
         self.close_button.clicked.connect(self.hide)
-        header.addWidget(self.collapse_button)
-        header.addWidget(self.close_button)
-        full.addLayout(header)
-        self.time = QLabel(objectName="OverlayTime")
-        self.time.setToolTip(tr("Session time without pauses and breaks, not estimated focus"))
-        full.addWidget(self.time)
-        controls = QHBoxLayout()
-        controls.setSpacing(0)
-        self.pause_button = QPushButton()
+        self.pause_button, self.finish_button, self.break_button = (
+            self.full.parrots[i] for i in (PAUSE, FINISH, BREAK)
+        )
         self.pause_button.clicked.connect(self.pauseRequested)
-        self.finish_button = QPushButton(tr("End"))
         self.finish_button.clicked.connect(self.finishRequested)
-        controls.addWidget(self.pause_button)
-        controls.addWidget(QLabel("·"))
-        controls.addWidget(self.finish_button)
-        controls.addStretch()
-        full.addLayout(controls)
+        self.break_button.clicked.connect(self.breakRequested)
+        self.finish_button.setText(tr("End"))
+        self.finish_button.setToolTip(tr("End"))
+        self.finish_button.icon_name = self.finish_button.emblem = "stop"
         box.addWidget(self.full)
 
         self.mini = QWidget()
         mini = QHBoxLayout(self.mini)
-        mini.setContentsMargins(0, 2, 6, 0)
+        mini.setContentsMargins(12, 8, 12, 8)
         mini.setSpacing(6)
         mini.addWidget(_mascot())
         self.mini_time = QLabel()
@@ -138,12 +259,6 @@ class SessionOverlay(QWidget):
         self.mini.setToolTip(tr("Click to expand"))
         self.mini.hide()
         box.addWidget(self.mini)
-
-        # Wide enough for every state, so the panel never changes width while it is shown.
-        self.status.ensurePolished()  # measure with the stylesheet font
-        self.status.setMinimumWidth(
-            max(self.status.fontMetrics().horizontalAdvance(text) for text in status_texts())
-        )
 
     # showing ------------------------------------------------------------------------
     def start(self, snap: LiveSnapshot) -> None:
@@ -190,13 +305,23 @@ class SessionOverlay(QWidget):
         paused = snap.lifecycle is Lifecycle.PAUSED
         focusing, paused_text, break_text = status_texts()
         self.status.setText(paused_text if paused else break_text if snap.on_break else focusing)
-        self.pause_button.setText(tr("Resume") if paused else tr("Pause"))
+        pause_text = tr("Resume") if paused else tr("Pause")
+        self.pause_button.setText(pause_text)
+        self.pause_button.setToolTip(pause_text)
+        self.pause_button.icon_name = self.pause_button.emblem = "play" if paused else "pause"
+        break_text = tr("End break") if snap.on_break else tr("Start break")
+        self.break_button.setText(break_text)
+        self.break_button.setToolTip(break_text)
+        self.break_button.icon_name = "back" if snap.on_break else "cup"
+        self.break_button.emblem = "cup"
+        self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
         seconds = session_seconds(snap)
         self.time.setText(long_text(seconds))
         self.mini_time.setText(clock_text(seconds))
         style = "color: #8C94A6;" if paused else ""  # a stopped clock is greyed out
         if self.mini_time.styleSheet() != style:  # restyling on every poll would re-polish
             self.mini_time.setStyleSheet(style)
+            self.time.setStyleSheet(style)
 
     # dragging -----------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent) -> None:

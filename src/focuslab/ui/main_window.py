@@ -133,6 +133,7 @@ class MainWindow(QMainWindow):
         self.overlay = SessionOverlay(ctx)
         self.overlay.pauseRequested.connect(self.toggle_pause)
         self.overlay.finishRequested.connect(self.finish_session)
+        self.overlay.breakRequested.connect(self.toggle_break)
         self.session.overlayRequested.connect(self.show_overlay)
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
@@ -257,6 +258,12 @@ class MainWindow(QMainWindow):
             self.ctx.service.pause()
         elif snap.lifecycle is Lifecycle.PAUSED:
             self.ctx.service.resume()
+        self.poll()
+
+    def toggle_break(self) -> None:
+        snap = self.ctx.service.snapshot()
+        if snap.lifecycle is Lifecycle.RUNNING:
+            self.ctx.service.set_break(not snap.on_break)
         self.poll()
 
     def finish_session(self) -> None:
