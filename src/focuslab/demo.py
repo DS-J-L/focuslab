@@ -68,6 +68,11 @@ def seed_demo_sessions(db_path: Path) -> list[int]:
         end = start + timedelta(minutes=minutes)
         with svc.lock:
             repo = svc.repository
+            # Samples were taken on a simulated clock: place them at the faked start instead.
+            repo.conn.execute(
+                "UPDATE state_sample SET at_ms = ? + second_offset * 1000 WHERE session_id = ?",
+                (int(start.timestamp() * 1000), sid),
+            )
             repo.conn.execute(
                 "UPDATE session SET started_at_utc = ?, ended_at_utc = ?, self_report = ?"
                 " WHERE id = ?",

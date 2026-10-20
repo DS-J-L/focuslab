@@ -45,6 +45,7 @@ class FusedFrame:
     screen_locked: bool = False
     user_break: bool = False
     is_browser: bool = False
+    domain: str | None = None
 
 
 def _activity(
@@ -113,4 +114,5 @@ def fuse(
         screen_locked=bool(activity and fresh and activity.screen_locked),
         user_break=user_break,
         is_browser=bool(name and normalize(name) in BROWSERS),
+        domain=activity.domain if activity and fresh else None,
     )

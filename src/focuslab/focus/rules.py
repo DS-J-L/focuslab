@@ -114,7 +114,7 @@ class RuleEngine:
             return FocusState.UNKNOWN, 0.0, reasons
 
         base: tuple[str, ...] = (Reason.ALLOWED_APP,)
-        if f.is_browser:
+        if f.is_browser and not f.domain:
             base += (Reason.BROWSER_DETAIL_UNKNOWN,)
         if f.face is FaceEvidence.FORWARD:
             return FocusState.ON_TASK, 0.85, (*base, Reason.FACE_FORWARD)
