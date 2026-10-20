@@ -92,3 +92,18 @@ def test_host_without_consent_stores_nothing(tmp_path):
     proc.stdin.close()
     proc.wait(timeout=10)
     assert browser_rows(tmp_path) == []
+
+
+
+def test_host_ack_grants_optional_titles_only_after_desktop_consent(consented):
+    conn = connect(consented / "focuslab.db")
+    Repository(conn).set_setting("consent.page_titles", "1")
+    conn.close()
+    proc = host(consented)
+    response = send(proc, {**state(1, "youtube.com"), "title": "AR lecture"})
+    assert response == {"type": "ack", "seq": 1, "stored": True, "title_allowed": True}
+    conn = connect(consented / "focuslab.db")
+    assert conn.execute("SELECT page_title FROM browser_state").fetchone()[0] == "AR lecture"
+    conn.close()
+    proc.stdin.close()
+    assert proc.wait(timeout=10) == 0

@@ -171,3 +171,36 @@ def test_store_url_only_once_a_listing_exists(monkeypatch):
     assert extension.store_url("chrome") is None
     monkeypatch.setitem(extension.STORE_IDS, "chrome", "abc")
     assert extension.store_url("chrome") == "https://chromewebstore.google.com/detail/abc"
+
+
+
+def test_titles_are_optional_and_strictly_validated():
+    assert parse_state(msg(title="AR Lesson 1")).title == "AR Lesson 1"
+    for invalid in (
+        msg(title="https://example.com/secret"), msg(title=""), msg(title="x" * 161),
+        msg(title="private\ntext"), msg(focused=False, title="Not focused"),
+        msg(domain=None, title="No site"), msg(title=42),
+    ):
+        with pytest.raises(ProtocolError):
+            parse_state(invalid)
+
+
+def test_title_storage_requires_separate_opt_in_and_withdrawal_scrubs_history(store):
+    from focuslab.storage.activity_repository import ActivityRepository
+    from focuslab.domain.activity import ActivitySpan, SpanKind
+
+    st, repo = store
+    assert st.apply(BrowserState("chrome", "x", 1, 0, True, "youtube.com", "AR Basics"), 1000)
+    assert repo.conn.execute("SELECT page_title FROM browser_state").fetchone()[0] is None
+    repo.set_setting("consent.page_titles", "1")
+    st.apply(BrowserState("chrome", "x", 2, 0, True, "youtube.com", "AR Basics"), 2000)
+    assert st.title_allowed()
+    activity = ActivityRepository(repo.conn)
+    assert activity.browser_detail("chrome", 0) == ("youtube.com", "AR Basics")
+    activity.insert_span(ActivitySpan(0, 1000, SpanKind.ACTIVE, "chrome.exe",
+                                      domain="youtube.com", page_title="AR Basics"))
+    assert activity.spans_between(0, 1000)[0].page_title == "AR Basics"
+    repo.set_setting("consent.page_titles", "0")
+    st.clear_titles()
+    assert activity.spans_between(0, 1000)[0].page_title is None
+    assert activity.browser_detail("chrome", 0) == ("youtube.com", None)

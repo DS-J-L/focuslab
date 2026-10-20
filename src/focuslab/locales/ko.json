@@ -496,5 +496,13 @@
   "Nothing was installed. You can try again in Settings.": "아무것도 설치되지 않았습니다. 설정에서 다시 시도할 수 있습니다.",
   "Close": "닫기",
   "Cancelling…": "취소하는 중…",
-  "Update cancelled.": "업데이트를 취소했습니다."
+  "Update cancelled.": "업데이트를 취소했습니다.",
+  "Save active page titles (optional)": "활성 웹페이지 제목 저장(선택)",
+  "Page details": "페이지 세부 정보",
+  "Off by default. Saved only on this PC; turning off deletes saved titles.": "기본적으로 꺼져 있습니다. 이 PC에만 저장하며, 끄면 저장된 제목을 삭제합니다.",
+  "Optional page title recording": "웹페이지 제목 기록 선택 동의",
+  "Website / page": "웹사이트 / 페이지",
+  "Time by website / page": "웹사이트 / 페이지별 사용 시간",
+  "Page: {p0}": "페이지: {p0}",
+  "With separate permission, the title of the current Chrome/Edge tab will be saved alongside its hostname while that tab is visible and the browser is in front.\n\nPage titles may contain private document names or account information. Only local records are created, but exported activity records will include titles. Some sensitive and excluded sites are suppressed, not all possible private titles.\n\nThis option is OFF by default. You can turn it off to delete all stored page titles without deleting your activity intervals. Full URLs and page contents are never collected.": "별도로 동의하면 Chrome/Edge의 활성 탭 제목이 사이트 주소와 함께 저장됩니다.\n\n제목에는 개인 문서 이름이나 계정 관련 정보가 포함될 수 있습니다. 기록은 이 컴퓨터에만 저장되지만 활동 내보내기 파일에도 제목이 포함됩니다. 일부 민감한 사이트 및 제외 사이트는 제목을 수집하지 않지만 모든 개인정보를 탐지할 수는 없습니다.\n\n기본적으로 꺼져 있습니다. 끄면 활동 시간 기록은 유지하면서 저장한 모든 제목이 삭제됩니다. 전체 URL과 페이지 본문은 수집하지 않습니다."
 }

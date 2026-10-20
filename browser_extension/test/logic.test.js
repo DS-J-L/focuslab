@@ -63,3 +63,19 @@ test("state comparison and reconnect backoff", () => {
   assert.equal(sameState(null, { focused: true, domain: "a" }), false);
   assert.deepEqual([0, 1, 2, 20].map(reconnectDelay), [1000, 2000, 4000, 300000]);
 });
+
+
+test("titles are omitted by default and sanitized only when the user opts in", () => {
+  const w = { focused: true, incognito: false };
+  const tab = { url: "https://youtube.com/watch?v=secret", title: "  Augmented Reality Course\nLesson 1 ", incognito: false };
+  assert.deepEqual(stateOf(w, tab), { focused: true, domain: "youtube.com" });
+  const titled = stateOf(w, tab, true);
+  assert.deepEqual(titled, { focused: true, domain: "youtube.com", title: "Augmented Reality Course Lesson 1" });
+  const msg = stateMessage(titled, { browser: "chrome", instance: "x", seq: 1, now: 3 });
+  assert.equal(msg.title, "Augmented Reality Course Lesson 1");
+  assert.ok(!JSON.stringify(msg).includes("watch?v="));
+  assert.equal(sameState(titled, stateOf(w, { ...tab, title: "Different lesson" }, true)), false);
+  assert.equal(stateOf(w, { ...tab, url: "https://mail.google.com/mail/u/0/" }, true).title, undefined);
+  assert.equal(stateOf(w, { ...tab, title: "https://example.com/private?q=secret" }, true).title, undefined);
+  assert.deepEqual(stateOf({ focused: false }, tab, true), { focused: false, domain: null });
+});
