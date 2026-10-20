@@ -28,6 +28,13 @@ def _check() -> int:
         f"Database: {db_path()} ({'exists' if db_path().exists() else 'not created yet'})",
         f"Face model: {model_text}",
     ]
+    if sys.platform == "win32":  # read-only registry lookups
+        from focuslab import autostart
+        from focuslab.browser.install import registered
+
+        hosts = [name for name, ok in registered().items() if ok]
+        lines.append(f"Start at sign-in: {'on' if autostart.is_enabled() else 'off'}")
+        lines.append(f"Browser bridge: {', '.join(hosts) if hosts else 'not installed'}")
     for module in ("PySide6", "cv2", "mediapipe", "psutil"):
         try:
             mod = __import__(module)

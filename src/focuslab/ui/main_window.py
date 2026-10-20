@@ -21,6 +21,7 @@ from focuslab import __version__
 from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
+from focuslab.services.export_service import apply_retention
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.activity_page import ActivityPage
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
@@ -98,7 +99,7 @@ class MainWindow(QMainWindow):
         # The activity page follows the recorder while it is open (cheap: one day of spans).
         self._activity_timer = QTimer(self, interval=ACTIVITY_REFRESH_MS)
         self._activity_timer.timeout.connect(
-            lambda: self.activity.refresh() if self.stack.currentIndex() == ACTIVITY else None
+            lambda: self.activity.auto_refresh() if self.stack.currentIndex() == ACTIVITY else None
         )
         self._activity_timer.start()
         self.nav.setCurrentRow(HOME)
@@ -289,7 +290,7 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     ctx = AppContext(demo)
     recovered = ctx.service.recover_interrupted()
     with ctx.service.lock:
-        ctx.service.repository.purge_older_than(ctx.retention_days)
+        apply_retention(ctx.service.repository, ctx.retention_days)
     if ctx.needs_onboarding:
         run_onboarding(ctx)
     ctx.start_recording()

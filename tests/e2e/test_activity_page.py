@@ -96,3 +96,17 @@ def test_page_does_not_depend_on_a_korean_system_locale(window):
         assert window.activity.timeline._ticks[0][1].endswith("시")
     finally:
         locale.setlocale(locale.LC_ALL, previous)
+
+
+def test_auto_refresh_keeps_a_selection_and_skips_long_range_charts(window, monkeypatch):
+    page = window.activity
+    calls = []
+    monkeypatch.setattr(page, "refresh_statistics", lambda: calls.append("stats"))
+    page.show_day(datetime.now().astimezone().date())
+    calls.clear()
+    page.auto_refresh()
+    assert calls == []  # charts over 7/30 days are not recomputed every 30 s
+    page.show_day(page.day - timedelta(days=1))
+    page.spans.selectRow(0)
+    page.auto_refresh()  # not today and a row is selected: nothing changes under the user
+    assert page.spans.selectionModel().selectedRows()[0].row() == 0

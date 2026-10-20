@@ -39,7 +39,13 @@ from focuslab.config import (
 )
 from focuslab.domain.activity import Category
 from focuslab.model_fetch import FACE_MODEL_URL, fetch_face_model
-from focuslab.services.export_service import delete_all, export_csv, export_json
+from focuslab.services.export_service import (
+    apply_retention,
+    delete_all,
+    export_activity_csv,
+    export_csv,
+    export_json,
+)
 from focuslab.ui.calibration_dialog import CalibrationDialog
 from focuslab.ui.consent import (
     ask_activity_consent,
@@ -163,7 +169,11 @@ class SettingsPage(QWidget):
         exp_csv.clicked.connect(lambda: self._export_all("csv"))
         self.delete_all_button = QPushButton("모든 기록 삭제", objectName="Danger")
         self.delete_all_button.clicked.connect(self._delete_all)
-        form.addRow("내보내기·삭제", _row(exp_json, exp_csv, self.delete_all_button))
+        exp_activity = QPushButton("활동 기록 CSV")
+        exp_activity.clicked.connect(lambda: self._export_all("activity"))
+        form.addRow(
+            "내보내기·삭제", _row(exp_json, exp_csv, exp_activity, self.delete_all_button)
+        )
         return box
 
     def _browser_box(self) -> QGroupBox:
@@ -485,31 +495,44 @@ class SettingsPage(QWidget):
         days = self.retention.value()
         self.ctx.set_setting("privacy.retention_days", str(days))
         with self.ctx.service.lock:
-            removed = self.ctx.service.repository.purge_older_than(days)
-        QMessageBox.information(self, "보존 기간", f"적용했습니다. 삭제된 오래된 세션: {removed}개")
+            removed = apply_retention(self.ctx.service.repository, days)
+        QMessageBox.information(
+            self, "보존 기간",
+            f"적용했습니다. 삭제된 오래된 세션: {removed}개 (같은 기간의 활동 기록도 삭제)",
+        )
         self.dataChanged.emit()
 
     def _export_all(self, kind: str) -> None:
-        default = str(Path.home() / f"focuslab-export.{kind}")
-        path, _ = QFileDialog.getSaveFileName(self, "전체 내보내기", default, f"*.{kind}")
+        name, suffix = {"json": ("focuslab-export", "json"), "csv": ("focuslab-export", "csv"),
+                        "activity": ("focuslab-activity", "csv")}[kind]
+        default = str(Path.home() / f"{name}.{suffix}")
+        path, _ = QFileDialog.getSaveFileName(self, "전체 내보내기", default, f"*.{suffix}")
         if not path:
             return
+        exporter = {"json": export_json, "csv": export_csv, "activity": export_activity_csv}[kind]
         with self.ctx.service.lock:
-            (export_json if kind == "json" else export_csv)(self.ctx.service.repository, Path(path))
+            exporter(self.ctx.service.repository, Path(path))
         QMessageBox.information(self, "내보내기", f"저장했습니다:\n{path}")
 
     def _delete_all(self) -> None:
         answer = QMessageBox.warning(
             self, "모든 기록 삭제",
-            "모든 세션, 상태 기록, 정정 내역을 영구 삭제합니다. 설정과 동의는 유지됩니다.\n"
+            "모든 세션, 상태 기록, 자동 활동 기록, 정정 내역을 영구 삭제합니다."
+            " 설정·동의·분류 규칙·제외 목록은 유지됩니다.\n"
             "되돌릴 수 없습니다. 계속할까요?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
+        recorder = self.ctx.recorder
+        running = recorder is not None and recorder.state is RecorderState.RUNNING
+        if running:  # flush and drop the open span first so nothing points at deleted rows
+            recorder.pause()
         with self.ctx.service.lock:
             delete_all(self.ctx.service.repository)
+        if running:
+            recorder.resume()
         self.dataChanged.emit()
         QMessageBox.information(self, "삭제", "모든 기록을 삭제했습니다.")
 

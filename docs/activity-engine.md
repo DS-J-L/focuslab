@@ -1,6 +1,6 @@
 # Native Windows Activity Tracking Engine — 현황 분석과 설계
 
-> 기준: `feat/v0.1-prototype` (07bc83a) · 작성일 2026-10-20 · 관련 계획: [DEVELOPMENT_PLAN.md §18](../DEVELOPMENT_PLAN.md#18-v02-확장-native-windows-activity-tracking-engine)
+> 기준: `feat/v0.1-prototype` (07bc83a) · 작성일 2026-10-20 · 구현 완료(PR-A~G, 현황은 계획 §18) · 관련 계획: [DEVELOPMENT_PLAN.md §18](../DEVELOPMENT_PLAN.md#18-v02-확장-native-windows-activity-tracking-engine)
 >
 > 목표: 사용자가 최초 설정에서 동의하면, 이후 타이머를 켜거나 활동을 입력하지 않아도 PC·브라우저 활동이
 > 자동으로 기록·분류·분석되게 한다. ActivityWatch의 실행·API·DB·watcher에 의존하지 않는다.
@@ -105,3 +105,11 @@ ACTIVE 구간을 닫고 IDLE 구간을 시작한다. 입력이 돌아오면 IDLE
 | PR-G | `chore/activity-stability-release` | 보존·내보내기·삭제, 성능 측정, 장시간 실행, 문서·개인정보·CI |
 
 각 PR은 앞 PR 브랜치를 기준(stacked)으로 하며 승인 후 순서대로 머지한다.
+
+## 6. 구현 결과 요약
+
+- 계획한 구조대로 구현했다. 세부 사항과 검증 결과는 각 PR 본문과 [performance.md](performance.md)에 있다.
+- 설계 변경: 브라우저 확장 → 본체 통신은 named pipe·로컬 소켓 대신 **native host가 같은 SQLite에 프로필별 최신 상태 1행을 쓰고**
+  레코더가 읽는 방식으로 했다. 포트를 열지 않고, 앱 시작 순서와 무관하며, 파일 권한(사용자 폴더)으로 보호되고,
+  같은 상태를 다시 보내도 결과가 같다(멱등).
+- 설계 변경: 카메라 결합은 기존 원칙대로 수동 집중 세션 시간대에만 적용한다(상시 촬영 없음).
