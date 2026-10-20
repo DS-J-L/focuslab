@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from focuslab.domain.activity import ActivitySpan
 from focuslab.domain.models import FocusState, StateSample
-from focuslab.focus.metrics import apply_corrections
+from focuslab.focus.metrics import apply_corrections, sample_times
 from focuslab.focus.reasons import Reason
 from focuslab.storage.repository import Repository, epoch_ms
 
@@ -20,7 +20,7 @@ from focuslab.storage.repository import Repository, epoch_ms
 class CameraOverlay:
     session_ids: set[int]
     observed_s: int = 0  # seconds covered by a focus session
-    camera_s: int = 0  # ... of which the camera was in use
+    camera_s: int = 0  # ... of which the camera was observing (not off, failed or starting)
     away_s: int = 0  # judged AWAY (face not visible + no input)
     face_absent_s: int = 0
     head_away_s: int = 0  # head turned away from the screen (observation only)
@@ -35,7 +35,7 @@ def session_samples(
     repo: Repository, start_ms: int, end_ms: int
 ) -> list[tuple[int, int, StateSample]]:
     """``(at_ms, session_id, sample)`` of focus sessions overlapping the window, with the
-    user's corrections applied. Samples from before schema v5 are placed at start + offset."""
+    user's corrections applied, placed at their own time (see ``sample_times``)."""
     out = []
     for record in repo.list_sessions():
         started = epoch_ms(record.started_at_utc)
@@ -43,8 +43,7 @@ def session_samples(
         if ended < start_ms or started > end_ms:
             continue
         effective = apply_corrections(repo.samples(record.id), repo.segments(record.id))
-        for sample in effective:
-            at = sample.at_ms if sample.at_ms is not None else started + sample.second_offset * 1000
+        for at, sample in zip(sample_times(started, effective), effective, strict=True):
             if start_ms <= at < end_ms:
                 out.append((at, record.id, sample))
     out.sort(key=lambda item: item[0])
@@ -68,7 +67,7 @@ def overlay(
             ov.session_ids.add(sid)
             ov.observed_s += 1
             reasons = set(sample.reason_codes)
-            if Reason.CAMERA_OFF not in reasons:
+            if not reasons & {Reason.CAMERA_OFF, Reason.CAMERA_UNAVAILABLE}:
                 ov.camera_s += 1
             if sample.state is FocusState.AWAY:
                 ov.away_s += 1

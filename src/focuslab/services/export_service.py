@@ -8,12 +8,14 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from focuslab import __version__
+from focuslab.activity.camera_overlay import session_samples
 from focuslab.activity.classifier import effective
+from focuslab.activity.stats import local_day_bounds
 from focuslab.domain.activity import ActivitySpan
 from focuslab.domain.events import StateSegment
 from focuslab.domain.models import FocusState, SessionRecord, StateSample
 from focuslab.focus.metrics import SessionMetrics, apply_corrections, compute_metrics
-from focuslab.services.activity_service import stored_auto_sessions
+from focuslab.services.activity_service import ALL_TIME, rebuild_auto_sessions
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.storage.repository import Repository
 
@@ -39,26 +41,20 @@ def session_report(repo: Repository, session_id: int) -> SessionReport | None:
     return SessionReport(record, samples, effective, segments, metrics)
 
 
-def local_date(started_at_utc: str) -> date:
-    return datetime.fromisoformat(started_at_utc).astimezone().date()
-
-
 def daily_totals(
     repo: Repository, days: int = 7, today: date | None = None
 ) -> list[tuple[date, Counter[FocusState]]]:
-    """Effective seconds per state for each of the last ``days`` local days."""
+    """Effective seconds per state for each of the last ``days`` local days, by the time of
+    each second: a session running past midnight counts on both days."""
     today = today or datetime.now().astimezone().date()
     first = today - timedelta(days=days - 1)
-    since = datetime.combine(first - timedelta(days=1), datetime.min.time()).isoformat()
     totals: dict[date, Counter[FocusState]] = {
         first + timedelta(days=i): Counter() for i in range(days)
     }
-    for record in repo.list_sessions(since_utc=since):
-        day = local_date(record.started_at_utc)
-        if day not in totals:
-            continue
-        samples = apply_corrections(repo.samples(record.id), repo.segments(record.id))
-        totals[day].update(s.state for s in samples)
+    start_ms, _ = local_day_bounds(first)
+    _, end_ms = local_day_bounds(today)
+    for at, _, sample in session_samples(repo, start_ms, end_ms):
+        totals[datetime.fromtimestamp(at / 1000).date()][sample.state] += 1
     return sorted(totals.items())
 
 
@@ -106,9 +102,6 @@ def _iso(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, UTC).isoformat(timespec="seconds")
 
 
-ALL_TIME = (0, 2**62)
-
-
 def _span_row(span: ActivitySpan, rules) -> dict:
     label = effective(span, rules)
     return {
@@ -130,6 +123,8 @@ def _span_row(span: ActivitySpan, rules) -> dict:
 
 
 def activity_dict(repo: Repository) -> dict:
+    """The whole activity record. Automatic sessions are rebuilt from the timeline and the
+    current rules first, so the export never depends on which screens were opened."""
     activity = ActivityRepository(repo.conn)
     rules = activity.user_rules()
     apps, sites = activity.exclusions()
@@ -139,7 +134,7 @@ def activity_dict(repo: Repository) -> dict:
             {**{k: v for k, v in asdict(s).items() if k not in ("start_ms", "end_ms")},
              "start_utc": _iso(s.start_ms), "end_utc": _iso(s.end_ms),
              "category": s.category.value}
-            for s in stored_auto_sessions(repo.conn, *ALL_TIME)
+            for s in rebuild_auto_sessions(repo.conn, *ALL_TIME)
         ],
         "system_events": [
             {"at_utc": _iso(r["at_ms"]), "type": r["type"], "detail": r["detail"]}

@@ -2,7 +2,7 @@
 
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import AbstractContextManager
 
 from focuslab.activity.classifier import UserRules
@@ -97,6 +97,21 @@ class ActivityRepository:
             (start_ms, end_ms),
         ).fetchall()
         return [_span(r) for r in rows]
+
+    def span_extents(self, at_ms: int, before: bool) -> Iterator[tuple[int, int, SpanKind]]:
+        """``(start_ms, end_ms, kind)`` of the spans starting before ``at_ms`` (latest first)
+        or at/after it (earliest first), read lazily so the caller can stop early."""
+        op, order = ("<", "DESC") if before else (">=", "ASC")
+        cursor = self.conn.execute(
+            f"SELECT start_ms, end_ms, kind FROM activity_span WHERE start_ms {op} ?"
+            f" ORDER BY start_ms {order}, id {order}",
+            (at_ms,),
+        )
+        try:
+            for start_ms, end_ms, kind in cursor:
+                yield start_ms, end_ms, SpanKind(kind)
+        finally:
+            cursor.close()
 
     def browser_domain(self, browser: str, since_ms: int) -> str | None:
         """Site in the most recently focused window of ``browser`` reported since ``since_ms``."""

@@ -20,20 +20,13 @@ from focuslab.browser.store import BrowserStateStore
 from focuslab.camera.calibration import Calibration
 from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
 from focuslab.domain.activity import ActivitySpan, Category
-from focuslab.domain.models import ActivityObservation, SessionConfig, SessionMode
+from focuslab.domain.models import SessionConfig, SessionMode
 from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
-from focuslab.services.session_service import SessionService
+from focuslab.services.session_service import NoActivitySource, SessionService
 from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
-
-
-class NoActivitySource:
-    """Used when the user has not agreed to PC activity observation."""
-
-    def sample(self, now_ms: int) -> ActivityObservation:
-        return ActivityObservation(now_ms, None, None, None, available=False)
 
 
 class AppContext:
@@ -76,6 +69,19 @@ class AppContext:
     def activity_consent(self) -> bool | None:
         value = self.setting("consent.activity")
         return None if value is None else value == "1"
+
+    def set_camera_consent(self, on: bool) -> None:
+        """Withdrawing also releases the camera of a session in progress, right away."""
+        self.set_flag("consent.camera", on)
+        if not on:
+            self.set_flag("last.camera", False)
+            self.service.stop_camera()
+
+    def set_activity_consent(self, on: bool) -> None:
+        """Withdrawing also stops a session in progress from reading PC activity."""
+        self.set_flag("consent.activity", on)
+        if not on:
+            self.service.stop_activity()
 
     @property
     def recording_consent(self) -> bool:

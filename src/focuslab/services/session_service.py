@@ -96,6 +96,13 @@ class LiveSnapshot:
     planned_reached: bool = False
 
 
+class NoActivitySource:
+    """Used when the user has not agreed to (or has withdrawn) PC activity observation."""
+
+    def sample(self, now_ms: int) -> ActivityObservation:
+        return ActivityObservation(now_ms, None, None, None, available=False)
+
+
 FaceFactory = Callable[[SessionConfig], FaceSource | None]
 ActivityFactory = Callable[[SessionConfig], ActivitySource]
 
@@ -220,6 +227,15 @@ class SessionService:
             if self._config is not None:
                 self._config = replace(self._config, camera_enabled=False)
 
+    def stop_activity(self) -> None:
+        """Stop reading PC activity now (consent withdrawn); later seconds are unobserved,
+        including after a resume."""
+        with self._lock:
+            if self._activity is None or isinstance(self._activity, NoActivitySource):
+                return
+            self._activity = NoActivitySource()
+            self._last_activity = None
+
     def finish(self) -> int | None:
         """Stop observing and close the session. Returns the finished session id."""
         with self._lock:
@@ -313,8 +329,9 @@ class SessionService:
                 return self._last_decision
             # Advance in whole seconds so scheduling jitter never accumulates.
             self._last_tick_ms += elapsed * 1000
+            now_wall = self._wall()
             if elapsed > 2:
-                self._fill_gap(elapsed - 1)
+                self._fill_gap(elapsed - 1, now_wall - elapsed * 1000)
                 elapsed = 1
 
             config = self._config
@@ -332,7 +349,6 @@ class SessionService:
             decision = self._engine.evaluate(frame, dt_s=elapsed)
             if config.planned_minutes:
                 elapsed = min(elapsed, config.planned_minutes * 60 - self._active_s)
-            now_wall = self._wall()
             for i in range(elapsed):  # a tick one second late covers both seconds
                 self._record(
                     StateSample(
@@ -350,11 +366,14 @@ class SessionService:
                 self._finish_locked()
             return decision
 
-    def _fill_gap(self, seconds: int) -> None:
+    def _fill_gap(self, seconds: int, first_at_ms: int) -> None:
         observed = min(seconds, self._cfg.max_gap_fill_s)
-        for _ in range(observed):
+        for i in range(observed):
             self._record(
-                StateSample(self._active_s, FocusState.UNKNOWN, 0.0, (Reason.OBSERVATION_GAP,))
+                StateSample(
+                    self._active_s, FocusState.UNKNOWN, 0.0, (Reason.OBSERVATION_GAP,),
+                    at_ms=first_at_ms + i * 1000,
+                )
             )
         if seconds > observed:  # very long suspend: count it as paused, not observed
             self._paused_s += seconds - observed

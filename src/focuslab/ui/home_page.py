@@ -23,11 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from focuslab.activity.camera_overlay import session_samples
+from focuslab.activity.stats import local_day_bounds
 from focuslab.activity.windows_tracker import normalize, visible_window_apps
 from focuslab.config import MODE_LABELS, NEUTRAL_APPS
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
-from focuslab.focus.metrics import apply_corrections, compute_metrics, format_duration, format_ratio
-from focuslab.services.export_service import local_date
+from focuslab.focus.metrics import compute_metrics, format_duration, format_ratio
 from focuslab.ui.context import AppContext
 from focuslab.ui.widgets import StatCard
 
@@ -54,7 +55,7 @@ class HomePage(QWidget):
         root.addWidget(QLabel("오늘", objectName="PageTitle"))
 
         cards = QGridLayout()
-        self.card_sessions = StatCard("세션", "0", "오늘 시작한 세션")
+        self.card_sessions = StatCard("세션", "0", "오늘 기록이 있는 세션")
         self.card_on = StatCard("작업 관련 추정 시간", "0초", "실제 집중의 증명은 아닙니다")
         self.card_off = StatCard("이탈 의심 시간", "0초", "정정 내용 반영")
         self.card_cov = StatCard("측정 커버리지", "측정 불가", "판단 불가를 제외한 비율")
@@ -221,19 +222,16 @@ class HomePage(QWidget):
         today = datetime.now().astimezone().date()
         with self.ctx.service.lock:
             repo = self.ctx.service.repository
-            sessions = repo.list_sessions(limit=50)
-            todays = [s for s in sessions if local_date(s.started_at_utc) == today]
-            samples = []
-            for s in todays:
-                samples += apply_corrections(repo.samples(s.id), repo.segments(s.id))
-        metrics = compute_metrics(samples)
-        self.card_sessions.set(str(len(todays)))
+            todays = session_samples(repo, *local_day_bounds(today))  # by each second's time
+            sessions = repo.list_sessions(limit=12)
+        metrics = compute_metrics([sample for _, _, sample in todays])
+        self.card_sessions.set(str(len({sid for _, sid, _ in todays})))
         self.card_on.set(format_duration(metrics.seconds[FocusState.ON_TASK]))
         self.card_off.set(format_duration(metrics.seconds[FocusState.POSSIBLY_OFF_TASK]))
         self.card_cov.set(format_ratio(metrics.coverage))
 
         self.recent.clear()
-        for s in sessions[:12]:
+        for s in sessions:
             started = datetime.fromisoformat(s.started_at_utc).astimezone()
             status = {"FINISHED": "", "INTERRUPTED": " · 중단됨"}.get(s.status.value, " · 진행 중")
             item = QListWidgetItem(

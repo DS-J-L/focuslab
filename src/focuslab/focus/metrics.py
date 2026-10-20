@@ -41,6 +41,21 @@ def apply_corrections(
     return out
 
 
+def sample_times(started_ms: int, samples: Sequence[StateSample]) -> list[int]:
+    """UTC epoch ms of each sample. One without a time (stored before schema v5, or an
+    observation-gap fill from before this was recorded) follows the previous sample; the
+    first falls back to session start + offset."""
+    out: list[int] = []
+    for sample in samples:
+        if sample.at_ms is not None:
+            out.append(sample.at_ms)
+        elif out:
+            out.append(out[-1] + 1000)
+        else:
+            out.append(started_ms + sample.second_offset * 1000)
+    return out
+
+
 def _app_switches(samples: Sequence[StateSample]) -> int:
     switches, last = 0, None
     for s in samples:
