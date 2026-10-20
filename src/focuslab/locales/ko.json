@@ -472,5 +472,17 @@
   "Could not update: {p0}": "업데이트하지 못했습니다: {p0}",
   "Update ready. FocusLab restarts to finish it.": "업데이트 준비 완료. FocusLab을 다시 시작해 마무리합니다.",
   "Update to v{p0}": "v{p0}(으)로 업데이트",
-  "No release has been published yet.": "아직 공개된 릴리스가 없습니다."
+  "No release has been published yet.": "아직 공개된 릴리스가 없습니다.",
+  "{p0}h {p1}m {p2}s": "{p0}시간 {p1}분 {p2}초",
+  "Collapse": "접기",
+  "Hide the overlay. The session continues.": "오버레이만 숨깁니다. 세션은 계속됩니다.",
+  "Session time without pauses and breaks, not estimated focus": "일시정지·휴식을 뺀 세션 시간입니다. 추정 집중도와는 별개입니다.",
+  "Click to expand": "눌러서 펼치기",
+  "Session paused": "일시정지 중",
+  "On a break": "휴식 중",
+  "Focusing": "집중 중",
+  "Show overlay": "오버레이 표시",
+  "Show the session time on top of other programs.": "다른 프로그램 위에 세션 시간을 표시합니다.",
+  "Show the overlay when a session starts": "세션 시작 시 오버레이 표시",
+  "Session overlay": "세션 오버레이"
 }
