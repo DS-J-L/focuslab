@@ -10,7 +10,7 @@ import math
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 
 from focuslab.ui.mascot.animation import Pose
 
@@ -68,7 +68,7 @@ TUFT = _feather(-15, 4.5)
 
 
 def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = None) -> None:
-    """Draw one parrot at the painter's origin (its seat on the branch)."""
+    """Illustrated, layered parrot; all details follow the existing bone/pose animation."""
     p.save()
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.translate(pose.x, pose.y)
@@ -76,18 +76,27 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     s = pose.scale * (1 + 0.1 * pose.puff)
     squash = max(0.5, pose.squash)
     p.scale(s / math.sqrt(squash), s * squash)
+
+    # Tail appears behind the body; its outer feathers are in two different tones.
+    for i, dx in enumerate((-1, 0, 1)):
+        tail = QPainterPath(QPointF(dx * 7, -27))
+        tail.cubicTo(QPointF(dx * 12 + 3, -10), QPointF(dx * 11 + 4, 0), QPointF(dx * 9, 3))
+        tail.cubicTo(QPointF(dx * 6 - 1, -3), QPointF(dx * 4, -17), QPointF(dx * 7, -27))
+        p.setPen(_pen(plumage.outline, 1.0))
+        p.setBrush(QColor(plumage.wing if i != 1 else plumage.body))
+        p.drawPath(tail)
     _feet(p, pose.airborne)
     p.rotate(pose.tilt)
-    outline = _pen(plumage.outline, 2.2)
+    outline = _pen(plumage.outline, 2.0)
 
-    # Head feathers first, so their base disappears behind the head.
+    # Crest is tied to the head transform, not the body, so looking around is natural.
     p.save()
     _face_transform(p, pose)
     p.setPen(outline)
     p.setBrush(QColor(plumage.body))
-    for angle, length in ((-24, 0.8), (6, 1.0)):
+    for angle, length in ((-24, 0.8), (6, 1.0), (26, 0.58)):
         p.save()
-        p.translate(0, -78)
+        p.translate(0, -77.5)
         p.rotate(angle + pose.crest)
         p.scale(length, length)
         p.drawPath(TUFT)
@@ -97,19 +106,52 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     p.setPen(outline)
     p.setBrush(QColor(plumage.body))
     p.drawPath(BODY)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(plumage.belly))
-    p.drawEllipse(QPointF(0, -22), 17, 15)
-    if emblem:
-        paint_icon(p, emblem, QPointF(0, -22), 7.5, on_belly=True)
 
-    p.setPen(_pen(plumage.outline, 2.0))
-    p.setBrush(QColor(plumage.wing))
+    # Transparent painted edges give the previously flat silhouette some volume.
+    shade = QPainterPath(QPointF(17, -70))
+    shade.cubicTo(34, -51, 29, -22, 17, -12)
+    shade.cubicTo(13, -9, 9, -7, 4, -5)
+    shade.cubicTo(26, -6, 32, -28, 28, -53)
+    shade.cubicTo(27, -63, 23, -67, 17, -70)
+    p.setPen(Qt.PenStyle.NoPen)
+    c = QColor(plumage.outline)
+    c.setAlpha(54)
+    p.setBrush(c)
+    p.drawPath(shade)
+    glint = QPainterPath(QPointF(-22, -60))
+    glint.cubicTo(-19, -69, -9, -75, -5, -74)
+    glint.cubicTo(-14, -70, -19, -59, -20, -46)
+    glint.cubicTo(-23, -47, -24, -54, -22, -60)
+    p.setBrush(QColor(255, 255, 255, 43))
+    p.drawPath(glint)
+
+    belly = QLinearGradient(QPointF(-14, -37), QPointF(15, -7))
+    lighter = QColor(plumage.belly).lighter(112)
+    belly.setColorAt(0, lighter)
+    belly.setColorAt(1, QColor(plumage.belly))
+    p.setBrush(belly)
+    p.drawEllipse(QPointF(0, -23), 17.5, 15.5)
+
+    # The action sits on a medallion, with enough contrast to read at 100% scale.
+    if emblem:
+        p.setPen(_pen(QColor(255, 255, 255, 145), 0.9))
+        p.setBrush(QColor(255, 250, 239, 192))
+        p.drawEllipse(QPointF(0, -22), 10.6, 10.6)
+        paint_icon(p, emblem, QPointF(0, -22), 7.8, on_belly=True)
+
     for side, angle in ((-1, pose.wing_l), (1, pose.wing_r)):
         p.save()
         p.translate(side * 24, -46)
         p.rotate(-side * angle - side * 8)
+        p.setPen(_pen(plumage.outline, 1.6))
+        p.setBrush(QColor(plumage.wing))
         p.drawPath(WING)
+        p.setPen(_pen(QColor(255, 255, 255, 78), 1))
+        feather_line = QPainterPath(QPointF(-side * 2, 5))
+        feather_line.quadTo(QPointF(-side * 5.7, 14), QPointF(0, 24))
+        p.drawPath(feather_line)
+        p.setPen(_pen(QColor(plumage.outline), 1.1))
+        p.drawLine(QPointF(side * 2, 20), QPointF(side * 5.2, 24))
         p.restore()
 
     p.save()
@@ -117,7 +159,6 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     _face(p, pose, plumage)
     p.restore()
     p.restore()
-
 
 def _face_transform(p: QPainter, pose: Pose) -> None:
     "Turning the head slides the face sideways a little and tilts it around the eye line."
@@ -176,23 +217,30 @@ def _eye(p: QPainter, c: QPointF, pose: Pose, side: int) -> None:
         p.drawPath(path)
         return
     open_ = min(1.0, max(0.0, pose.eye_open))
-    if open_ < 0.3:  # a sleepy closed curve
+    if open_ < 0.3:
         path = QPainterPath(c + QPointF(-4, -0.5))
         path.quadTo(c + QPointF(0, 2.8), c + QPointF(4, -0.5))
         p.setPen(ink)
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(path)
         return
-    r = 5.2 if pose.eyes == "wide" else 4.4
+
+    r = 5.4 if pose.eyes == "wide" else 4.6
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(INK)
+    eye = QLinearGradient(c + QPointF(-3, -r), c + QPointF(2, r))
+    eye.setColorAt(0, QColor("#141A2B"))
+    eye.setColorAt(1, QColor("#32394B"))
+    p.setBrush(eye)
     p.drawEllipse(c, r * 0.95, r * 1.1 * open_)
-    p.setBrush(QColor("white"))
-    p.drawEllipse(c + QPointF(1.4, -1.8 * open_), 1.6, 1.6 * open_)
-    if pose.eyes == "angry":  # brows slanting down towards the beak
+    p.setBrush(QColor("#FFFFFF"))
+    p.drawEllipse(c + QPointF(1.4, -2.0 * open_), 1.65, 1.65 * open_)
+    p.setBrush(QColor(222, 244, 255, 155))
+    p.drawEllipse(c + QPointF(-1.8, 1.5 * open_), 0.7, 0.7 * open_)
+    if pose.eyes == "angry":
         p.setPen(_pen(INK, 2.6))
         inner, outer = c + QPointF(-side * 4.5, -6), c + QPointF(side * 4.5, -9.5)
         p.drawLine(inner, outer)
+
 
 
 # Perch, plaque and bubbles -------------------------------------------------------------
@@ -203,44 +251,68 @@ LEAF = QColor("#5DAE5A")
 
 
 def paint_branch(p: QPainter, rect: QRectF) -> None:
+    """A subtly three-dimensional bough with one little green sprig."""
     p.save()
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setPen(_pen(WOOD_DARK, 2))
-    p.setBrush(WOOD)
-    p.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
-    p.setPen(_pen(WOOD_LIGHT, 2))
-    y = rect.top() + rect.height() * 0.35
-    for start, end in ((0.08, 0.3), (0.42, 0.55), (0.68, 0.9)):
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(0, 0, 0, 52))
+    p.drawRoundedRect(rect.translated(0, 4), 8, 8)
+    p.setPen(_pen(WOOD_DARK, 1.5))
+    wood = QLinearGradient(QPointF(0, rect.top()), QPointF(0, rect.bottom()))
+    wood.setColorAt(0, QColor("#BD8251"))
+    wood.setColorAt(0.28, QColor("#935C38"))
+    wood.setColorAt(0.75, QColor("#633D2B"))
+    wood.setColorAt(1, QColor("#4B3028"))
+    p.setBrush(wood)
+    p.drawRoundedRect(rect, 8, 8)
+    p.setPen(_pen(QColor(255, 216, 156, 100), 1.3))
+    p.drawLine(QPointF(rect.left() + 13, rect.top() + 3), QPointF(rect.right() - 15, rect.top() + 3))
+    p.setPen(_pen(QColor("#533523"), 1.4))
+    for start, end, offset in ((0.1, 0.22, 8), (0.44, 0.51, 10), (0.67, 0.84, 8)):
         p.drawLine(
-            QPointF(rect.left() + rect.width() * start, y),
-            QPointF(rect.left() + rect.width() * end, y),
+            QPointF(rect.left() + rect.width() * start, rect.top() + offset),
+            QPointF(rect.left() + rect.width() * end, rect.top() + offset - 1),
         )
-    # A twig with a leaf at the right end.
-    twig_root = QPointF(rect.right() - 22, rect.top() + 2)
-    twig_tip = twig_root + QPointF(12, -12)
-    p.setPen(_pen(WOOD_DARK, 3))
-    p.drawLine(twig_root, twig_tip)
-    p.setPen(_pen(QColor("#3E7D3C"), 1.4))
-    p.setBrush(LEAF)
-    p.translate(twig_tip)
-    p.rotate(-130)
-    p.drawPath(_feather(13, 5))
+    sprig = QPointF(rect.right() - 21, rect.top() + 2)
+    tip = sprig + QPointF(11, -13)
+    p.setPen(_pen(QColor("#567348"), 2.4))
+    p.drawLine(sprig, tip)
+    for dx, angle in ((-5, -115), (5, -165)):
+        p.save()
+        p.translate(tip + QPointF(dx, -1))
+        p.rotate(angle)
+        leaf = QLinearGradient(QPointF(0, 0), QPointF(0, 13))
+        leaf.setColorAt(0, QColor("#B9EEA0"))
+        leaf.setColorAt(1, QColor("#52916B"))
+        p.setBrush(leaf)
+        p.setPen(_pen(QColor("#376F50"), 0.8))
+        p.drawPath(_feather(13, 4.2))
+        p.restore()
     p.restore()
 
 
 def paint_plaque(p: QPainter, rect: QRectF, strings: tuple[float, float], top: float) -> None:
-    "The time plaque hanging from the branch by two strings."
+    """Quiet floating clock card, connected to the perch by two silver threads."""
     p.save()
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setPen(_pen(QColor("#8C94A6"), 2))
+    p.setPen(_pen(QColor("#64768F"), 1.5))
     for x in strings:
-        p.drawLine(QPointF(x, top), QPointF(x, rect.top()))
-    p.setBrush(QColor(22, 26, 35, 235))
-    p.drawRoundedRect(rect, 9, 9)
-    p.setPen(_pen(QColor(140, 148, 166, 90), 1))
+        p.drawLine(QPointF(x, top), QPointF(x, rect.top() + 2))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(0, 0, 0, 70))
+    p.drawRoundedRect(rect.translated(0, 2.5), 11, 11)
+    surface = QLinearGradient(QPointF(rect.left(), rect.top()), QPointF(rect.right(), rect.bottom()))
+    surface.setColorAt(0, QColor("#303E56"))
+    surface.setColorAt(0.45, QColor("#212C40"))
+    surface.setColorAt(1, QColor("#172237"))
+    p.setPen(_pen(QColor("#6D83A0"), 1.25))
+    p.setBrush(surface)
+    p.drawRoundedRect(rect, 11, 11)
     p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawRoundedRect(rect.adjusted(4, 4, -4, -4), 6, 6)
+    p.setPen(_pen(QColor(225, 239, 255, 35), 0.9))
+    p.drawRoundedRect(rect.adjusted(3, 3, -3, -3), 9, 9)
     p.restore()
+
 
 
 def paint_bubble(p: QPainter, tip: QPointF, icon: str) -> None:
