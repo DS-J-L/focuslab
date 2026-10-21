@@ -6,6 +6,7 @@ GPU effects.  This is intentionally separate from animation/behavior, which owns
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
+    QBrush,
     QColor,
     QFont,
     QLinearGradient,
@@ -50,7 +51,7 @@ def paint_scene(p: QPainter, width: int, height: int) -> None:
     bg.setColorAt(0, QColor("#202D43"))
     bg.setColorAt(0.52, QColor("#161F31"))
     bg.setColorAt(1, QColor("#0F1726"))
-    p.fillRect(panel, bg)
+    p.fillRect(panel, QBrush(bg))
 
     _glow(p, QPointF(80, 96), 92, QColor("#F17C7B"), 38)
     _glow(p, QPointF(153, 103), 96, QColor("#7D9FFE"), 40)
