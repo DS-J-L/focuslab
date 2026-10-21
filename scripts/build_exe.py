@@ -12,6 +12,7 @@ data folder), the unpacked browser extension, and Qt's own translations (PySide6
 MediaPipe and OpenCV binaries come from the PyInstaller hooks.
 """
 
+import filecmp
 import os
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "assets" / "models" / "face_landmarker.task"
 EXTENSION = ROOT / "browser_extension"
 EXTENSION_FILES = ("manifest.json", "background.js", "logic.js")
+PYTHON_DLLS = Path(sys.base_prefix) / "DLLs"
+OPENSSL_DLLS = ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
 
 
 def data(source: Path, dest: str) -> str:
@@ -53,11 +56,18 @@ def main() -> None:
         args.append(data(MODEL, "assets/models"))
     else:
         print("note: no face model in assets/models; FocusLab.exe will download it on first use")
+    # Qt's TLS plugin pulls in libssl/libcrypto by name and PyInstaller resolves those through
+    # PATH, where another OpenSSL (e.g. Git's mingw64\bin) can win. _ssl.pyd then fails to load
+    # and urllib loses https ("unknown url type: https"), so Python's own copies go first.
+    os.environ["PATH"] = os.pathsep.join([str(PYTHON_DLLS), os.environ.get("PATH", "")])
     PyInstaller.__main__.run(args)
-    dll = ROOT / "dist" / "FocusLab" / "_internal" / "mediapipe" / "tasks" / "c"
-    dll /= "libmediapipe.dll"
+    internal = ROOT / "dist" / "FocusLab" / "_internal"
+    dll = internal / "mediapipe" / "tasks" / "c" / "libmediapipe.dll"
     if not dll.is_file():
         raise SystemExit(f"build is missing {dll}; the face model would fail to load")
+    for name in OPENSSL_DLLS:
+        if not filecmp.cmp(internal / name, PYTHON_DLLS / name, shallow=False):
+            raise SystemExit(f"build bundled a foreign {name}; downloads over https would fail")
     print(f"\nBuilt {ROOT / 'dist' / 'FocusLab' / 'FocusLab.exe'}")
 
 
