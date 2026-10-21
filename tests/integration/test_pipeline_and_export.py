@@ -8,7 +8,7 @@ import pytest
 
 from focuslab.config import db_path
 from focuslab.demo import DEMO_SESSIONS, seed_demo_sessions
-from focuslab.domain.models import FocusState
+from focuslab.domain.models import FocusState, SessionConfig, SessionMode, StateSample
 from focuslab.services.export_service import (
     daily_totals,
     delete_all,
@@ -76,6 +76,17 @@ def test_export_json_and_csv(seeded, tmp_path):
         "session_id", "started_at_utc", "goal", "mode", "second_offset", "state",
         "effective_state", "confidence", "reason_codes", "app_name",
     }
+
+
+def test_session_csv_keeps_formula_like_values_as_text(tmp_path):
+    repo = Repository(connect(tmp_path / "f.db"))
+    config = SessionConfig("=1+1", SessionMode.CUSTOM, 1, (), False)
+    sid = repo.create_session(config, "test")
+    repo.add_sample(sid, StateSample(0, FocusState.ON_TASK, 0.9, (), "-evil.exe"))
+    with export_csv(repo, tmp_path / "s.csv", [sid]).open(encoding="utf-8-sig") as f:
+        [row] = list(csv.DictReader(f))
+    assert (row["goal"], row["app_name"]) == ("'=1+1", "'-evil.exe")
+    assert row["confidence"] == "0.9"
 
 
 def test_effective_state_reflects_correction_in_export(seeded, tmp_path):

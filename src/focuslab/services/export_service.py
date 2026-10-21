@@ -172,6 +172,17 @@ def export_json(repo: Repository, path: Path, session_ids: list[int] | None = No
     return path
 
 
+# Spreadsheet apps run a cell that starts with one of these as a formula. Page titles come from
+# websites and product names from any program, so CSV cells get a leading quote instead.
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(value):
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 CSV_COLUMNS = [
     "session_id",
     "started_at_utc",
@@ -197,7 +208,8 @@ def export_csv(repo: Repository, path: Path, session_ids: list[int] | None = Non
             r = report.record
             for raw, eff in zip(report.samples, report.effective, strict=True):
                 writer.writerow(
-                    [
+                    _csv_cell(value)
+                    for value in [
                         r.id,
                         r.started_at_utc,
                         r.goal,
@@ -239,7 +251,7 @@ def export_activity_csv(repo: Repository, path: Path) -> Path:
         writer = csv.DictWriter(f, ACTIVITY_CSV_COLUMNS)
         writer.writeheader()
         for span in activity.spans_between(*ALL_TIME):
-            writer.writerow(_span_row(span, rules))
+            writer.writerow({k: _csv_cell(v) for k, v in _span_row(span, rules).items()})
     return path
 
 
