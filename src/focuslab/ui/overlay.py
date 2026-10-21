@@ -42,12 +42,6 @@ from focuslab.ui.mascot.animation import Pose
 from focuslab.ui.mascot.behavior_policy import BehaviorPolicy, Mood
 from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
 from focuslab.ui.mascot.flight_overlay import FlightController, screen_area
-from focuslab.ui.mascot.studio import (
-    paint_progress,
-    paint_scene,
-    paint_seat,
-    paint_status_light,
-)
 from focuslab.ui.mascot.renderer import (
     HEAD_Y,
     TOP_Y,
@@ -56,6 +50,12 @@ from focuslab.ui.mascot.renderer import (
     paint_bubble,
     paint_emote,
     paint_plaque,
+)
+from focuslab.ui.mascot.studio import (
+    paint_progress,
+    paint_scene,
+    paint_seat,
+    paint_status_light,
 )
 from focuslab.ui.theme import set_style_flag
 from focuslab.ui.widgets import clock_text, timer_text
