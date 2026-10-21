@@ -96,6 +96,7 @@ class SessionConfig:
     planned_minutes: int
     allowed_apps: tuple[str, ...]
     camera_enabled: bool
+    mode_name: str | None = None  # the user's own work mode, estimated like ``mode``
 
 
 @dataclass(frozen=True)
@@ -131,3 +132,4 @@ class SessionRecord:
     paused_seconds: int = 0
     self_report: str | None = None
     allowed_apps: tuple[str, ...] = ()
+    mode_name: str | None = None

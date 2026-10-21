@@ -504,6 +504,8 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     # Started at sign-in: stay in the tray (unless there is no tray to stay in).
     if not (background and window.tray.isVisible()):
         window.show()
+    if ctx.needs_guide and window.isVisible():
+        window.settings.show_guide()
     if recovered:
         QMessageBox.information(
             window,

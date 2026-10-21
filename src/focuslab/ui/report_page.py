@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from focuslab.config import MODE_LABELS
+from focuslab.config import mode_label
 from focuslab.domain.events import StateSegment
 from focuslab.domain.models import FocusState, SessionStatus
 from focuslab.focus.metrics import format_duration, format_ratio
@@ -294,7 +294,7 @@ class ReportPage(QWidget):
                 ),
                 p0=started,
                 p1=ended,
-                p2=MODE_LABELS[r.mode],
+                p2=mode_label(r.mode, r.mode_name),
                 p3=camera,
                 p4=STATUS_TEXT[r.status],
                 p5=format_duration(m.measured_s),

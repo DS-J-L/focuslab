@@ -74,7 +74,7 @@ def test_export_json_and_csv(seeded, tmp_path):
     assert len(rows) == DEMO_SESSIONS[0][4] * 60
     assert set(rows[0]) == {
         "session_id", "started_at_utc", "goal", "mode", "second_offset", "state",
-        "effective_state", "confidence", "reason_codes", "app_name",
+        "effective_state", "confidence", "reason_codes", "app_name", "mode_name",
     }
 
 
