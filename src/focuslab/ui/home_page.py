@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from focuslab.activity.camera_overlay import session_samples
 from focuslab.activity.stats import local_day_bounds
-from focuslab.config import MODE_LABELS
+from focuslab.config import mode_label
 from focuslab.domain.models import FocusState
 from focuslab.focus.metrics import compute_metrics, format_duration, format_ratio
 from focuslab.i18n import tr
@@ -233,7 +233,7 @@ class HomePage(QWidget):
                 s.status.value, tr(" · In progress")
             )
             item = QListWidgetItem(
-                f"{started:%m/%d %H:%M}  {s.goal}  ({MODE_LABELS[s.mode]}){status}"
+                f"{started:%m/%d %H:%M}  {s.goal}  ({mode_label(s.mode, s.mode_name)}){status}"
             )
             item.setData(Qt.ItemDataRole.UserRole, s.id)
             self.recent.addItem(item)

@@ -36,26 +36,12 @@ from PySide6.QtWidgets import (
 )
 
 from focuslab.activity.windows_tracker import normalize, visible_window_apps
-from focuslab.config import MODE_LABELS, NEUTRAL_APPS
+from focuslab.config import NEUTRAL_APPS
 from focuslab.domain.models import SessionConfig, SessionMode
-from focuslab.i18n import LocalizedMapping, tr
+from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import colors, style_form
-
-MODE_HINTS = LocalizedMapping(
-    {
-        SessionMode.CODING: (
-            "IDE, terminal, and documentation. Looking away alone does not establish task "
-            "deviation."
-        ),
-        SessionMode.LECTURE: "Video lectures. No keyboard or mouse input is expected.",
-        SessionMode.READING_WRITING: (
-            "Paper books and notes. Looking down is treated as work, with a longer wait "
-            "before estimating time away."
-        ),
-        SessionMode.CUSTOM: "Choose allowed apps yourself.",
-    }
-)
+from focuslab.work_modes import BUILT_IN, WorkMode
 
 BUBBLE_WIDTH = 460
 RADIUS = 12
@@ -85,11 +71,15 @@ class NewSessionForm(QWidget):
         self.goal.setPlaceholderText(tr("For example: solve algorithm problems"))
         form.addRow(tr("Goal"), self.goal)
 
+        # The user's own modes (Settings > Work modes) follow the built-in ones.
+        self._modes = {m.key: m for m in ctx.work_modes()}
         self.mode = QComboBox()
-        for mode in SessionMode:
-            self.mode.addItem(MODE_LABELS[mode], mode)
+        for mode in self._modes.values():
+            if mode.name is not None and self.mode.count() == len(BUILT_IN):
+                self.mode.insertSeparator(self.mode.count())
+            self.mode.addItem(mode.label, mode.key)
         last_mode = ctx.setting("last.mode", SessionMode.CODING.value)
-        self.mode.setCurrentIndex(max(0, self.mode.findData(SessionMode(last_mode))))
+        self.mode.setCurrentIndex(max(0, self.mode.findData(last_mode)))
         self.mode_hint = QLabel(objectName="Muted")
         self.mode_hint.setWordWrap(True)
         form.addRow(tr("Work mode"), self.mode)
@@ -167,8 +157,8 @@ class NewSessionForm(QWidget):
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self._mode_changed()
 
-    def current_mode(self) -> SessionMode:
-        return SessionMode(self.mode.currentData())
+    def current_mode(self) -> WorkMode:
+        return self._modes[self.mode.currentData()]
 
     def show_apps(self, shown: bool) -> None:
         self.apps_panel.setVisible(shown)
@@ -185,7 +175,7 @@ class NewSessionForm(QWidget):
 
     def _mode_changed(self) -> None:
         mode = self.current_mode()
-        self.mode_hint.setText(MODE_HINTS[mode])
+        self.mode_hint.setText(mode.hint)
         self._set_apps(self.ctx.allowed_apps(mode))
         self.sizeChanged.emit()  # the hint may wrap onto more lines
 
@@ -243,19 +233,21 @@ class NewSessionForm(QWidget):
                 return None
         cfg = self.config()
         self.ctx.set_setting("last.goal", cfg.goal)
-        self.ctx.set_setting("last.mode", cfg.mode.value)
+        self.ctx.set_setting("last.mode", self.current_mode().key)
         self.ctx.set_setting("last.minutes", str(cfg.planned_minutes))
         self.ctx.set_flag("last.camera", cfg.camera_enabled)
         return cfg
 
     def config(self) -> SessionConfig:
         goal = self.goal.text().strip() or tr("Focus session")
+        mode = self.current_mode()
         return SessionConfig(
             goal,
-            self.current_mode(),
+            mode.base,
             self.minutes.value(),
             self._current_apps(),
             self.camera.isChecked(),
+            mode.name,
         )
 
 

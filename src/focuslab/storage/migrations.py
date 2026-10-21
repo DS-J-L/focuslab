@@ -185,6 +185,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        8,
+        # The name of the user's own work mode; ``mode`` keeps the built-in mode it follows.
+        """
+        ALTER TABLE session ADD COLUMN mode_name TEXT;
+        """,
+    ),
 ]
 
 

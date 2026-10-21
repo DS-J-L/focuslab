@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from focuslab.config import MODE_LABELS
+from focuslab.config import mode_label
 from focuslab.domain.models import CameraStatus, FocusState
 from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.metrics import format_duration
@@ -320,7 +320,8 @@ class SessionPage(QWidget):
             Lifecycle.FINISHED: tr("Ended"),
             Lifecycle.IDLE: "",
         }[snap.lifecycle]
-        self.subtitle.setText(tr("{p0} mode · {p1}", p0=MODE_LABELS[cfg.mode], p1=state_word))
+        label = mode_label(cfg.mode, cfg.mode_name)
+        self.subtitle.setText(tr("{p0} mode · {p1}", p0=label, p1=state_word))
         self.pause_button.setText(
             tr("Resume") if snap.lifecycle is Lifecycle.PAUSED else tr("Pause")
         )

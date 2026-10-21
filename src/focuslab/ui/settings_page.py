@@ -34,6 +34,7 @@ from focuslab.activity.recorder import RecorderState
 from focuslab.browser import extension
 from focuslab.browser import install as browser_install
 from focuslab.config import (
+    MODE_LABELS,
     MODE_PROFILES,
     RULE_VERSION,
     RuleConfig,
@@ -60,8 +61,10 @@ from focuslab.ui.consent import (
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
+from focuslab.ui.guide import GuideDialog
 from focuslab.ui.theme import CATEGORY_LABELS, THEME_LABELS, apply_theme, style_form
 from focuslab.ui.update_dialog import UpdateDialog
+from focuslab.ui.work_mode_dialog import WorkModeDialog
 
 COLLECTED = (
     "<b>Saved</b>: session goals, modes and times; per-second estimated states and "
@@ -129,6 +132,7 @@ class SettingsPage(QWidget):
         root.setSpacing(20)
         root.addWidget(QLabel(tr("Settings"), objectName="PageTitle"))
         root.addWidget(self._language_box())
+        root.addWidget(self._modes_box())
         root.addWidget(self._privacy_box())
         root.addWidget(self._browser_box())
         root.addWidget(self._relevance_box())
@@ -220,7 +224,96 @@ class SettingsPage(QWidget):
         )
         form.addRow("", self.mascot_flight)
         form.addRow(tr("Fly after"), _row(self.flight_after, self.flight_interval))
+        guide = QPushButton(tr("Show the guide"))
+        guide.clicked.connect(self.show_guide)
+        form.addRow(tr("Getting started"), _row(guide))
         return box
+
+    def show_guide(self) -> None:
+        GuideDialog(self).exec()
+        self.ctx.set_flag("guide.done", True)
+
+    def _modes_box(self) -> QGroupBox:
+        box = QGroupBox(tr("Work modes"))
+        layout = QVBoxLayout(box)
+        layout.addWidget(
+            QLabel(
+                tr(
+                    "Add your own modes, such as Design or Exam prep, next to Coding, Lecture "
+                    "and Reading / writing. Each one has its own allowed apps and is estimated "
+                    "like the built-in mode you choose."
+                ),
+                wordWrap=True,
+                objectName="Muted",
+            )
+        )
+        self.modes = QListWidget()
+        self.modes.setMaximumHeight(120)
+        self.modes.itemDoubleClicked.connect(lambda _item: self._edit_mode())
+        self.modes.itemSelectionChanged.connect(self._mode_selection_changed)
+        layout.addWidget(self.modes)
+        add = QPushButton(tr("Add…"))
+        add.clicked.connect(self._add_mode)
+        self.edit_mode = QPushButton(tr("Edit…"))
+        self.edit_mode.clicked.connect(self._edit_mode)
+        self.delete_mode = QPushButton(tr("Delete"))
+        self.delete_mode.clicked.connect(self._delete_mode)
+        layout.addWidget(_row(add, self.edit_mode, self.delete_mode))
+        return box
+
+    def _refresh_modes(self) -> None:
+        self.modes.clear()
+        for mode in self.ctx.custom_modes():
+            item = QListWidgetItem(
+                tr("{p0} · estimated like {p1}", p0=mode.name, p1=MODE_LABELS[mode.base])
+            )
+            item.setData(Qt.ItemDataRole.UserRole, mode)
+            self.modes.addItem(item)
+        if not self.modes.count():
+            empty = QListWidgetItem(tr("No modes of your own yet."))
+            empty.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.modes.addItem(empty)
+        self._mode_selection_changed()
+
+    def _selected_mode(self):
+        items = self.modes.selectedItems()
+        return items[0].data(Qt.ItemDataRole.UserRole) if items else None
+
+    def _mode_selection_changed(self) -> None:
+        selected = self._selected_mode() is not None
+        self.edit_mode.setEnabled(selected)
+        self.delete_mode.setEnabled(selected)
+
+    def _mode_dialog(self, mode=None) -> None:
+        taken = {m.label for m in self.ctx.work_modes() if mode is None or m.key != mode.key}
+        dialog = WorkModeDialog(taken, mode, self)
+        if dialog.exec() == WorkModeDialog.DialogCode.Accepted:
+            self.ctx.save_work_mode(dialog.result_mode())
+            self._refresh_modes()
+
+    def _add_mode(self) -> None:
+        self._mode_dialog()
+
+    def _edit_mode(self) -> None:
+        if (mode := self._selected_mode()) is not None:
+            self._mode_dialog(mode)
+
+    def _delete_mode(self) -> None:
+        mode = self._selected_mode()
+        if mode is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            tr("Delete work mode"),
+            tr(
+                "Delete the work mode \"{p0}\" and its allowed apps? Past sessions keep "
+                "its name.",
+                p0=mode.name,
+            ),
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.ctx.delete_work_mode(mode)
+            self._refresh_modes()
 
     def _flight_changed(self, on: bool) -> None:
         self.ctx.set_flag("ui.mascot_flight", on)
@@ -788,6 +881,7 @@ class SettingsPage(QWidget):
         self._refresh_browser()
         self._refresh_relevance()
         self._refresh_classification()
+        self._refresh_modes()
         activity = self.ctx.activity_consent
         consent_text = {None: tr("Not asked yet"), True: tr("Agreed"), False: tr("Not agreed")}
         self.activity_state.setText(consent_text[activity])

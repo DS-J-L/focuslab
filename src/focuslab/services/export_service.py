@@ -194,6 +194,7 @@ CSV_COLUMNS = [
     "confidence",
     "reason_codes",
     "app_name",
+    "mode_name",
 ]
 
 
@@ -220,6 +221,7 @@ def export_csv(repo: Repository, path: Path, session_ids: list[int] | None = Non
                         raw.confidence,
                         ";".join(raw.reason_codes),
                         raw.app_name or "",
+                        r.mode_name or "",
                     ]
                 )
     return path

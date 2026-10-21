@@ -88,6 +88,43 @@ MODE_LABELS = LocalizedMapping(
     }
 )
 
+MODE_HINTS = LocalizedMapping(
+    {
+        SessionMode.CODING: (
+            "IDE, terminal, and documentation. Looking away alone does not establish task "
+            "deviation."
+        ),
+        SessionMode.LECTURE: "Video lectures. No keyboard or mouse input is expected.",
+        SessionMode.READING_WRITING: (
+            "Paper books and notes. Looking down is treated as work, with a longer wait "
+            "before estimating time away."
+        ),
+        SessionMode.CUSTOM: "Choose allowed apps yourself.",
+    }
+)
+
+# How each built-in mode estimates, for the user's own modes that follow it.
+ESTIMATION_HINTS = LocalizedMapping(
+    {
+        SessionMode.CODING: (
+            "Expects keyboard or mouse input. Looking away alone does not establish task "
+            "deviation."
+        ),
+        SessionMode.LECTURE: "No keyboard or mouse input is expected, as in videos and calls.",
+        SessionMode.READING_WRITING: (
+            "Looking down at paper is treated as work, with a longer wait before estimating "
+            "time away."
+        ),
+        SessionMode.CUSTOM: "Expects keyboard or mouse input.",
+    }
+)
+
+
+def mode_label(mode: SessionMode, name: str | None = None) -> str:
+    "The user's own mode name, or the built-in mode's label."
+    return name or MODE_LABELS[mode]
+
+
 BROWSERS = (
     "chrome.exe",
     "msedge.exe",
