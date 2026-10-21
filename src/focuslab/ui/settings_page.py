@@ -157,6 +157,19 @@ class SettingsPage(QWidget):
             lambda on: self.ctx.set_flag("ui.overlay_on_start", on)
         )
         form.addRow(tr("Session overlay"), self.overlay_on_start)
+        self.timer_mode = QComboBox()
+        self.timer_mode.addItem(tr("Count up from 0"), False)
+        self.timer_mode.addItem(tr("Count down the time left"), True)
+        self.timer_mode.setToolTip(
+            tr(
+                "Sessions without a target time always count up. Clicking the session "
+                "clock also switches."
+            )
+        )
+        self.timer_mode.currentIndexChanged.connect(
+            lambda: self.ctx.set_flag("ui.timer_countdown", bool(self.timer_mode.currentData()))
+        )
+        form.addRow(tr("Session timer"), self.timer_mode)
         self.mascot_motion = QComboBox()
         for level, label in MOTION_LABELS.items():
             self.mascot_motion.addItem(tr(label), level)
@@ -846,6 +859,9 @@ class SettingsPage(QWidget):
             widget.blockSignals(True)
             (widget.setValue if isinstance(widget, QSpinBox) else widget.setChecked)(value)
             widget.blockSignals(False)
+        self.timer_mode.blockSignals(True)
+        self.timer_mode.setCurrentIndex(self.timer_mode.findData(self.ctx.timer_countdown))
+        self.timer_mode.blockSignals(False)
         self.autostart.setEnabled(not self.ctx.demo)
         self._refresh_flight()
 

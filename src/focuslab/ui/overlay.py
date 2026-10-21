@@ -51,7 +51,7 @@ from focuslab.ui.mascot.renderer import (
     paint_emote,
     paint_plaque,
 )
-from focuslab.ui.widgets import clock_text
+from focuslab.ui.widgets import clock_text, timer_text
 
 MARGIN = 16
 POS_KEY = "ui.overlay_pos"  # top-right corner, so collapsing keeps the right edge in place
@@ -388,9 +388,23 @@ class SessionOverlay(QWidget):
         self.break_button.icon_name = "back" if snap.on_break else "cup"
         self.break_button.emblem = "cup"
         self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
-        seconds = session_seconds(snap)
-        self.time.setText(long_text(seconds))
-        self.mini_time.setText(clock_text(seconds))
+        planned = snap.config.planned_minutes * 60 if snap.config else 0
+        if self.ctx.timer_countdown and planned:  # time left to the target, then overtime
+            left = planned - snap.active_s
+            self.time.setText(
+                tr("{p0} left", p0=long_text(left))
+                if left >= 0
+                else tr("{p0} over", p0=long_text(-left))
+            )
+            self.mini_time.setText(timer_text(snap.active_s, planned, True))
+            tip = tr("Time left to the target time")
+        else:
+            seconds = session_seconds(snap)
+            self.time.setText(long_text(seconds))
+            self.mini_time.setText(clock_text(seconds))
+            tip = tr("Session time without pauses and breaks, not estimated focus")
+        if self.time.toolTip() != tip:
+            self.time.setToolTip(tip)
         style = "color: #8C94A6;" if paused else ""  # a stopped clock is greyed out
         if self.mini_time.styleSheet() != style:  # restyling on every poll would re-polish
             self.mini_time.setStyleSheet(style)

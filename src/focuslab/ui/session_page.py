@@ -34,6 +34,7 @@ from focuslab.ui.widgets import (
     clock_text,
     frame_pixmap,
     preview_label,
+    timer_text,
 )
 
 FACE_TEXT = LocalizedMapping(
@@ -61,6 +62,7 @@ class SessionPage(QWidget):
     finishRequested = Signal()
     cameraStopRequested = Signal()
     overlayRequested = Signal()
+    timerModeChanged = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -99,7 +101,10 @@ class SessionPage(QWidget):
         root.addLayout(header)
 
         time_row = QHBoxLayout()
-        self.clock = QLabel("00:00", styleSheet="font-size:34px; font-weight:700;")
+        # Clicking the clock switches between counting up and counting down (also in Settings).
+        self.clock = QPushButton("00:00", objectName="Clock")
+        self.clock.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clock.clicked.connect(self._toggle_countdown)
         self.remaining = QLabel("", objectName="Muted")
         time_row.addWidget(self.clock)
         time_row.addWidget(self.remaining, 0, Qt.AlignmentFlag.AlignBottom)
@@ -223,6 +228,12 @@ class SessionPage(QWidget):
         self.refresh(self._snapshot)
 
     # actions ----------------------------------------------------------------------
+    def _toggle_countdown(self) -> None:
+        if self._snapshot.config is not None and self._snapshot.config.planned_minutes:
+            self.ctx.set_flag("ui.timer_countdown", not self.ctx.timer_countdown)
+            self.timerModeChanged.emit()
+            self.refresh(self._snapshot)
+
     def _toggle_break(self) -> None:
         if self._snapshot.lifecycle is Lifecycle.RUNNING:
             self.ctx.service.set_break(not self._snapshot.on_break)
@@ -317,18 +328,24 @@ class SessionPage(QWidget):
         self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
 
         planned = cfg.planned_minutes * 60
-        self.clock.setText(clock_text(snap.active_s))
+        countdown = self.ctx.timer_countdown
+        self.clock.setText(timer_text(snap.active_s, planned, countdown))
         if planned:
-            self.remaining.setText(
-                tr(
-                    "  Remaining {p0} · Paused {p1}",
-                    p0=clock_text(planned - snap.active_s),
-                    p1=clock_text(snap.paused_s),
-                )
+            self.clock.setToolTip(
+                tr("Click to count up from 0") if countdown else tr("Click to show the time left")
             )
+            # The clock shows one of elapsed / left; the line beside it gives the other.
+            paused = clock_text(snap.paused_s)
+            if countdown:
+                other = tr("  Elapsed {p0} · Paused {p1}", p0=clock_text(snap.active_s), p1=paused)
+            else:
+                left = clock_text(planned - snap.active_s)
+                other = tr("  Remaining {p0} · Paused {p1}", p0=left, p1=paused)
+            self.remaining.setText(other)
             self.progress.setRange(0, planned)
             self.progress.setValue(min(planned, snap.active_s))
         else:
+            self.clock.setToolTip("")
             self.remaining.setText(
                 tr("  No time limit · Paused {p0}", p0=clock_text(snap.paused_s))
             )

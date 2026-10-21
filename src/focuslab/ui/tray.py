@@ -12,7 +12,7 @@ from focuslab.i18n import LocalizedMapping, tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.recording_status import RecordingHealth
 from focuslab.ui.theme import ACCENT, STATE_COLORS, STATE_LABELS
-from focuslab.ui.widgets import clock_text
+from focuslab.ui.widgets import timer_text
 
 PAUSED_COLOR = "#8C94A6"
 SAVE_FAILED_COLOR = "#E8590C"
@@ -88,7 +88,11 @@ class Tray(QSystemTrayIcon):
         self._save_failed = False
 
     def update_state(
-        self, snap: LiveSnapshot, recording: RecorderState, health: RecordingHealth | None = None
+        self,
+        snap: LiveSnapshot,
+        recording: RecorderState,
+        health: RecordingHealth | None = None,
+        countdown: bool = False,
     ) -> None:
         health = health or RecordingHealth(RECORDING_TEXT[recording])
         self.health_action.setText(health.text)
@@ -128,7 +132,8 @@ class Tray(QSystemTrayIcon):
         if health.saving_failed:  # Windows cuts tooltips at 127 characters: keep it short
             parts.append(tr("⚠ Save failed"))
         if active:
-            parts.append(tr("Session {p0}", p0=clock_text(snap.active_s)))
+            planned = snap.config.planned_minutes * 60 if snap.config else 0
+            parts.append(tr("Session {p0}", p0=timer_text(snap.active_s, planned, countdown)))
             parts.append(
                 tr("Paused")
                 if snap.lifecycle is Lifecycle.PAUSED

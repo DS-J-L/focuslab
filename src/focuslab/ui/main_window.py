@@ -40,7 +40,7 @@ from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
 from focuslab.ui.theme import SELF_REPORT_LABELS, apply_theme
 from focuslab.ui.tray import Tray, make_icon
-from focuslab.ui.widgets import clock_text
+from focuslab.ui.widgets import timer_text
 from focuslab.ui.window_frame import (
     INTEGRATED_FRAME,
     TITLE_HEIGHT,
@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
         self.overlay.finishRequested.connect(self.finish_session)
         self.overlay.breakRequested.connect(self.toggle_break)
         self.session.overlayRequested.connect(self.show_overlay)
+        self.session.timerModeChanged.connect(self.poll)  # overlay, sidebar and tray at once
         self.report.dataChanged.connect(self.home.refresh)
         self.settings.dataChanged.connect(self._data_changed)
         self.activity.dataChanged.connect(self.settings.refresh)
@@ -336,7 +337,7 @@ class MainWindow(QMainWindow):
         self.overlay.refresh(snap)
         self._refresh_session_return(snap)
         health = self.ctx.recording_health()
-        self.tray.update_state(snap, self.ctx.recording_state, health)
+        self.tray.update_state(snap, self.ctx.recording_state, health, self.ctx.timer_countdown)
         if self.stack.currentIndex() == ACTIVITY:
             self.activity.set_recording_health(health)
         elif self.stack.currentIndex() == HOME:
@@ -350,10 +351,11 @@ class MainWindow(QMainWindow):
         "The sidebar card back to the live session: shown only while one is in progress."
         active = snap.lifecycle in ACTIVE
         if active:
+            planned = snap.config.planned_minutes * 60 if snap.config else 0
             state = (
                 tr("Paused")
                 if snap.lifecycle is Lifecycle.PAUSED
-                else clock_text(snap.active_s)
+                else timer_text(snap.active_s, planned, self.ctx.timer_countdown)
             )
             self.session_return.setText(tr("Session in progress\n{p0} · Return", p0=state))
         self.session_return.setVisible(active)

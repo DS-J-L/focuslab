@@ -33,6 +33,15 @@ def clock_text(seconds: int) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
+def timer_text(elapsed_s: int, planned_s: int, countdown: bool) -> str:
+    """The session clock: time elapsed, or with countdown on and a target time, the time left
+    (then the overtime, as +MM:SS). Without a target time there is nothing to count down."""
+    if countdown and planned_s:
+        left = planned_s - int(elapsed_s)
+        return clock_text(left) if left >= 0 else "+" + clock_text(-left)
+    return clock_text(elapsed_s)
+
+
 def preview_label(text: str) -> QLabel:
     """Fixed-size dark box that shows the in-memory camera preview."""
     label = QLabel(text, alignment=Qt.AlignmentFlag.AlignCenter)
