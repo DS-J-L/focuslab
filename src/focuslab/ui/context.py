@@ -203,6 +203,11 @@ class AppContext:
         return self.flag("ui.overlay_on_start", True)
 
     @property
+    def timer_countdown(self) -> bool:
+        "Session clocks show the time left to the target instead of counting up from 0."
+        return self.flag("ui.timer_countdown", False)
+
+    @property
     def mascot_motion(self) -> str:
         "How much the overlay parrots move on their own: minimal, normal or lively."
         return self.setting("ui.mascot_motion") or "normal"
