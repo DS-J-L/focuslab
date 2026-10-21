@@ -167,6 +167,9 @@ QPushButton#Fab {{ background: {ACCENT}; color: white; border: none; border-radi
 QPushButton#Fab[running="true"] {{ padding: 0 24px; font-size: 14px; font-weight: 600; }}
 QPushButton#Fab:hover {{ background: #324FC2; }}
 QPushButton#Fab:focus {{ border: 2px solid #A9B6E8; }}
+#PopoverTitle {{ font-size: 16px; font-weight: 700; }}
+QScrollArea#PopoverScroll, #PopoverContent {{ background: transparent; border: none; }}
+QPushButton#Disclosure {{ text-align: left; padding: 8px 12px; }}
 #Sidebar QPushButton#SessionReturn {{ background: #2B3242; color: #E4E8F0;
     border: 1px solid #3B4560; border-radius: 8px; padding: 10px 14px; text-align: left;
     font-size: 12px; }}
