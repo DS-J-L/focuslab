@@ -16,6 +16,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from focuslab.activity.power import PowerSource
 from focuslab.services.activity_service import activity_report
 from focuslab.storage.sqlite_db import connect
 
@@ -27,9 +28,10 @@ class _Worker(QObject):
     error = Signal(str, int, str)
 
     def __init__(self, db_path: Path | str, latest: dict[str, int],
-                 guard: threading.Lock) -> None:
+                 guard: threading.Lock, power: PowerSource | None) -> None:
         super().__init__()
         self._db_path = db_path
+        self._power = power
         self._latest = latest
         self._guard = guard
         self.conn: sqlite3.Connection | None = None
@@ -44,7 +46,7 @@ class _Worker(QObject):
                 # Closed from the GUI thread once this thread has finished.
                 self.conn = connect(self._db_path, check_same_thread=False)
             start_ms, end_ms = window
-            result = activity_report(self.conn, start_ms, end_ms)
+            result = activity_report(self.conn, start_ms, end_ms, self._power)
         except Exception as exc:  # reported to the page; the next request retries
             log.warning("activity report failed: %s", exc)
             self.error.emit(key, generation, str(exc))
@@ -60,9 +62,13 @@ class ActivityReporter(QObject):
     ready = Signal(str, object, object)  # key, context, (labeled, stats)
     failed = Signal(str, object, str)  # key, context, message
 
-    def __init__(self, db_path: Path | str, parent: QObject | None = None) -> None:
+    def __init__(
+        self, db_path: Path | str, parent: QObject | None = None,
+        power: PowerSource | None = None,
+    ) -> None:
         super().__init__(parent)
         self._db_path = db_path
+        self._power = power  # read on the worker thread only
         self._latest: dict[str, int] = {}
         self._guard = threading.Lock()
         self._contexts: dict[str, object] = {}
@@ -75,7 +81,7 @@ class ActivityReporter(QObject):
             return
         self._thread = QThread()
         self._thread.setObjectName("focuslab-activity-report")
-        self._worker = _Worker(self._db_path, self._latest, self._guard)
+        self._worker = _Worker(self._db_path, self._latest, self._guard, self._power)
         self._worker.moveToThread(self._thread)
         self._submit.connect(self._worker.compute)
         self._worker.done.connect(self._on_done)

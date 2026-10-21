@@ -632,5 +632,14 @@
   "Back": "이전",
   "Step {p0} of {p1}": "{p1}단계 중 {p0}단계",
   "Get started": "시작하기",
-  "Next": "다음"
+  "Next": "다음",
+  "PC on time": "PC 켜짐 시간",
+  "Awake time from the Windows event log (excludes sleep and shutdown)": "Windows 이벤트 로그 기준 깨어 있던 시간(절전·종료 제외)",
+  "Not available: the Windows event log does not cover this period": "확인 불가: Windows 이벤트 로그에 이 기간 기록이 없습니다",
+  "Input-based active {p0} ({p1}) · Not recorded by FocusLab {p2}": "입력 기반 활성 {p0}({p1}) · FocusLab 기록 없음 {p2}",
+  "Open power settings": "전원 설정 열기",
+  "Never": "사용 안 함",
+  "Tip: sleep is set to {p0}, but the PC stayed on without input for longer than that {p1} times ({p2} in total). A video, download, or remote session may have kept it awake; powercfg /requests shows what is preventing sleep.": "팁: 절전 전환은 {p0}인데, 입력 없이 그보다 오래 켜져 있던 구간이 {p1}번(합계 {p2}) 있었어요. 영상·다운로드·원격 접속 등이 절전을 막았을 수 있어요. powercfg /requests로 원인을 확인할 수 있어요.",
+  "Tip: the PC stayed on without input for over {p0} {p1} times ({p2} in total). Sleep is set to {p3}; with {p0}, up to {p4} of that could have been spent asleep (not if you were watching something).": "팁: 입력 없이 {p0} 넘게 켜져 있던 구간이 {p1}번(합계 {p2}) 있었어요. 절전 전환이 '{p3}'인데, {p0}으로 바꾸면 그중 최대 {p4}는 절전 상태였을 거예요(영상 시청 중이었다면 해당 없음).",
+  "<b>PC on</b>: {p0} · of which input-based active {p1} ({p2})": "<b>PC 켜짐</b>: {p0} · 그중 입력 기반 활성 {p1}({p2})"
 }

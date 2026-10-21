@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from focuslab import autostart
+from focuslab.activity.power import EventLogPower, PowerSource
 from focuslab.activity.probe import WindowsProbe
 from focuslab.activity.recorder import (
     DEFAULT_IDLE_THRESHOLD_S,
@@ -25,7 +26,7 @@ from focuslab.domain.activity import ActivitySpan, Category
 from focuslab.domain.models import SessionConfig
 from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, initialize_language
-from focuslab.mock_sources import MockActivitySource, MockFaceSource
+from focuslab.mock_sources import DemoPower, MockActivitySource, MockFaceSource
 from focuslab.relevance import model_manager
 from focuslab.relevance.embedding import SemanticAnalyzer
 from focuslab.relevance.feedback import RelevanceRule, RelevanceRules
@@ -53,6 +54,7 @@ class AppContext:
             calibration=self.calibration,
         )
         self.recorder: ActivityRecorder | None = None
+        self._power: EventLogPower | None = None
         initialize_language(self.setting("ui.language"))
         self.apply_relevance_ai()
 
@@ -338,11 +340,27 @@ class AppContext:
         self.recorder.set_title_tracking(self.browser_consent and self.page_titles_consent)
         # A pause chosen by the user survives restarts: nothing is read until resumed.
         self.recorder.start(paused=self.flag("activity.paused"))
+        if self._power is not None:
+            self._power.enabled = True
         return True
 
     def stop_recording(self) -> None:
         if self.recorder:
             self.recorder.stop()
+        if self._power is not None:  # withdrawing recording consent (or exiting) stops this
+            self._power.enabled = False
+
+    def power_source(self) -> PowerSource | None:
+        """Power-on time for activity reports, read from the Windows event log only while
+        automatic recording is consented. Demo mode never reads the OS."""
+        if self.demo:
+            return DemoPower()
+        if sys.platform != "win32":
+            return None
+        if self._power is None:
+            self._power = EventLogPower()
+        self._power.enabled = self.recording_consent
+        return self._power
 
     @property
     def recording_state(self) -> RecorderState:

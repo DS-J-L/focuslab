@@ -15,6 +15,7 @@ Automatic recording, browser recording, manual-session PC observation, and camer
 | Manual-session PC observation | Once per second during a focus session you start | Foreground process name, time since last input, lock status, and current site if automatic recording provides it | The sensitive contents listed above |
 | Optional camera | Only during focus sessions you start; released on pause, finish, camera-off, or consent withdrawal | Face presence, head angles, observation quality | Identity recognition, emotion recognition, diagnosis; video, photos, and face coordinates are not saved |
 
+- **PC on time:** with automatic-recording consent, the Activity page reads boot, shutdown, sleep, and resume timestamps from the Windows System event log and the current sleep/display-off timeouts of the active power plan. They are read only when a report is computed, kept in memory, never stored or sent, and the power plan is never changed. Withdrawing recording consent stops these reads.
 - Executable paths may be inspected in memory to identify a Steam/Epic/game-library folder; the paths are discarded and not stored.
 - The camera never runs as part of background automatic recording. Observations overlap with automatic activity only during manual focus sessions. Only estimated absence reduces attended work time; looking away alone does not establish task deviation.
 - Camera frames are processed in memory without disk storage or transmission.

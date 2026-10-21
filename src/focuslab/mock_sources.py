@@ -109,3 +109,29 @@ class MockActivitySource:
             now_ms, name, allowed_status(name, self._allowed, domain), idle, available=True,
             screen_locked=kind == "locked", domain=domain, page_title=title,
         )
+
+
+class DemoPower:
+    """Power-on time for ``--demo``: awake 08:30-18:30 every day, sleep never."""
+
+    def on_intervals(self, start_ms: int, end_ms: int) -> list[tuple[int, int]]:
+        from datetime import datetime, timedelta
+
+        out = []
+        day = datetime.fromtimestamp(start_ms / 1000).date() - timedelta(days=1)
+        last = datetime.fromtimestamp(end_ms / 1000).date()
+        now = int(datetime.now().timestamp() * 1000)
+        while day <= last:
+            midnight = datetime.combine(day, datetime.min.time()).astimezone()
+            a = int((midnight + timedelta(hours=8, minutes=30)).timestamp() * 1000)
+            b = int((midnight + timedelta(hours=18, minutes=30)).timestamp() * 1000)
+            a, b = max(a, start_ms), min(b, end_ms, now)
+            if b > a:
+                out.append((a, b))
+            day += timedelta(days=1)
+        return out
+
+    def settings(self):
+        from focuslab.activity.power import PowerSettings
+
+        return PowerSettings(sleep_s=0, display_s=600)

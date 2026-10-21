@@ -1,5 +1,6 @@
 """Activity dashboard on the acceptance scenario: overview, timeline, tables, corrections."""
 
+import sys
 from datetime import datetime, timedelta
 
 import pytest
@@ -118,3 +119,46 @@ def test_auto_refresh_keeps_a_selection_and_skips_long_range_charts(window, monk
     page.spans.selectRow(0)
     page.auto_refresh()  # not today and a row is selected: nothing changes under the user
     assert page.spans.selectionModel().selectedRows()[0].row() == 0
+
+
+def test_power_on_time_card_and_period_line(window):
+    page = window.activity
+    # Demo power: awake 08:30-18:30; the scenario records 1 h 20 m from 09:00.
+    assert page.cards["power"]._value.text() == "10시간 0분"
+    hint = page.cards["power"]._hint.text()
+    assert "입력 기반 활성 1시간 10분(12%)" in hint and "FocusLab 기록 없음 8시간 40분" in hint
+    assert not page.power_tip.isVisibleTo(window)  # ten idle minutes: nothing to suggest
+    assert "PC 켜짐" in page.range_summary.text()
+
+
+def test_sleep_tip_shows_one_line_with_a_settings_button(window):
+    from focuslab.activity.power import PowerReport, PowerSettings
+
+    page = window.activity
+    hour = 3_600_000
+    page.stats.power = PowerReport(
+        10 * hour, 0, [(0, 2 * hour), (3 * hour, 4 * hour)], PowerSettings(0, 0)
+    )
+    page._fill_overview(page.stats)
+    assert page.power_tip.isVisibleTo(window) and page.power_settings.isVisibleTo(window)
+    text = page.power_tip.text()
+    assert "2번(합계 3시간 0분)" in text and "'사용 안 함'" in text and "최대 2시간 0분" in text
+    page.stats.power = None  # e.g. the event log no longer covers the day
+    page._fill_overview(page.stats)
+    assert page.cards["power"]._value.text() == "-"
+    assert not page.power_tip.isVisibleTo(window)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows event log")
+def test_power_events_follow_recording_consent():
+    ctx = AppContext()
+    try:
+        power = ctx.power_source()
+        assert power.on_intervals(0, 1) is None  # no consent yet: the log is not read
+        ctx.set_flag("consent.recording", True)
+        assert ctx.power_source().enabled
+        ctx.set_flag("consent.recording", False)
+        ctx.stop_recording()  # what withdrawing consent in Settings does
+        assert not power.enabled
+    finally:
+        ctx.service.shutdown()

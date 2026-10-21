@@ -3,7 +3,8 @@ classification and webcam observations, automatic sessions, and day/week/month s
 
 from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from focuslab.activity.auto_sessions import span_label
 from focuslab.activity.classifier import CLASS_REASON_TEXT
+from focuslab.activity.power import SUGGESTED_SLEEP_S, PowerReport, SleepTip
 from focuslab.activity.stats import ActivityStats, LabeledSpan, local_day_bounds
 from focuslab.domain.activity import Category, ClassSource, SpanKind
 from focuslab.focus.metrics import format_duration
@@ -46,6 +48,7 @@ SOURCE_TEXT = LocalizedMapping(
 RANGES = {"Last 7 days": 7, "Last 30 days": 30}
 DAY, RANGE = "activity.day", "activity.range"  # ActivityReporter keys
 WORK_HINT = "Time classified as development, study, documentation, research, or productivity tools"
+POWER_HINT = "Awake time from the Windows event log (excludes sleep and shutdown)"
 METRICS_NOTE = (
     "This page shows automatic recordings. Input-based active time reflects keyboard "
     "or mouse activity, so watching a lecture or reading without input may count as "
@@ -63,6 +66,42 @@ def _hm(ms: int) -> str:
 
 def _dur(ms: float | None) -> str:
     return format_duration(None if ms is None else ms / 1000)
+
+
+def _share(part: int, whole: int) -> str:
+    return f"{part / whole:.0%}" if whole else "-"
+
+
+def _timeout(seconds: int) -> str:
+    if not seconds:
+        return tr("Never")
+    return tr("{p0}m", p0=seconds // 60) if seconds < 3600 else _dur(seconds * 1000)
+
+
+def _tip_text(tip: SleepTip) -> str:
+    if tip.blocked:
+        return tr(
+            (
+                "Tip: sleep is set to {p0}, but the PC stayed on without input for longer "
+                "than that {p1} times ({p2} in total). A video, download, or remote session "
+                "may have kept it awake; powercfg /requests shows what is preventing sleep."
+            ),
+            p0=_timeout(tip.sleep_s),
+            p1=tip.runs,
+            p2=_dur(tip.total_ms),
+        )
+    return tr(
+        (
+            "Tip: the PC stayed on without input for over {p0} {p1} times ({p2} in total). "
+            "Sleep is set to {p3}; with {p0}, up to {p4} of that could have been spent "
+            "asleep (not if you were watching something)."
+        ),
+        p0=_timeout(SUGGESTED_SLEEP_S),
+        p1=tip.runs,
+        p2=_dur(tip.total_ms),
+        p3=_timeout(tip.sleep_s),
+        p4=_dur(tip.saved_ms),
+    )
 
 
 def _camera_text(item: LabeledSpan) -> str:
@@ -154,6 +193,7 @@ class ActivityPage(QWidget):
         cards = QGridLayout()
         cards.setSpacing(12)
         self.cards = {
+            "power": StatCard(tr("PC on time"), hint=tr(POWER_HINT)),
             "total": StatCard(
                 tr("Total PC use"), hint=tr("Active + idle (excludes lock and sleep)")
             ),
@@ -172,8 +212,18 @@ class ActivityPage(QWidget):
             "work": StatCard(tr("Work-category time"), hint=tr(WORK_HINT)),
         }
         for i, card in enumerate(self.cards.values()):
-            cards.addWidget(card, i // 3, i % 3)
+            cards.addWidget(card, i // 4, i % 4)
         root.addLayout(cards)
+        tip = QHBoxLayout()
+        self.power_tip = QLabel(objectName="Notice", wordWrap=True)
+        tip.addWidget(self.power_tip, 1)
+        self.power_settings = QPushButton(tr("Open power settings"))
+        self.power_settings.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("ms-settings:powersleep"))
+        )
+        tip.addWidget(self.power_settings, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.addLayout(tip)
+        self._show_tip(None)
         self.metrics_note = QLabel(tr(METRICS_NOTE), objectName="Muted", wordWrap=True)
         root.addWidget(self.metrics_note)
 
@@ -400,7 +450,34 @@ class ActivityPage(QWidget):
                 )
             )
 
+    def _fill_power(self, st: ActivityStats) -> None:
+        power = st.power
+        if power is None:
+            self.cards["power"].set(
+                "-", tr("Not available: the Windows event log does not cover this period")
+            )
+            self._show_tip(None)
+            return
+        self.cards["power"].set(
+            _dur(power.on_ms),
+            tr(
+                "Input-based active {p0} ({p1}) · Not recorded by FocusLab {p2}",
+                p0=_dur(st.active_ms),
+                p1=_share(st.active_ms, power.on_ms),
+                p2=_dur(power.unrecorded_ms),
+            ),
+        )
+        self._show_tip(power)
+
+    def _show_tip(self, power: PowerReport | None) -> None:
+        tip = power.tip if power else None
+        self.power_tip.setVisible(tip is not None)
+        self.power_settings.setVisible(tip is not None)
+        if tip is not None:
+            self.power_tip.setText(_tip_text(tip))
+
     def _fill_overview(self, st: ActivityStats) -> None:
+        self._fill_power(st)
         self.cards["total"].set(
             _dur(st.total_ms), tr("Screen locked: {p0} (separate)", p0=_dur(st.locked_ms))
         )
@@ -596,6 +673,17 @@ class ActivityPage(QWidget):
             for (a, b), n in st.transitions.most_common(5)
         ) or tr("None")
         active_days = sum(1 for counts in st.daily.values() if sum(counts.values()))
+        power = (
+            ""
+            if st.power is None
+            else "<br>"
+            + tr(
+                "<b>PC on</b>: {p0} · of which input-based active {p1} ({p2})",
+                p0=_dur(st.power.on_ms),
+                p1=_dur(st.active_ms),
+                p2=_share(st.active_ms, st.power.on_ms),
+            )
+        )
         self.range_summary.setText(
             tr(
                 (
@@ -617,6 +705,7 @@ class ActivityPage(QWidget):
                 p9=_dur(st.mean_session_ms),
                 p10=_dur(st.mean_return_ms),
             )
+            + power
         )
 
     # corrections ------------------------------------------------------------------

@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         # Activity statistics run on a worker thread with its own database connection.
-        self.reporter = ActivityReporter(ctx.db_path, self)
+        self.reporter = ActivityReporter(ctx.db_path, self, power=ctx.power_source())
         self.home = HomePage(ctx, self.reporter)
         self.activity = ActivityPage(ctx, self.reporter)
         self.session = SessionPage(ctx)
