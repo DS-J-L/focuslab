@@ -49,11 +49,11 @@ class Repository:
         with self.transaction():
             cur = self.conn.execute(
                 "INSERT INTO session (goal, mode, planned_minutes, started_at_utc, status,"
-                " camera_enabled, rule_version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " camera_enabled, rule_version, mode_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     config.goal, config.mode.value, config.planned_minutes,
                     started_at_utc or utc_now(), SessionStatus.RUNNING.value,
-                    int(config.camera_enabled), rule_version,
+                    int(config.camera_enabled), rule_version, config.mode_name,
                 ),
             )
             session_id = cur.lastrowid
@@ -101,6 +101,7 @@ class Repository:
             paused_seconds=row["paused_seconds"],
             self_report=row["self_report"],
             allowed_apps=tuple(a["process_name"] for a in apps),
+            mode_name=row["mode_name"],
         )
 
     def get_session(self, session_id: int) -> SessionRecord | None:

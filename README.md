@@ -8,7 +8,7 @@ FocusLab is a local-first, open-source Windows desktop app for reviewing work pa
 
 ## Product principles
 
-- **Goal and context:** coding, lectures, reading/writing, and custom modes have different allowed apps and expectations.
+- **Goal and context:** coding, lectures, reading/writing, and custom modes have different allowed apps and expectations. Add your own named modes (for example *Design* or *Exam prep*) under **Settings > Work modes**: each keeps its own allowed apps and is estimated like the built-in mode you pick. Sessions remember the mode's name even after it is deleted.
 - **Explainable observations:** see the evidence behind an estimate and correct it yourself.
 - **Explicit uncertainty:** looking away or covering the camera does not establish that you are off task.
 - **Local processing:** no account or cloud service is required. Background activity recording requires consent; the camera runs only in sessions you start.
@@ -30,7 +30,7 @@ uv run focuslab
 
 | Command | Behavior |
 | --- | --- |
-| `uv run focuslab` | Open the app. First-run automatic recording is opt-in; PC observation and camera consent are handled separately. |
+| `uv run focuslab` | Open the app. First-run automatic recording is opt-in; PC observation and camera consent are handled separately. A short guide follows first-run setup once; **Skip guide** closes it, and **Settings > Appearance > Show the guide** opens it again. |
 | `uv run focuslab --background` | Start in the tray, as used by the sign-in startup entry. Exit quietly if already running. |
 | `uv run focuslab --demo` | Use scripted sensors without reading the real camera or PC activity. |
 | `uv run focuslab --language en` | Use English for this run. Use `ko` for Korean. |
@@ -135,7 +135,7 @@ GitHub Actions checks lint, tests, the diagnostic CLI, and package builds on a W
 - **Session overlay:** an always-on-top panel (top-right by default, drag to move; the position is remembered) where three parrots sit on a branch above the session time without pauses and breaks, which is separate from the camera-based estimate. The parrots are the controls: red pauses or resumes, blue ends the session, and yellow starts or ends a break; pointing at one shows its action in a speech bubble. The top-right buttons collapse the overlay to just the time or hide it while the session continues (**Show overlay** brings it back). The parrots are drawn in code and only animate while the expanded overlay is on screen. They react to the session's estimate, never to a hunch: when it says *possibly off task* they stop and look at you, after 30 uninterrupted seconds they get cross, and they cheer when you are back. Uncertain estimates, being away, breaks and pauses reset this (they sleep through pauses). Turn reactions off, or reduce movement, under **Settings > Appearance**. Optionally (off by default), after a minute of uninterrupted off-task estimate one parrot leaves the branch and hovers in front of your work saying "Focus!": it covers part of the screen and catches clicks on itself (clicking it sends it back) but never takes keyboard focus. It returns as soon as you are back on task, pause or take a break, does not fly over full-screen programs, and flies at most once every five minutes; both times are adjustable. Turn it off under **Settings > Appearance > Session overlay**.
 - **Reports:** seven-day state totals, per-session task-related share, possible deviations, return times, app switches, longest streak, coverage, interval evidence/corrections, goal-achievement self-report, JSON/CSV export, and deletion. Daily totals use actual observation timestamps.
 - **Task relevance AI:** optional local judgment of whether the current activity serves the session goal, with a one-sentence explanation and your answers as feedback (see [How estimates work](#how-estimates-work)).
-- **Settings:** separate consent controls, language, appearance and overlay options, data location, retention, complete export/deletion, browser setup and optional page titles, classification rules, camera device, model downloads, task relevance AI, updates, four-step calibration, and rule explanations. Withdrawing camera/PC observation consent also stops that observation in an ongoing session.
+- **Settings:** separate consent controls, language, appearance and overlay options, the getting-started guide, your own work modes, data location, retention, complete export/deletion, browser setup and optional page titles, classification rules, camera device, model downloads, task relevance AI, updates, four-step calibration, and rule explanations. Withdrawing camera/PC observation consent also stops that observation in an ongoing session.
 - **Recovery:** uncleanly ended sessions are marked interrupted on restart. Observation gaps become `UNKNOWN`.
 
 ## How estimates work

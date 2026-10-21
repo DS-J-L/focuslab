@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -112,12 +113,26 @@ def test_upgrade_from_v1_keeps_existing_sessions(tmp_path, monkeypatch):
     path = tmp_path / "old.db"
     monkeypatch.setattr(migrations, "MIGRATIONS", MIGRATIONS[:1])
     conn = connect(path)
-    Repository(conn).create_session(CONFIG, "rules-0.1")
+    # A row as v1 wrote it, without the columns later versions add.
+    conn.execute(
+        "INSERT INTO session (goal, mode, started_at_utc, status, camera_enabled, rule_version)"
+        " VALUES ('알고리즘', 'CODING', '2026-01-01T00:00:00+00:00', 'FINISHED', 1, 'rules-0.1')"
+    )
     conn.close()
     monkeypatch.undo()
     conn = connect(path)
     assert current_version(conn) == MIGRATIONS[-1][0]
-    assert [s.goal for s in Repository(conn).list_sessions()] == ["알고리즘"]
+    [old] = Repository(conn).list_sessions()
+    assert old.goal == "알고리즘" and old.mode_name is None
+    conn.close()
+
+
+def test_custom_mode_name_is_stored_with_its_session(tmp_path):
+    conn = connect(tmp_path / "m.db")
+    repo = Repository(conn)
+    sid = repo.create_session(replace(CONFIG, mode_name="디자인"), "rules-0.3")
+    record = repo.get_session(sid)
+    assert record.mode is SessionMode.CODING and record.mode_name == "디자인"
     conn.close()
 
 

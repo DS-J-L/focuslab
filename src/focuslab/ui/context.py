@@ -20,9 +20,9 @@ from focuslab.activity.windows_tracker import WindowsActivitySource
 from focuslab.browser import BROWSER_EXES
 from focuslab.browser.store import BrowserStateStore
 from focuslab.camera.calibration import Calibration
-from focuslab.config import DEFAULT_ALLOWED_APPS, data_dir, db_path, face_model_path
+from focuslab.config import data_dir, db_path, face_model_path
 from focuslab.domain.activity import ActivitySpan, Category
-from focuslab.domain.models import SessionConfig, SessionMode
+from focuslab.domain.models import SessionConfig
 from focuslab.domain.protocols import ActivitySource, FaceSource
 from focuslab.i18n import SUPPORTED_LANGUAGES, get_language, initialize_language
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
@@ -34,6 +34,7 @@ from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
 from focuslab.ui.recording_status import RecordingHealth, describe
+from focuslab.work_modes import BUILT_IN, WorkMode, dump_custom, load_custom
 
 # The recorder extends its open span on every poll (1 s); older browser detail is stale.
 BROWSER_DETAIL_TTL_MS = 5_000
@@ -241,18 +242,41 @@ class AppContext:
     def retention_days(self) -> int:
         return int(self.setting("privacy.retention_days", "0") or 0)
 
-    def allowed_apps(self, mode: SessionMode) -> tuple[str, ...]:
-        saved = self.setting(f"allowed_apps.{mode.value}")
+    def allowed_apps(self, mode: WorkMode) -> tuple[str, ...]:
+        saved = self.setting(f"allowed_apps.{mode.key}")
         if saved:
             try:
                 return tuple(json.loads(saved))
             except ValueError:
                 pass
-        return DEFAULT_ALLOWED_APPS[mode]
+        return mode.default_apps
 
-    def set_allowed_apps(self, mode: SessionMode, apps: tuple[str, ...] | None) -> None:
+    def set_allowed_apps(self, mode: WorkMode, apps: tuple[str, ...] | None) -> None:
         value = None if apps is None else json.dumps(list(apps), ensure_ascii=False)
-        self.set_setting(f"allowed_apps.{mode.value}", value)
+        self.set_setting(f"allowed_apps.{mode.key}", value)
+
+    # work modes -------------------------------------------------------------------
+    def custom_modes(self) -> list[WorkMode]:
+        return load_custom(self.setting("modes.custom"))
+
+    def work_modes(self) -> list[WorkMode]:
+        return [*BUILT_IN, *self.custom_modes()]
+
+    def save_work_mode(self, mode: WorkMode) -> None:
+        "Add the user's mode, or replace the one with the same key."
+        modes = self.custom_modes()
+        keys = [m.key for m in modes]
+        if mode.key in keys:
+            modes[keys.index(mode.key)] = mode
+        else:
+            modes.append(mode)
+        self.set_setting("modes.custom", dump_custom(modes))
+
+    def delete_work_mode(self, mode: WorkMode) -> None:
+        "Past sessions keep the mode's name; only the choice for new sessions goes away."
+        modes = [m for m in self.custom_modes() if m.key != mode.key]
+        self.set_setting("modes.custom", dump_custom(modes))
+        self.set_allowed_apps(mode, None)
 
     # sensors ----------------------------------------------------------------------
     def _face_factory(self, config: SessionConfig) -> FaceSource:
@@ -370,6 +394,10 @@ class AppContext:
     @property
     def needs_onboarding(self) -> bool:
         return not self.demo and not self.flag("onboarding.done")
+
+    @property
+    def needs_guide(self) -> bool:
+        return not self.demo and not self.flag("guide.done")
 
     def apply_onboarding(self, choice: OnboardingChoice) -> None:
         self.set_flag("onboarding.done", True)
