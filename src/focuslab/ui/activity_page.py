@@ -29,9 +29,9 @@ from focuslab.domain.activity import Category, ClassSource, SpanKind
 from focuslab.focus.metrics import format_duration
 from focuslab.i18n import LocalizedMapping, tr, weekday_name
 from focuslab.ui.context import AppContext
-from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
+from focuslab.ui.recording_status import RecordingHealth
 from focuslab.ui.report_worker import ActivityReporter
-from focuslab.ui.theme import CATEGORY_COLORS, CATEGORY_LABELS
+from focuslab.ui.theme import ACTIVE_COLORS, CATEGORY_COLORS, CATEGORY_LABELS, set_style_flag
 from focuslab.ui.widgets import Bar, BarTimeline, Legend, StackedBars, StatCard
 
 KIND_TEXT = LocalizedMapping({SpanKind.IDLE: "Idle (no input)", SpanKind.LOCKED: "Screen locked"})
@@ -147,7 +147,7 @@ class ActivityPage(QWidget):
             head.addWidget(w)
         root.addLayout(head)
         self.save_warning = QLabel(objectName="Notice", wordWrap=True)
-        self.save_warning.setStyleSheet(WARNING_STYLE)
+        set_style_flag(self.save_warning, "warning", True)
         self.save_warning.hide()
         root.addWidget(self.save_warning)
 
@@ -190,7 +190,7 @@ class ActivityPage(QWidget):
         self.timeline = BarTimeline(56)
         self.timeline.itemClicked.connect(self._timeline_clicked)
         lay.addWidget(self.timeline)
-        lay.addWidget(Legend([(CATEGORY_COLORS[c], CATEGORY_LABELS[c]) for c in Category]))
+        lay.addWidget(Legend(CATEGORY_COLORS, CATEGORY_LABELS))
         root.addWidget(box)
 
         tops = QHBoxLayout()
@@ -310,7 +310,7 @@ class ActivityPage(QWidget):
         lay.addWidget(
             QLabel(tr("Input-based active time by hour (period total)"), objectName="CardTitle")
         )
-        self.hourly = StackedBars(["active"], {"active": "#3B5BDB"}, label_every=3, height=120)
+        self.hourly = StackedBars(["active"], ACTIVE_COLORS, label_every=3, height=120)
         lay.addWidget(self.hourly)
         self.range_summary = QLabel(wordWrap=True)
         self.range_summary.setStyleSheet("font-weight:400;")
@@ -385,7 +385,7 @@ class ActivityPage(QWidget):
     def set_recording_health(self, health: RecordingHealth) -> None:
         "Observing and saving, separately; a failing save stays visible until a save works."
         self.status.setText(health.text)
-        self.status.setStyleSheet(WARNING_STYLE if health.saving_failed else "")
+        set_style_flag(self.status, "warning", health.saving_failed)
         self.status.setToolTip(health.detail)
         self.save_warning.setVisible(health.saving_failed)
         if health.saving_failed:

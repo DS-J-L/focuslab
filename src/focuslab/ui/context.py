@@ -34,6 +34,7 @@ from focuslab.services.worker_manager import CameraFaceSource
 from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
 from focuslab.ui.recording_status import RecordingHealth, describe
+from focuslab.ui.theme import THEMES
 from focuslab.work_modes import BUILT_IN, WorkMode, dump_custom, load_custom
 
 # The recorder extends its open span on every poll (1 s); older browser detail is stale.
@@ -202,6 +203,17 @@ class AppContext:
     @property
     def overlay_on_start(self) -> bool:
         return self.flag("ui.overlay_on_start", True)
+
+    @property
+    def theme(self) -> str:
+        "Light, dark, or ``system`` (follow the Windows app mode). Light until chosen."
+        saved = self.setting("ui.theme")
+        return saved if saved in THEMES else "light"
+
+    def set_theme(self, theme: str) -> None:
+        if theme not in THEMES:
+            raise ValueError(f"Unsupported theme: {theme}")
+        self.set_setting("ui.theme", theme)
 
     @property
     def timer_countdown(self) -> bool:

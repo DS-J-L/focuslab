@@ -10,8 +10,6 @@ from datetime import datetime
 from focuslab.activity.recorder import RecorderState, RecorderStatus, wall_ms
 from focuslab.i18n import tr
 
-WARNING_STYLE = "color:#C92A2A; font-weight:700;"  # a failing save, until a save works
-
 
 @dataclass(frozen=True)
 class RecordingHealth:

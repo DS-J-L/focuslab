@@ -28,8 +28,9 @@ from focuslab.focus.metrics import compute_metrics, format_duration, format_rati
 from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.new_session_popover import NewSessionPopover
-from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
+from focuslab.ui.recording_status import RecordingHealth
 from focuslab.ui.report_worker import ActivityReporter
+from focuslab.ui.theme import set_style_flag
 from focuslab.ui.widgets import StatCard
 
 TODAY = "home.today"  # ActivityReporter key
@@ -257,5 +258,5 @@ class HomePage(QWidget):
 
     def set_recording_health(self, health: RecordingHealth) -> None:
         self.recording_status.setText(health.text)
-        self.recording_status.setStyleSheet(WARNING_STYLE if health.saving_failed else "")
+        set_style_flag(self.recording_status, "warning", health.saving_failed)
         self.recording_status.setToolTip(health.detail)

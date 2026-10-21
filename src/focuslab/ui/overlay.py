@@ -51,6 +51,7 @@ from focuslab.ui.mascot.renderer import (
     paint_emote,
     paint_plaque,
 )
+from focuslab.ui.theme import set_style_flag
 from focuslab.ui.widgets import clock_text, timer_text
 
 MARGIN = 16
@@ -66,16 +67,6 @@ SEAT_Y = BRANCH.top() + 3
 PLAQUE = QRectF(48, 194, 204, 40)
 STRINGS = (92.0, 208.0)
 BIRD_SCALE = 1.04
-
-STYLE = """
-#Overlay { background: rgba(31, 36, 48, 238); border-radius: 14px; }
-#Overlay QLabel { color: white; background: transparent; }
-#Overlay QLabel#OverlayStatus { color: #A0A9BC; font-size: 12px; }
-#Overlay QLabel#OverlayTime { color: #E6E9EF; font-size: 19px; font-weight: 700; }
-#Overlay QPushButton { background: transparent; border: none; border-radius: 6px;
-                       color: #C9CED8; padding: 2px 6px; min-height: 0; font-size: 14px; }
-#Overlay QPushButton:hover { color: white; background: #343F60; }
-"""
 
 
 def status_texts() -> tuple[str, str, str]:
@@ -239,7 +230,6 @@ class SessionOverlay(QWidget):
         self.setWindowTitle("FocusLab")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setStyleSheet(STYLE)
         self._press: QPoint | None = None  # global press position while the button is held
         self._grab = QPoint()
         self._dragged = False
@@ -405,10 +395,8 @@ class SessionOverlay(QWidget):
             tip = tr("Session time without pauses and breaks, not estimated focus")
         if self.time.toolTip() != tip:
             self.time.setToolTip(tip)
-        style = "color: #8C94A6;" if paused else ""  # a stopped clock is greyed out
-        if self.mini_time.styleSheet() != style:  # restyling on every poll would re-polish
-            self.mini_time.setStyleSheet(style)
-            self.time.setStyleSheet(style)
+        for label in (self.mini_time, self.time):  # a stopped clock is greyed out
+            set_style_flag(label, "paused", paused)  # restyles only on a change
 
     # dragging -----------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent) -> None:
