@@ -586,7 +586,8 @@ QProgressBar[textVisible="true"]::chunk {{ background: {p.meter}; }}
 #Overlay QLabel#OverlayStatus {{ color: {p.overlay_text}; font-size: 12px; font-weight: 600; }}
 #Overlay QLabel#OverlayTime {{ color: {p.overlay_time}; font-size: 19px; font-weight: 700; }}
 #Overlay QLabel#OverlayAction {{ color: {p.overlay_text}; font-size: 10px; font-weight: 600;
-                                  background: {p.overlay_bg}; border: 1px solid {p.overlay_button_hover};
+                                  background: {p.overlay_bg};
+                                  border: 1px solid {p.overlay_button_hover};
                                   border-radius: 7px; }}
 #Overlay QLabel#OverlayAction:disabled {{
     color: {p.overlay_paused}; border-color: {p.overlay_button_hover}; }}
