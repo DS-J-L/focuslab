@@ -21,10 +21,10 @@ because both stores assign their own item ID and reject a `key` field. Raise `ve
 3. Fill in the listing:
    - **Single purpose**: tell the FocusLab desktop app on this PC which website is in the active tab, so it can show time per site.
    - **Permission justifications**:
-     - `tabs`: read the active tab's URL and keep only its hostname.
-     - `nativeMessaging`: send that hostname to the local FocusLab app.
+     - `tabs`: read the active tab's URL and keep only its hostname; read its title only after the user separately enables page titles in the FocusLab app.
+     - `nativeMessaging`: send that hostname (and the optional sanitized title) to the local FocusLab app.
      - `alarms`: send a 30-second heartbeat so the app knows the browser is still active.
-   - **Data usage**: the extension handles web browsing activity (the hostname only). The hostname goes only to the FocusLab app on the same PC and is never sent to a server. It is not sold or used for advertising.
+   - **Data usage**: the extension handles web browsing activity: the hostname, plus a sanitized page title only with separate consent. This data goes only to the FocusLab app on the same PC and is never sent to a server. It is not sold or used for advertising.
    - **Privacy policy**: give a public URL for `PRIVACY.md`, such as the file on GitHub.
    - **Images**: provide the 128 px icon (`browser_extension/icons/icon128.png`), at least one 1280×800 screenshot, and a 440×280 promotional tile.
 4. Submit the item for review.

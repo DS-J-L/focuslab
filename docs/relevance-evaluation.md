@@ -1,7 +1,7 @@
 # Task relevance: evaluation, performance and privacy report
 
-Covers the task-relevance engine added in PR #36–#41 (plan v1.0, PR-01 … PR-06) and verified
-in PR-07. Every number here comes from `scripts/eval_relevance.py` or the test suite on the
+Covers the task-relevance engine added in PR #36–#41 and verified in PR #42 (released in
+v0.2.0). Every number here comes from `scripts/eval_relevance.py` or the test suite on the
 machine and data below; none is a measured accuracy on real users.
 
 ## Setup
@@ -44,7 +44,7 @@ is only a "closer to leisure" hint that becomes `POSSIBLY_UNRELATED` after 3 min
 
 ## Session-level results
 
-Seconds per scripted session. "none" is the engine before PR-05 (no relevance).
+Seconds per scripted session. "none" is the engine before PR #40 (no relevance).
 
 | Session (truth: on / off seconds) | Engine | false off-task | deviation estimated off-task | first flag after | on-task truth estimated ON_TASK |
 | --- | --- | --- | --- | --- | --- |

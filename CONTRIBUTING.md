@@ -1,6 +1,6 @@
 # Contributing
 
-Read the [development plan](DEVELOPMENT_PLAN.md), [privacy principles](PRIVACY.md), and [PR merge safety policy](docs/merge-policy.md) first. The project is a developer prototype; field validation, threshold tuning, and a distributable installer remain separate work packages.
+Read the [development plan](DEVELOPMENT_PLAN.md), [privacy principles](PRIVACY.md), and [PR merge safety policy](docs/merge-policy.md) first. The project is a developer prototype; field validation, threshold tuning, and an installer/uninstaller remain separate work packages.
 
 ## Windows PowerShell setup
 

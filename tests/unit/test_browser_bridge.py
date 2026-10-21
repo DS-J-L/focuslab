@@ -119,9 +119,9 @@ def test_repository_returns_the_most_recently_focused_profile(store):
     st.apply(BrowserState("chrome", "b", 1, 0, True, "youtube.com"), 2000)
     st.apply(BrowserState("chrome", "b", 2, 0, False, None), 3000)  # profile b lost focus
     activity = ActivityRepository(repo.conn)
-    assert activity.browser_domain("chrome", 0) == "github.com"
-    assert activity.browser_domain("chrome", 1500) is None  # a's report is too old
-    assert activity.browser_domain("edge", 0) is None
+    assert activity.browser_detail("chrome", 0)[0] == "github.com"
+    assert activity.browser_detail("chrome", 1500)[0] is None  # a's report is too old
+    assert activity.browser_detail("edge", 0)[0] is None
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows registry")

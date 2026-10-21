@@ -436,9 +436,6 @@ class ActivityRecorder:
         except sqlite3.Error:  # the host is writing; the next sample will see it
             return None, None
 
-    def _domain(self, exe: str | None, wall: int) -> str | None:
-        return self._browser_detail(exe, wall)[0]
-
     def _close_open(self) -> None:
         if self._open:
             self._close(self._open.end_ms)
