@@ -266,7 +266,7 @@ def paint_branch(p: QPainter, rect: QRectF) -> None:
     p.setBrush(wood)
     p.drawRoundedRect(rect, 8, 8)
     p.setPen(_pen(QColor(255, 216, 156, 100), 1.3))
-    p.drawLine(QPointF(rect.left() + 13, rect.top() + 3), QPointF(rect.right() - 15, rect.top() + 3))
+    p.drawLine(\n        QPointF(rect.left() + 13, rect.top() + 3),\n        QPointF(rect.right() - 15, rect.top() + 3),\n    )
     p.setPen(_pen(QColor("#533523"), 1.4))
     for start, end, offset in ((0.1, 0.22, 8), (0.44, 0.51, 10), (0.67, 0.84, 8)):
         p.drawLine(
@@ -301,7 +301,7 @@ def paint_plaque(p: QPainter, rect: QRectF, strings: tuple[float, float], top: f
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(0, 0, 0, 70))
     p.drawRoundedRect(rect.translated(0, 2.5), 11, 11)
-    surface = QLinearGradient(QPointF(rect.left(), rect.top()), QPointF(rect.right(), rect.bottom()))
+    surface = QLinearGradient(\n        QPointF(rect.left(), rect.top()), QPointF(rect.right(), rect.bottom())\n    )
     surface.setColorAt(0, QColor("#303E56"))
     surface.setColorAt(0.45, QColor("#212C40"))
     surface.setColorAt(1, QColor("#172237"))
