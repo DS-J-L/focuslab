@@ -12,7 +12,7 @@ from focuslab.services.session_service import Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.main_window import MainWindow
 from focuslab.ui.mascot.behavior_policy import Mood
-from focuslab.ui.mascot.director import MOTION
+from focuslab.ui.mascot.director import BREAK, MOTION, PAUSE
 from focuslab.ui.overlay import MARGIN, POS_KEY, long_text, session_seconds
 
 
@@ -263,3 +263,37 @@ def test_frames_slow_down_while_the_parrots_only_breathe(window):
         perch.grab()
     assert perch._timer.interval() == RESTING_FRAME_MS
     assert not image.isNull()
+
+
+def test_studio_overlay_shows_action_captions_and_target_progress(window):
+    window.start_session(
+        SessionConfig("Illustration test", SessionMode.CODING, 25, ("code.exe",), False)
+    )
+    overlay = window.overlay
+    perch = overlay.perch
+    assert tuple(label.text() for label in perch.action_labels) == (
+        overlay.pause_button.text(),
+        overlay.finish_button.text(),
+        overlay.break_button.text(),
+    )
+    assert perch.progress_fraction == 0
+    assert perch.visual_state == "focusing"
+
+    # The progress indicator is visual only; the elapsed-time calculation is unchanged.
+    fake_snapshot = replace(snapshot(window), active_s=750)
+    overlay.refresh(fake_snapshot)
+    assert perch.progress_fraction == pytest.approx(0.5)
+
+    image = perch.grab().toImage()
+    assert not image.isNull()
+    assert image.pixelColor(150, 43).alpha() > 0  # panel is actually painted
+
+    overlay.pause_button.click()
+    assert perch.visual_state == "paused"
+    assert perch.action_labels[PAUSE].text() == overlay.pause_button.text()
+    assert not perch.action_labels[BREAK].isEnabled()
+    overlay.pause_button.click()
+
+    overlay.break_button.click()
+    assert perch.visual_state == "break"
+    assert perch.action_labels[BREAK].text() == overlay.break_button.text()

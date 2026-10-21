@@ -51,6 +51,12 @@ from focuslab.ui.mascot.renderer import (
     paint_emote,
     paint_plaque,
 )
+from focuslab.ui.mascot.studio import (
+    paint_progress,
+    paint_scene,
+    paint_seat,
+    paint_status_light,
+)
 from focuslab.ui.theme import set_style_flag
 from focuslab.ui.widgets import clock_text, timer_text
 
@@ -64,8 +70,8 @@ SCENE_W, SCENE_H = 300, 244
 SEATS = (78.0, 150.0, 222.0)  # x of each parrot's feet
 BRANCH = QRectF(16, 164, 268, 15)
 SEAT_Y = BRANCH.top() + 3
-PLAQUE = QRectF(48, 194, 204, 40)
-STRINGS = (92.0, 208.0)
+PLAQUE = QRectF(42, 196, 216, 41)
+STRINGS = (91.0, 209.0)
 BIRD_SCALE = 1.04
 
 
@@ -119,9 +125,11 @@ class PerchView(QWidget):
         self.setFixedSize(SCENE_W, SCENE_H)
         self.clock = clock
         self.director = Director()
+        self.visual_state = "focusing"
+        self.progress_fraction: float | None = None
 
         self.status = QLabel(self, objectName="OverlayStatus")
-        self.status.setGeometry(14, 8, 150, 20)
+        self.status.setGeometry(29, 8, 128, 23)
         self.collapse_button = QPushButton("−", self)
         self.collapse_button.setToolTip(tr("Collapse"))
         self.close_button = QPushButton("×", self)
@@ -134,8 +142,15 @@ class PerchView(QWidget):
         for seat, button in zip(SEATS, self.parrots, strict=True):
             button.setGeometry(int(seat - 36), 76, 72, 92)
             button.installEventFilter(self)
+        self.action_labels = tuple(
+            QLabel(self, objectName="OverlayAction", alignment=Qt.AlignmentFlag.AlignCenter)
+            for _ in SEATS
+        )
+        for seat, label in zip(SEATS, self.action_labels, strict=True):
+            label.setGeometry(int(seat - 33), 180, 66, 15)
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.time = QLabel(self, objectName="OverlayTime", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.time.setGeometry(PLAQUE.toRect())
+        self.time.setGeometry(PLAQUE.adjusted(5, 0, -5, -5).toRect())
         self.time.setToolTip(tr("Session time without pauses and breaks, not estimated focus"))
 
         self._timer = QTimer(self, interval=FRAME_MS)
@@ -174,6 +189,7 @@ class PerchView(QWidget):
             pixmap.setDevicePixelRatio(ratio)
             pixmap.fill(QColor(0, 0, 0, 0))
             p = QPainter(pixmap)
+            paint_scene(p, SCENE_W, SCENE_H)
             paint_plaque(p, PLAQUE, STRINGS, BRANCH.bottom())
             paint_branch(p, BRANCH)
             p.end()
@@ -188,9 +204,17 @@ class PerchView(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.drawPixmap(0, 0, self._background())
+        paint_status_light(p, self.visual_state)
+        paint_progress(p, PLAQUE, self.progress_fraction, self.visual_state)
         for seat, pose, actor, button in zip(
             SEATS, poses, self.director.actors, self.parrots, strict=True
         ):
+            if pose.alpha > 0:
+                paint_seat(
+                    p, seat, SEAT_Y,
+                    self.director.hover == self.parrots.index(button),
+                    button.isEnabled(),
+                )
             p.save()
             p.translate(seat, SEAT_Y)
             p.scale(BIRD_SCALE, BIRD_SCALE)
@@ -368,6 +392,7 @@ class SessionOverlay(QWidget):
         paused = snap.lifecycle is Lifecycle.PAUSED
         focusing, paused_text, break_text = status_texts()
         self.status.setText(paused_text if paused else break_text if snap.on_break else focusing)
+        self.perch.visual_state = "paused" if paused else "break" if snap.on_break else "focusing"
         pause_text = tr("Resume") if paused else tr("Pause")
         self.pause_button.setText(pause_text)
         self.pause_button.setToolTip(pause_text)
@@ -378,7 +403,15 @@ class SessionOverlay(QWidget):
         self.break_button.icon_name = "back" if snap.on_break else "cup"
         self.break_button.emblem = "cup"
         self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
+        for label, action in zip(
+            self.perch.action_labels, (pause_text, tr("End"), break_text), strict=True
+        ):
+            label.setText(action)
+        self.perch.action_labels[BREAK].setEnabled(self.break_button.isEnabled())
         planned = snap.config.planned_minutes * 60 if snap.config else 0
+        self.perch.progress_fraction = (
+            min(1.0, snap.active_s / planned) if planned > 0 else None
+        )
         if self.ctx.timer_countdown and planned:  # time left to the target, then overtime
             left = planned - snap.active_s
             self.time.setText(
@@ -397,6 +430,7 @@ class SessionOverlay(QWidget):
             self.time.setToolTip(tip)
         for label in (self.mini_time, self.time):  # a stopped clock is greyed out
             set_style_flag(label, "paused", paused)  # restyles only on a change
+        self.perch.update()
 
     # dragging -----------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent) -> None:
