@@ -4,7 +4,7 @@ import os
 import threading
 
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QScrollArea
 
 from focuslab.domain.models import FocusState, SessionConfig, SessionMode
 from focuslab.services.session_service import Lifecycle
@@ -60,6 +60,23 @@ def test_full_session_flow(window, qtbot):
     assert report is not None and report.record.goal == "GUI 테스트"
     assert report.metrics.corrected_segments == 1
     assert window.report.segments.rowCount() >= 1
+
+
+def test_camera_card_never_overlaps_on_a_small_window(window, qtbot):
+    "The session page scrolls instead of squeezing the camera preview over its toggles."
+    window.resize(980, 680)  # the minimum window size
+    window.start_session(config())
+    page = window.session
+    scroll = page.findChild(QScrollArea)
+    qtbot.waitUntil(lambda: scroll.verticalScrollBar().maximum() > 0)
+    preview = page.preview.geometry()
+    assert preview.size().toTuple() == (320, 240)
+    below = [page.show_preview, page.show_overlay, page.camera_status]
+    for widget in below:
+        top = widget.mapTo(page.preview.parentWidget(), widget.rect().topLeft()).y()
+        assert top > preview.bottom(), widget
+    assert page.show_preview.text() and page.show_preview.isVisible()
+    window.finish_session()
 
 
 def test_report_correction_and_delete(window, qtbot):

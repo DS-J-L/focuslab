@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -64,7 +65,16 @@ class SessionPage(QWidget):
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
         self.ctx = ctx
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        # The cards with the camera preview are taller than a small window: scroll, never squeeze.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        outer.addWidget(scroll)
+        content = QWidget(objectName="PageContent")
+        scroll.setWidget(content)
+        root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 24)
         root.setSpacing(14)
 
