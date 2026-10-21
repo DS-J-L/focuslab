@@ -139,6 +139,7 @@ QAbstractItemView {{ background: white; selection-background-color: #E3E8F7;
 #Sidebar QListWidget::item:hover {{ background: #2B3242; }}
 #Sidebar QListWidget::item:selected {{ background: #343F60; color: white; font-weight: 600; }}
 #Brand {{ color: white; font-size: 20px; font-weight: 700; padding: 28px 24px 8px 24px; }}
+#TitleBar {{ background: #F5F6F8; }}
 #BrandSub {{ color: #A0A9BC; font-size: 12px; padding: 0 24px 20px 24px; }}
 #PageTitle {{ font-size: 24px; font-weight: 700; padding-bottom: 4px; }}
 #Muted {{ color: #6B7385; }}

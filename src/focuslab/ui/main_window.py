@@ -5,8 +5,8 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile, QTimer
-from PySide6.QtGui import QCloseEvent, QFocusEvent
+from PySide6.QtCore import QByteArray, QEvent, QLockFile, Qt, QTimer
+from PySide6.QtGui import QCloseEvent, QFocusEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -41,6 +41,13 @@ from focuslab.ui.settings_page import SettingsPage
 from focuslab.ui.theme import SELF_REPORT_LABELS, apply_theme
 from focuslab.ui.tray import Tray, make_icon
 from focuslab.ui.widgets import clock_text
+from focuslab.ui.window_frame import (
+    INTEGRATED_FRAME,
+    TITLE_HEIGHT,
+    TitleBar,
+    WindowsFrame,
+    native_frame_available,
+)
 
 HOME, ACTIVITY, SESSION, REPORT, SETTINGS = range(5)  # stack pages
 # Sidebar rows. The live session has no row: it opens from Home's (+) and is reached again
@@ -64,6 +71,12 @@ class NavList(QListWidget):
 class MainWindow(QMainWindow):
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
+        # The sidebar and the page run up to the top edge; the caption buttons sit on the page.
+        self.title_bar: TitleBar | None = None
+        self._frame: WindowsFrame | None = None
+        if INTEGRATED_FRAME:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
+            self.title_bar = TitleBar()
         self.ctx = ctx
         self.setWindowTitle("FocusLab" + (tr(" (demo sensors)") if ctx.demo else ""))
         self.setWindowIcon(make_icon())
@@ -77,7 +90,8 @@ class MainWindow(QMainWindow):
         sidebar = QWidget(objectName="Sidebar")
         sidebar.setFixedWidth(200)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(0, 0, 0, 12)
+        # With the integrated title bar, the brand still lines up with the page title.
+        side.setContentsMargins(0, TITLE_HEIGHT if INTEGRATED_FRAME else 0, 0, 12)
         side.addWidget(QLabel("FocusLab", objectName="Brand"))
         tagline = QLabel(
             tr("Know your workflow,\nnot just your screen time."), objectName="BrandSub"
@@ -118,7 +132,15 @@ class MainWindow(QMainWindow):
         self.settings = SettingsPage(ctx)
         for page in (self.home, self.activity, self.session, self.report, self.settings):
             self.stack.addWidget(page)
-        layout.addWidget(self.stack, 1)
+        if self.title_bar is None:
+            layout.addWidget(self.stack, 1)
+        else:
+            page_column = QVBoxLayout()
+            page_column.setContentsMargins(0, 0, 0, 0)
+            page_column.setSpacing(0)
+            page_column.addWidget(self.title_bar)
+            page_column.addWidget(self.stack, 1)
+            layout.addLayout(page_column, 1)
         self.setCentralWidget(central)
 
         self.nav.currentRowChanged.connect(self._navigate)
@@ -205,6 +227,27 @@ class MainWindow(QMainWindow):
         self.report.refresh()
         if self.stack.currentIndex() == ACTIVITY:
             self.activity.refresh()
+
+    # window frame -------------------------------------------------------------------
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self.title_bar is not None and self._frame is None and native_frame_available():
+            self._frame = WindowsFrame(self, self.title_bar)
+
+    def nativeEvent(self, event_type: QByteArray, message: int) -> tuple[bool, int]:
+        if self._frame is not None:
+            answer = self._frame.handle(int(message))
+            if answer is not None:
+                return answer
+        return super().nativeEvent(event_type, message)
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        changes = (QEvent.Type.WindowStateChange, QEvent.Type.ActivationChange)
+        if self.title_bar is not None and event.type() in changes:
+            self.title_bar.sync_state()
+            if self._frame is not None:
+                self._frame.sync_state()
 
     def show_normal(self) -> None:
         self.showNormal()
