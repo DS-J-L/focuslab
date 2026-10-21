@@ -36,7 +36,7 @@ from focuslab.storage.activity_repository import ActivityRepository
 from focuslab.ui.onboarding import OnboardingChoice
 from focuslab.ui.recording_status import RecordingHealth, describe
 from focuslab.ui.theme import THEMES
-from focuslab.work_modes import BUILT_IN, WorkMode, dump_custom, load_custom
+from focuslab.work_modes import BUILT_IN, PRESETS, WorkMode, dump_custom, load_custom
 
 # The recorder extends its open span on every poll (1 s); older browser detail is stale.
 BROWSER_DETAIL_TTL_MS = 5_000
@@ -274,7 +274,7 @@ class AppContext:
         return load_custom(self.setting("modes.custom"))
 
     def work_modes(self) -> list[WorkMode]:
-        return [*BUILT_IN, *self.custom_modes()]
+        return [*BUILT_IN, *PRESETS, *self.custom_modes()]
 
     def save_work_mode(self, mode: WorkMode) -> None:
         "Add the user's mode, or replace the one with the same key."

@@ -37,7 +37,7 @@ class WorkModeDialog(QDialog):
         style_form(form)
         self.name = QLineEdit(mode.name if mode else "")
         self.name.setMaxLength(MAX_NAME)
-        self.name.setPlaceholderText(tr("For example: Design, Language study, Exam prep"))
+        self.name.setPlaceholderText(tr("For example: Thesis, Coding test prep"))
         form.addRow(tr("Name"), self.name)
         self.base = QComboBox()
         for base in BASES:

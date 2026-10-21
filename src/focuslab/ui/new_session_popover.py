@@ -41,7 +41,7 @@ from focuslab.domain.models import SessionConfig, SessionMode
 from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import colors, style_form
-from focuslab.work_modes import BUILT_IN, WorkMode
+from focuslab.work_modes import WorkMode
 
 BUBBLE_WIDTH = 460
 RADIUS = 12
@@ -71,12 +71,16 @@ class NewSessionForm(QWidget):
         self.goal.setPlaceholderText(tr("For example: solve algorithm problems"))
         form.addRow(tr("Goal"), self.goal)
 
-        # The user's own modes (Settings > Work modes) follow the built-in ones.
+        # Presets, then the user's own modes (Settings > Work modes), follow the built-in ones.
         self._modes = {m.key: m for m in ctx.work_modes()}
         self.mode = QComboBox()
+        self.mode.setMaxVisibleItems(16)
+        group = None
         for mode in self._modes.values():
-            if mode.name is not None and self.mode.count() == len(BUILT_IN):
+            kind = "preset" if mode.preset else "custom" if mode.name is not None else "built-in"
+            if group is not None and kind != group:
                 self.mode.insertSeparator(self.mode.count())
+            group = kind
             self.mode.addItem(mode.label, mode.key)
         last_mode = ctx.setting("last.mode", SessionMode.CODING.value)
         self.mode.setCurrentIndex(max(0, self.mode.findData(last_mode)))
@@ -247,7 +251,7 @@ class NewSessionForm(QWidget):
             self.minutes.value(),
             self._current_apps(),
             self.camera.isChecked(),
-            mode.name,
+            mode.session_name,
         )
 
 

@@ -2,11 +2,13 @@
 
 from focuslab.config import DEFAULT_ALLOWED_APPS, mode_label
 from focuslab.domain.models import SessionMode
-from focuslab.i18n import set_language
+from focuslab.i18n import korean_catalog, set_language
 from focuslab.work_modes import (
     BUILT_IN,
     CUSTOM_PREFIX,
     MAX_NAME,
+    PRESET_PREFIX,
+    PRESETS,
     WorkMode,
     dump_custom,
     load_custom,
@@ -51,3 +53,22 @@ def test_labels_and_hints_follow_the_language():
     set_language("ko")
     assert mode.hint.startswith("독서·필기처럼 판정합니다.")
     assert BUILT_IN[0].label == "코딩"
+
+
+def test_presets_have_their_own_apps_names_and_translations():
+    keys = [m.key for m in PRESETS]
+    assert len(set(keys)) == len(keys) and all(k.startswith(PRESET_PREFIX) for k in keys)
+    catalog = korean_catalog()
+    for mode in PRESETS:
+        assert mode.preset and mode.base != SessionMode.CUSTOM
+        assert mode.name in catalog and mode.about in catalog
+        assert mode.default_apps == mode.apps and mode.apps == tuple(map(str.lower, mode.apps))
+    design = next(m for m in PRESETS if m.key == "preset:design")
+    assert "figma.exe" in design.default_apps
+    assert "figma.exe" not in DEFAULT_ALLOWED_APPS[design.base]
+    set_language("ko")
+    assert design.label == design.session_name == "디자인"
+    assert design.hint.endswith("코딩처럼 판정합니다.")
+    set_language("en")
+    assert design.label == "Design" and design.hint.endswith("Estimated like Coding.")
+    assert BUILT_IN[0].session_name is None

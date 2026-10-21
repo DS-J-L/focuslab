@@ -14,7 +14,7 @@ from focuslab.ui.context import AppContext
 from focuslab.ui.guide import GuideDialog, guide_steps
 from focuslab.ui.main_window import HOME, SETTINGS, MainWindow
 from focuslab.ui.work_mode_dialog import WorkModeDialog
-from focuslab.work_modes import BUILT_IN, new_mode
+from focuslab.work_modes import BUILT_IN, PRESETS, new_mode
 
 HANGUL = re.compile("[가-힣]")
 
@@ -43,7 +43,7 @@ def test_a_mode_added_in_settings_starts_a_session_under_its_own_name(window, qt
     bubble = open_bubble(window, qtbot)
     combo = bubble.form.mode
     index = combo.findData(design.key)
-    assert index == len(BUILT_IN) + 1  # after the built-ins and a separator
+    assert index == len(BUILT_IN) + len(PRESETS) + 2  # after built-ins, presets, separators
     assert combo.itemText(index) == "디자인"
     combo.setCurrentIndex(index)
     assert bubble.form.mode_hint.text().startswith("독서·필기처럼 판정합니다.")
@@ -78,6 +78,23 @@ def test_a_mode_added_in_settings_starts_a_session_under_its_own_name(window, qt
     bubble = open_bubble(window, qtbot)
     assert bubble.form.mode.findData(design.key) == -1
     assert bubble.form.current_mode() == BUILT_IN[0]
+
+
+def test_a_preset_starts_a_session_under_its_name_with_its_apps(window, qtbot):
+    bubble = open_bubble(window, qtbot)
+    combo = bubble.form.mode
+    meeting = PRESETS[0]
+    index = combo.findData(meeting.key)
+    assert index == len(BUILT_IN) + 1  # after the built-ins and a separator
+    combo.setCurrentIndex(index)
+    assert combo.itemText(index) == "회의·화상 통화"
+    assert bubble.form.mode_hint.text().endswith("강의처럼 판정합니다.")
+    assert "zoom.exe" in bubble.form._current_apps()
+    bubble.form.camera.setChecked(False)
+    bubble.start_button.click()
+    snap = window.ctx.service.snapshot()
+    assert snap.config.mode is SessionMode.LECTURE and snap.config.mode_name == "회의·화상 통화"
+    window.finish_session()
 
 
 def test_settings_lists_adds_edits_and_deletes_modes(window, monkeypatch):
@@ -180,3 +197,18 @@ def test_guide_is_offered_once_and_reopens_from_settings(window, monkeypatch):
     assert not ctx.needs_guide
     ctx.set_flag("guide.done", False)
     assert ctx.needs_guide
+
+
+def test_settings_shows_the_build_and_when_this_pc_first_ran_it(window, monkeypatch):
+    from datetime import datetime
+
+    from focuslab import build_info
+
+    labels = [w.text() for w in window.settings.findChildren(QLabel)]
+    build = build_info.current()
+    assert any(t.startswith(build.commit + " · 커밋") for t in labels)
+    since = window.ctx.setting("app.build_since")
+    assert window.ctx.setting("app.build") == build.key
+    assert any(t.startswith(f"{datetime.fromisoformat(since):%Y-%m-%d %H:%M}") for t in labels)
+    window.settings._note_build()  # the same build again keeps its first start
+    assert window.ctx.setting("app.build_since") == since
