@@ -6,14 +6,17 @@ The result is a folder build (FocusLab.exe next to ``_internal/``): it starts qu
 sign-in autostart entry and browser native host can point at the exe directly. Copy or zip the
 whole ``dist/FocusLab`` folder; the exe does not run on its own.
 
-Bundled data: the Korean catalog (``focuslab/locales``), the face model when
+Bundled data: ``focuslab/_build.json`` (the commit Settings > Updates shows), the Korean
+catalog (``focuslab/locales``), the face model when
 ``assets/models/face_landmarker.task`` exists (otherwise the app downloads it into the user's
 data folder), the unpacked browser extension, and Qt's own translations (PySide6 hook).
 MediaPipe and OpenCV binaries come from the PyInstaller hooks.
 """
 
 import filecmp
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +32,23 @@ OPENSSL_DLLS = ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
 
 def data(source: Path, dest: str) -> str:
     return f"--add-data={source}{os.pathsep}{dest}"
+
+
+def git(*args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(ROOT), *args], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def build_record() -> Path:
+    "The commit this build comes from; '-modified' marks uncommitted changes in the tree."
+    commit, committed = git("log", "-1", "--format=%h %cI").split()
+    if git("status", "--porcelain", "--untracked-files=no"):
+        commit += "-modified"
+    path = ROOT / "build" / "_build.json"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(json.dumps({"commit": commit, "committed": committed}), "utf-8")
+    return path
 
 
 def main() -> None:
@@ -49,6 +69,7 @@ def main() -> None:
         # mediapipe loads tasks/c/libmediapipe.dll through ctypes, which no hook detects.
         "--collect-binaries=mediapipe",
         *(data(EXTENSION / name, "browser_extension") for name in EXTENSION_FILES),
+        data(build_record(), "focuslab"),
     ]
     if (EXTENSION / "icons").is_dir():  # manifest icons, once the extension ships them
         args.append(data(EXTENSION / "icons", "browser_extension/icons"))

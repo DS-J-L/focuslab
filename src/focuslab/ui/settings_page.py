@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from focuslab import __version__, autostart, updater
+from focuslab import __version__, autostart, build_info, updater
 from focuslab.activity.recorder import RecorderState
 from focuslab.browser import extension
 from focuslab.browser import install as browser_install
@@ -852,6 +852,24 @@ class SettingsPage(QWidget):
         form = QFormLayout(box)
         style_form(form)
         form.addRow(tr("Version"), QLabel(tr("FocusLab {p0}", p0=__version__)))
+        build, since = self._note_build()
+        if build is not None:
+            form.addRow(
+                tr("Build"),
+                QLabel(
+                    tr(
+                        "{p0} · committed {p1:%Y-%m-%d %H:%M} · {p2}",
+                        p0=build.commit,
+                        p1=build.committed,
+                        p2=tr("FocusLab.exe") if build.packaged else tr("source checkout"),
+                    ),
+                    textInteractionFlags=Qt.TextInteractionFlag.TextSelectableByMouse,
+                ),
+            )
+            form.addRow(
+                tr("On this PC since"),
+                QLabel(tr("{p0:%Y-%m-%d %H:%M} (first start of this build)", p0=since)),
+            )
         self.update_auto = QCheckBox(tr("Check for updates when FocusLab starts"))
         self.update_auto.toggled.connect(lambda on: self.ctx.set_flag("update.auto_check", on))
         self.update_check = QPushButton(tr("Check now"))
@@ -1120,6 +1138,20 @@ class SettingsPage(QWidget):
                 self, tr("Face model"), tr("Could not download: {p0}", p0=message[6:])
             )
         self.refresh()
+
+    def _note_build(self) -> tuple[build_info.BuildInfo | None, datetime]:
+        "The running build and when it first started here: the time this PC got the update."
+        build = build_info.current()
+        if build is None:
+            return None, datetime.now()
+        if self.ctx.setting("app.build") != build.key:
+            self.ctx.set_setting("app.build", build.key)
+            self.ctx.set_setting("app.build_since", datetime.now().isoformat(timespec="seconds"))
+        try:
+            since = datetime.fromisoformat(self.ctx.setting("app.build_since") or "")
+        except ValueError:
+            since = datetime.now()
+        return build, since
 
     def check_updates(self, quiet: bool = False) -> None:
         """Ask GitHub for the latest release; quiet (startup) checks hide network errors."""
