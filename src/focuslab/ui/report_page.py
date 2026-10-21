@@ -45,6 +45,7 @@ from focuslab.ui.theme import (
     SHORT_LABELS,
     STATE_COLORS,
     STATE_LABELS,
+    colors,
 )
 from focuslab.ui.widgets import Legend, StatCard, TimelineWidget, WeekChart, clock_text
 
@@ -357,7 +358,7 @@ class ReportPage(QWidget):
         self.segments.setRowCount(len(self._rows))
         for row, seg in enumerate(self._rows):
             judged = QTableWidgetItem(STATE_LABELS[seg.state])
-            judged.setForeground(Qt.GlobalColor.black)
+            judged.setForeground(QColor(colors().text))
             judged.setBackground(_tint(STATE_COLORS[seg.state]))
             cells = [
                 QTableWidgetItem(f"{clock_text(seg.start_s)}–{clock_text(seg.end_s)}"),

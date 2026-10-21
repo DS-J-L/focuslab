@@ -493,6 +493,7 @@ def run_app(demo: bool = False, background: bool = False) -> int:
         return 1
 
     ctx = AppContext(demo)
+    apply_theme(app, ctx.theme)
     install_qt_translator(app)
     recovered = ctx.service.recover_interrupted()
     with ctx.service.lock:

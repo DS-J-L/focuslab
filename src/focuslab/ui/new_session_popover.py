@@ -40,7 +40,7 @@ from focuslab.config import MODE_LABELS, NEUTRAL_APPS
 from focuslab.domain.models import SessionConfig, SessionMode
 from focuslab.i18n import LocalizedMapping, tr
 from focuslab.ui.context import AppContext
-from focuslab.ui.theme import style_form
+from focuslab.ui.theme import colors, style_form
 
 MODE_HINTS = LocalizedMapping(
     {
@@ -384,10 +384,11 @@ class NewSessionPopover(QWidget):
         tail.closeSubpath()
         path = path.united(tail)
         shadow = path.translated(0, 3)
+        palette = colors()
         for spread in range(SHADOW, 0, -2):  # wide faint strokes first: a soft edge
-            painter.strokePath(shadow, QPen(QColor(31, 36, 48, 7), spread))
-        painter.fillPath(path, QColor("white"))
-        painter.strokePath(path, QPen(QColor("#E3E6EC"), 1))
+            painter.strokePath(shadow, QPen(QColor(palette.shadow), spread))
+        painter.fillPath(path, QColor(palette.surface))
+        painter.strokePath(path, QPen(QColor(palette.border), 1))
 
     # animation ----------------------------------------------------------------------------------
     def _animate(self, opening: bool) -> None:

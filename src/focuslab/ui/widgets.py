@@ -7,7 +7,7 @@ from datetime import date
 from html import escape
 
 import numpy as np
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QImage,
@@ -24,7 +24,7 @@ from focuslab.domain.models import FocusState
 from focuslab.focus.metrics import format_duration
 from focuslab.focus.reasons import describe
 from focuslab.i18n import tr, weekday_name
-from focuslab.ui.theme import SHORT_LABELS, STATE_COLORS, STATE_LABELS
+from focuslab.ui.theme import SHORT_LABELS, STATE_COLORS, STATE_LABELS, colors, set_style_flag
 
 
 def clock_text(seconds: int) -> str:
@@ -44,9 +44,8 @@ def timer_text(elapsed_s: int, planned_s: int, countdown: bool) -> str:
 
 def preview_label(text: str) -> QLabel:
     """Fixed-size dark box that shows the in-memory camera preview."""
-    label = QLabel(text, alignment=Qt.AlignmentFlag.AlignCenter)
+    label = QLabel(text, alignment=Qt.AlignmentFlag.AlignCenter, objectName="CameraPreview")
     label.setFixedSize(320, 240)
-    label.setStyleSheet("background:#1F2430; color:#8C94A6; border-radius:8px;")
     return label
 
 
@@ -82,40 +81,48 @@ class StatCard(QFrame):
 
 class StateBadge(QLabel):
     def __init__(self) -> None:
-        super().__init__(tr("Waiting"))
+        super().__init__(tr("Waiting"), objectName="StateBadge")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumHeight(54)
         self.set_state(None)
 
     def set_state(self, state: FocusState | None, held: bool = False) -> None:
-        color = STATE_COLORS[state] if state else "#E6E9EF"
         text = STATE_LABELS[state] if state else tr("Waiting")
-        fg = "white" if state not in (None, FocusState.UNKNOWN) else "#3A4150"
         self.setText(text + (tr("  · Holding") if held else ""))
-        self.setStyleSheet(
-            f"background:{color}; color:{fg}; border-radius:12px; font-size:20px;"
-            " font-weight:700; padding:10px 16px;"
-        )
+        set_style_flag(self, "state", state.value if state else "")  # colors: theme.stylesheet
 
 
 class Legend(QWidget):
-    """Wrapping color labels, including longer English category names."""
+    """Wrapping color labels, including longer English category names. The dots follow the
+    theme: ``colors`` is read again whenever the stylesheet changes."""
 
-    def __init__(self, items: Sequence[tuple[str, str]] | None = None) -> None:
+    def __init__(
+        self,
+        colors: Mapping[object, str] = STATE_COLORS,
+        labels: Mapping[object, str] = SHORT_LABELS,
+    ) -> None:
         super().__init__()
+        self._colors, self._labels = colors, labels
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        if items is None:
-            items = [(STATE_COLORS[s], SHORT_LABELS[s]) for s in FocusState]
-        label = QLabel(objectName="Muted", wordWrap=True)
-        label.setTextFormat(Qt.TextFormat.RichText)
-        label.setText(
+        self.label = QLabel(objectName="Muted", wordWrap=True)
+        self.label.setTextFormat(Qt.TextFormat.RichText)
+        self.label.setAccessibleName(" / ".join(labels[key] for key in labels))
+        layout.addWidget(self.label)
+        self._render()
+
+    def _render(self) -> None:
+        self.label.setText(
             " &nbsp; ".join(
-                f'<span style="color:{color}">●</span>&nbsp;{escape(text)}' for color, text in items
+                f'<span style="color:{self._colors[key]}">●</span>&nbsp;{escape(self._labels[key])}'
+                for key in self._labels
             )
         )
-        label.setAccessibleName(" / ".join(text for _, text in items))
-        layout.addWidget(label)
+
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.StyleChange:
+            self._render()
+        super().changeEvent(event)
 
 
 @dataclass(frozen=True)
@@ -172,7 +179,8 @@ class BarTimeline(QWidget):
         rect = QRectF(0, 6, self.width(), self.height() - 6 - bottom)
         clip = QPainterPath()
         clip.addRoundedRect(rect, 6, 6)
-        p.fillPath(clip, QColor("#EEF0F3"))
+        palette = colors()
+        p.fillPath(clip, QColor(palette.track))
         p.setClipPath(clip)
         for bar in self._bars:
             x0, x1 = self._x(bar.start), self._x(bar.end)
@@ -181,7 +189,7 @@ class BarTimeline(QWidget):
         for bar in self._bars:
             x0, x1 = self._x(bar.start), self._x(bar.end)
             if bar.marked:
-                p.setBrush(QColor("#1F2430"))
+                p.setBrush(QColor(palette.text))
                 p.setPen(Qt.PenStyle.NoPen)
                 mid = (x0 + x1) / 2
                 path = QPainterPath()
@@ -192,9 +200,9 @@ class BarTimeline(QWidget):
                 p.drawPath(path)
             if self._selected is not None and bar.key == self._selected:
                 p.setBrush(Qt.BrushStyle.NoBrush)
-                p.setPen(QColor("#1F2430"))
+                p.setPen(QColor(palette.text))
                 p.drawRect(QRectF(x0, rect.top(), max(2.0, x1 - x0), rect.height()))
-        p.setPen(QColor("#6B7385"))
+        p.setPen(QColor(palette.muted))
         for value, text in self._ticks:
             x = self._x(value)
             p.drawLine(int(x), int(rect.bottom()), int(x), int(rect.bottom()) + 3)
@@ -279,7 +287,7 @@ class StackedBars(QWidget):
     ) -> None:
         super().__init__()
         self.setMinimumHeight(height)
-        self._order, self._colors = tuple(order), dict(colors)
+        self._order, self._colors = tuple(order), colors  # a theme mapping stays live
         self._value_text, self.label_every = value_text, label_every
         self._columns: list[tuple[str, Mapping[object, float]]] = []
 
@@ -298,7 +306,7 @@ class StackedBars(QWidget):
         peak = max((sum(c.values()) for _, c in self._columns), default=0) or 1
         slot = self.width() / len(self._columns)
         bar_w = min(38.0, slot * 0.55)
-        p.setPen(QColor("#6B7385"))
+        p.setPen(QColor(colors().muted))
         for i, (label, values) in enumerate(self._columns):
             x = i * slot + (slot - bar_w) / 2
             y = top + h

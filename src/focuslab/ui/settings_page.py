@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -59,7 +60,7 @@ from focuslab.ui.consent import (
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
-from focuslab.ui.theme import CATEGORY_LABELS, style_form
+from focuslab.ui.theme import CATEGORY_LABELS, THEME_LABELS, apply_theme, style_form
 from focuslab.ui.update_dialog import UpdateDialog
 
 COLLECTED = (
@@ -152,6 +153,13 @@ class SettingsPage(QWidget):
         self.language_notice = QLabel(wordWrap=True, objectName="Muted")
         form.addRow(self.language_notice)
         self._refresh_language_notice()
+        self.theme_combo = QComboBox()
+        for theme, label in THEME_LABELS.items():
+            self.theme_combo.addItem(label, theme)
+        self.theme_combo.setCurrentIndex(self.theme_combo.findData(self.ctx.theme))
+        self.theme_combo.setToolTip(tr("Applies right away. No restart needed."))
+        self.theme_combo.currentIndexChanged.connect(self._theme_changed)
+        form.addRow(tr("Theme"), self.theme_combo)
         self.overlay_on_start = QCheckBox(tr("Show the overlay when a session starts"))
         self.overlay_on_start.toggled.connect(
             lambda on: self.ctx.set_flag("ui.overlay_on_start", on)
@@ -235,6 +243,11 @@ class SettingsPage(QWidget):
     def _motion_changed(self) -> None:
         self.ctx.set_setting("ui.mascot_motion", self.mascot_motion.currentData())
         self.overlayChanged.emit()
+
+    def _theme_changed(self) -> None:
+        theme = self.theme_combo.currentData()
+        self.ctx.set_theme(theme)
+        apply_theme(QApplication.instance(), theme)
 
     def _language_changed(self) -> None:
         self.ctx.set_language_preference(self.language_combo.currentData())

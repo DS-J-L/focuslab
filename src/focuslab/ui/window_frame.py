@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QMouseEvent, QPainter, QPaint
 from PySide6.QtWidgets import QAbstractButton, QHBoxLayout, QWidget
 
 from focuslab.i18n import tr
+from focuslab.ui.theme import colors
 
 TITLE_HEIGHT = 32
 BUTTON_WIDTH = 46
@@ -68,14 +69,16 @@ class CaptionButton(QAbstractButton):
         painter = QPainter(self)
         hover = self.underMouse() or self.native_hover
         down = self.isDown() or self.native_down
-        glyph = QColor("#1F2430") if self.isActiveWindow() else QColor("#8A93A6")
+        palette = colors()
+        glyph = QColor(palette.text if self.isActiveWindow() else palette.caption_inactive)
         if self.kind == "close" and (hover or down):
-            painter.fillRect(self.rect(), QColor("#C42B1C") if hover else QColor("#C94F4F"))
-            glyph = QColor("white")
+            # Windows' own close-button red, the same in light and dark mode.
+            painter.fillRect(self.rect(), QColor(196, 43, 28) if hover else QColor(201, 79, 79))
+            glyph = QColor(Qt.GlobalColor.white)
         elif down:
-            painter.fillRect(self.rect(), QColor(0, 0, 0, 22))
+            painter.fillRect(self.rect(), QColor(palette.caption_down))
         elif hover:
-            painter.fillRect(self.rect(), QColor(0, 0, 0, 13))
+            painter.fillRect(self.rect(), QColor(palette.caption_hover))
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         pen = QPen(glyph, 1.0)
         pen.setCosmetic(True)
