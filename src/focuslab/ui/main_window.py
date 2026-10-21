@@ -32,7 +32,6 @@ from focuslab.ui.activity_page import ActivityPage
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
 from focuslab.ui.home_page import HomePage
-from focuslab.ui.new_session_dialog import NewSessionDialog
 from focuslab.ui.onboarding import OnboardingDialog
 from focuslab.ui.overlay import SessionOverlay
 from focuslab.ui.report_page import ReportPage
@@ -124,6 +123,7 @@ class MainWindow(QMainWindow):
 
         self.nav.currentRowChanged.connect(self._navigate)
         self.home.newSessionRequested.connect(self.new_session)
+        self.home.sessionConfigured.connect(self.start_session)
         self.home.returnToSession.connect(lambda: self.go(SESSION))
         self.home.openReport.connect(self.open_report)
         self.home.openActivity.connect(lambda: self.go(ACTIVITY))
@@ -213,13 +213,12 @@ class MainWindow(QMainWindow):
 
     # session flow -------------------------------------------------------------------
     def new_session(self) -> None:
-        "Home's (+): ask for the session settings in a popup, then start."
+        "Home's (+): open the settings bubble above it; its Start calls start_session."
         if self.ctx.service.snapshot().lifecycle in ACTIVE:
             self.go(SESSION)
             return
-        dialog = NewSessionDialog(self.ctx, self)
-        if dialog.exec() == NewSessionDialog.DialogCode.Accepted:
-            self.start_session(dialog.config())
+        self.go(HOME)
+        self.home.open_new_session()
 
     def start_session(self, config: SessionConfig) -> None:
         ctx = self.ctx

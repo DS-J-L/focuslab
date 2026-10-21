@@ -1,11 +1,11 @@
 """Home: today's automatic recording and manual focus sessions side by side (each card says
-which one it comes from), recent sessions, and a floating (+) button that opens a new session
-(or returns to the one in progress)."""
+which one it comes from), recent sessions, and a floating (+) button that opens the new
+session bubble above it (or returns to the session in progress)."""
 
 from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QResizeEvent
+from PySide6.QtGui import QHideEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -27,6 +27,7 @@ from focuslab.domain.models import FocusState
 from focuslab.focus.metrics import compute_metrics, format_duration, format_ratio
 from focuslab.i18n import tr
 from focuslab.ui.context import AppContext
+from focuslab.ui.new_session_popover import NewSessionPopover
 from focuslab.ui.recording_status import WARNING_STYLE, RecordingHealth
 from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.widgets import StatCard
@@ -41,6 +42,7 @@ FAB_MARGIN = 28
 
 class HomePage(QWidget):
     newSessionRequested = Signal()
+    sessionConfigured = Signal(object)  # SessionConfig, when Start is pressed in the bubble
     returnToSession = Signal()
     openReport = Signal(int)
     openActivity = Signal()
@@ -132,13 +134,17 @@ class HomePage(QWidget):
         # stays in the bottom-right corner while the page scrolls.
         self.fab = QPushButton(self, objectName="Fab")
         self.fab.clicked.connect(self._fab_clicked)
+        self.popover: NewSessionPopover | None = None
         self._running = False
         self.set_running(False)
 
     # floating button ------------------------------------------------------------------
     def set_running(self, running: bool) -> None:
-        "Idle: a round (+) for a new session. In progress: a wide button back to that session."
+        """Idle: a round (+) for a new session, or (×) while its bubble is open. In progress: a
+        wide button back to that session."""
         self._running = running
+        if running and self.popover is not None:
+            self.popover.dismiss(animated=False)
         self.fab.setProperty("running", running)
         if running:
             self.fab.setText(tr("Back to session in progress"))
@@ -148,16 +154,36 @@ class HomePage(QWidget):
             self.fab.setMaximumWidth(16777215)
             self.fab.setFixedHeight(FAB_SIZE)
         else:
-            self.fab.setText("+")
-            self.fab.setToolTip(tr("New session"))
-            self.fab.setAccessibleName(tr("New session"))
+            label = tr("Close") if self.popover is not None else tr("New session")
+            self.fab.setText("×" if self.popover is not None else "+")
+            self.fab.setToolTip(label)
+            self.fab.setAccessibleName(label)
             self.fab.setFixedSize(FAB_SIZE, FAB_SIZE)
         self.fab.style().unpolish(self.fab)
         self.fab.style().polish(self.fab)
         self._place_fab()
 
     def _fab_clicked(self) -> None:
-        (self.returnToSession if self._running else self.newSessionRequested).emit()
+        if self._running:
+            self.returnToSession.emit()
+        elif self.popover is not None:
+            self.popover.dismiss()
+        else:
+            self.newSessionRequested.emit()
+
+    def open_new_session(self) -> None:
+        "Show the settings bubble above the (+), filled with the last session's choices."
+        if self._running or self.popover is not None:
+            return
+        self.popover = NewSessionPopover(self.ctx, self.fab, self)
+        self.popover.started.connect(self.sessionConfigured)
+        self.popover.dismissed.connect(self._popover_dismissed)
+        self.popover.open()
+        self.set_running(False)
+
+    def _popover_dismissed(self) -> None:
+        self.popover = None
+        self.set_running(self._running)
 
     def _place_fab(self) -> None:
         if self._running:
@@ -167,10 +193,18 @@ class HomePage(QWidget):
             self.height() - self.fab.height() - FAB_MARGIN,
         )
         self.fab.raise_()
+        if self.popover is not None:
+            self.popover.place()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._place_fab()
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        "Leaving Home (another menu, or the window to the tray) closes the bubble."
+        super().hideEvent(event)
+        if self.popover is not None:
+            self.popover.dismiss(animated=False)
 
     def _open_recent(self, item: QListWidgetItem) -> None:
         session_id = item.data(Qt.ItemDataRole.UserRole)
