@@ -25,6 +25,7 @@ from focuslab import __version__, updater
 from focuslab.activity.recorder import RecorderState
 from focuslab.config import data_dir, face_model_path
 from focuslab.domain.models import SessionConfig
+from focuslab.focus.metrics import format_duration
 from focuslab.i18n import install_qt_translator, tr
 from focuslab.services.export_service import apply_retention
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
@@ -376,9 +377,28 @@ class MainWindow(QMainWindow):
             self.tray.showMessage(
                 "FocusLab", tr("The target time was reached and the session has ended.")
             )
-        self._ask_self_report(snap.session_id)
+        if snap.config is not None and snap.config.challenge:
+            if snap.challenge_over:
+                self.show_normal()
+            self._show_challenge_result(snap)
+        else:
+            self._ask_self_report(snap.session_id)
         self.home.refresh()
         self.open_report(snap.session_id)
+
+    def _show_challenge_result(self, snap: LiveSnapshot) -> None:
+        "The challenge's record: how long it lasted, against the best earlier one."
+        lasted = format_duration(snap.active_s)
+        if snap.challenge_over:
+            text = tr("You were away for 5 minutes in total, so the challenge has ended.")
+        else:
+            text = tr("You ended the challenge.")
+        if snap.active_s > snap.challenge_best_s:
+            text += "\n" + tr("New record: {p0}", p0=lasted)
+        else:
+            best = format_duration(snap.challenge_best_s)
+            text += "\n" + tr("Lasted {p0} · Best {p1}", p0=lasted, p1=best)
+        QMessageBox.information(self, tr("Focus challenge"), text)
 
     def _ask_self_report(self, session_id: int) -> None:
         box = QMessageBox(self)

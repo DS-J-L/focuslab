@@ -49,11 +49,13 @@ class Repository:
         with self.transaction():
             cur = self.conn.execute(
                 "INSERT INTO session (goal, mode, planned_minutes, started_at_utc, status,"
-                " camera_enabled, rule_version, mode_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " camera_enabled, rule_version, mode_name, challenge)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     config.goal, config.mode.value, config.planned_minutes,
                     started_at_utc or utc_now(), SessionStatus.RUNNING.value,
                     int(config.camera_enabled), rule_version, config.mode_name,
+                    int(config.challenge),
                 ),
             )
             session_id = cur.lastrowid
@@ -102,6 +104,7 @@ class Repository:
             self_report=row["self_report"],
             allowed_apps=tuple(a["process_name"] for a in apps),
             mode_name=row["mode_name"],
+            challenge=bool(row["challenge"]),
         )
 
     def get_session(self, session_id: int) -> SessionRecord | None:
@@ -120,6 +123,14 @@ class Repository:
             sql += " LIMIT ?"
             params.append(limit)
         return [self._record(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    def best_challenge_s(self) -> int:
+        """Longest focus challenge so far, in observed seconds (0 before the first one)."""
+        row = self.conn.execute(
+            "SELECT MAX((SELECT COUNT(*) FROM state_sample WHERE session_id = s.id))"
+            " FROM session s WHERE s.challenge = 1"
+        ).fetchone()
+        return row[0] or 0
 
     def recover_interrupted(self) -> list[int]:
         """Mark sessions left RUNNING/PAUSED by a crash as INTERRUPTED. Data is kept."""

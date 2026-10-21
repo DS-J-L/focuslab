@@ -47,6 +47,9 @@ _ANSWER_STATE = {
     RelevanceLevel.RELATED: FocusState.ON_TASK,
     RelevanceLevel.POSSIBLY_UNRELATED: FocusState.POSSIBLY_OFF_TASK,
 }
+# A focus challenge ends once this much time in total was spent away from the task.
+CHALLENGE_LIMIT_S = 5 * 60
+DEPARTED = frozenset({FocusState.POSSIBLY_OFF_TASK, FocusState.AWAY, FocusState.BREAK})
 
 
 class Lifecycle(StrEnum):
@@ -106,6 +109,9 @@ class LiveSnapshot:
     planned_reached: bool = False
     relevance: TaskRelevanceResult | None = None  # goal vs. the current activity
     relevance_subject: str | None = None  # what that result is about (page, site or app)
+    departed_s: int = 0  # seconds away from the task (corrections count), for the challenge
+    challenge_over: bool = False  # the challenge ran out of time away and ended the session
+    challenge_best_s: int = 0  # the longest earlier challenge
 
 
 class NoActivitySource:
@@ -171,6 +177,8 @@ class SessionService:
         self._last_relevance: TaskRelevanceResult | None = None
         self._last_relevance_input: RelevanceInput | None = None
         self._planned_reached = False
+        self._challenge_over = False
+        self._challenge_best_s = 0
 
     @property
     def repository(self) -> Repository:
@@ -198,6 +206,7 @@ class SessionService:
                 self._reset()
             self._lifecycle.apply("start")
             self._config = config
+            self._challenge_best_s = self._repo.best_challenge_s() if config.challenge else 0
             self._session_id = self._repo.create_session(config, RULE_VERSION)
             self._engine = RuleEngine(config.mode, self._cfg)
             self._relevance.reset_context()
@@ -463,7 +472,17 @@ class SessionService:
             if config.planned_minutes and self._active_s >= config.planned_minutes * 60:
                 self._planned_reached = True
                 self._finish_locked()
+            elif config.challenge and self._departed_s() >= CHALLENGE_LIMIT_S:
+                self._challenge_over = True
+                self._finish_locked()
             return decision
+
+    def _departed_s(self) -> int:
+        return sum(
+            seg.end_s - seg.start_s
+            for seg in self._segments
+            if (seg.corrected_label or seg.state) in DEPARTED
+        )
 
     def _judge_relevance(
         self, config: SessionConfig, activity: ActivityObservation, now: int
@@ -539,6 +558,9 @@ class SessionService:
                 seconds=dict(self._counts),
                 segments=tuple(self._segments),
                 planned_reached=self._planned_reached,
+                departed_s=self._departed_s(),
+                challenge_over=self._challenge_over,
+                challenge_best_s=self._challenge_best_s,
                 relevance=self._last_relevance,
                 relevance_subject=subject(self._last_relevance_input),
             )

@@ -242,6 +242,7 @@ class ReportPage(QWidget):
             cells = [
                 _local(s.started_at_utc).strftime("%m/%d %H:%M"),
                 s.goal
+                + (tr(" · Focus challenge") if s.challenge else "")
                 + ("" if s.status is SessionStatus.FINISHED else f" · {STATUS_TEXT[s.status]}"),
                 format_duration(m.measured_s),
                 format_ratio(m.on_task_ratio),

@@ -124,6 +124,34 @@ def test_start_opens_the_live_session_with_the_bubble_settings(window, qtbot):
     assert window.ctx.setting("last.mode", "") == SessionMode.LECTURE.value
 
 
+def test_focus_challenge_button_starts_a_challenge_without_time_limit(window, qtbot):
+    bubble = open_bubble(window, qtbot)
+    fill(bubble)
+    bubble.form.minutes.setValue(25)
+    assert bubble.challenge_button.text() == "집중 도전"
+    bubble.challenge_button.click()
+    snap = snapshot(window)
+    assert snap.lifecycle is Lifecycle.RUNNING
+    assert snap.config.challenge and snap.config.planned_minutes == 0
+    assert window.ctx.setting("last.minutes", "") == "25"  # a plain session keeps its time
+    window.poll()
+    assert window.session.subtitle.text().startswith("집중 도전 · ")
+    assert window.session.remaining.text().startswith("  이탈 00:00 / 05:00")
+    assert window.session.progress.maximum() == 300
+
+
+def test_challenge_result_replaces_the_self_report(window, qtbot, monkeypatch):
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a: shown.append(a[2]))
+    bubble = open_bubble(window, qtbot)
+    fill(bubble)
+    bubble.challenge_button.click()
+    window.ctx.service.finish()
+    window.poll()
+    assert shown and shown[0].startswith("도전을 종료했습니다.\n")
+    assert "집중 도전" in window.home.recent.item(0).text()
+
+
 def test_enter_in_the_goal_starts_but_enter_in_the_app_field_only_adds(window, qtbot):
     bubble = open_bubble(window, qtbot)
     bubble.form.show_apps(True)

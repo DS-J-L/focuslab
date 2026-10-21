@@ -664,5 +664,15 @@
   "FocusLab.exe": "FocusLab.exe",
   "source checkout": "소스 실행",
   "On this PC since": "이 PC에 적용",
-  "{p0:%Y-%m-%d %H:%M} (first start of this build)": "{p0:%Y-%m-%d %H:%M} (이 빌드를 처음 실행한 시각)"
+  "{p0:%Y-%m-%d %H:%M} (first start of this build)": "{p0:%Y-%m-%d %H:%M} (이 빌드를 처음 실행한 시각)",
+  "Focus challenge": "집중 도전",
+  "Start with no time limit and keep going until you have been away from the task for 5 minutes in total. How long you lasted is saved as your record.": "시간 제한 없이 시작해, 작업에서 벗어난 시간이 모두 합쳐 5분이 될 때까지 계속합니다. 버틴 시간이 기록으로 저장됩니다.",
+  "Focus challenge · {p0} mode · {p1}": "집중 도전 · {p0} 모드 · {p1}",
+  "  Away {p0} of {p1} · Paused {p2}": "  이탈 {p0} / {p1} · 일시정지 {p2}",
+  " · Best {p0}": " · 최고 {p0}",
+  "You were away for 5 minutes in total, so the challenge has ended.": "이탈 시간이 모두 합쳐 5분이 되어 도전이 끝났습니다.",
+  "You ended the challenge.": "도전을 종료했습니다.",
+  "New record: {p0}": "새 기록: {p0}",
+  "Lasted {p0} · Best {p1}": "이번 기록 {p0} · 최고 {p1}",
+  " · Focus challenge": " · 집중 도전"
 }

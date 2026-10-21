@@ -232,6 +232,8 @@ class HomePage(QWidget):
             status = {"FINISHED": "", "INTERRUPTED": tr(" · Interrupted")}.get(
                 s.status.value, tr(" · In progress")
             )
+            if s.challenge:
+                status = tr(" · Focus challenge") + status
             item = QListWidgetItem(
                 f"{started:%m/%d %H:%M}  {s.goal}  ({mode_label(s.mode, s.mode_name)}){status}"
             )

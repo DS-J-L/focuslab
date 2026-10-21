@@ -136,6 +136,21 @@ def test_custom_mode_name_is_stored_with_its_session(tmp_path):
     conn.close()
 
 
+def test_challenge_flag_and_best_record(tmp_path):
+    conn = connect(tmp_path / "c.db")
+    repo = Repository(conn)
+    assert repo.best_challenge_s() == 0
+    plain = repo.create_session(CONFIG, "rules-0.3")
+    short = repo.create_session(replace(CONFIG, challenge=True), "rules-0.3")
+    long = repo.create_session(replace(CONFIG, challenge=True), "rules-0.3")
+    for sid, n in ((plain, 50), (short, 5), (long, 20)):
+        for i in range(n):
+            repo.add_sample(sid, StateSample(i, FocusState.ON_TASK, 1.0))
+    assert not repo.get_session(plain).challenge and repo.get_session(long).challenge
+    assert repo.best_challenge_s() == 20
+    conn.close()
+
+
 def test_activity_repository_dedupes_programs_and_queries_overlaps(tmp_path):
     from focuslab.domain.activity import ActivitySpan, SpanKind
     from focuslab.storage.activity_repository import ActivityRepository

@@ -97,6 +97,7 @@ class SessionConfig:
     allowed_apps: tuple[str, ...]
     camera_enabled: bool
     mode_name: str | None = None  # the user's own work mode, estimated like ``mode``
+    challenge: bool = False  # focus challenge: no time limit, ends after 5 min away in total
 
 
 @dataclass(frozen=True)
@@ -133,3 +134,4 @@ class SessionRecord:
     self_report: str | None = None
     allowed_apps: tuple[str, ...] = ()
     mode_name: str | None = None
+    challenge: bool = False
