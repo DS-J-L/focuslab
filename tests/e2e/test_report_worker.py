@@ -44,14 +44,14 @@ def calls(monkeypatch):
     seen = Calls()
     real = report_worker.activity_report
 
-    def spy(conn, start_ms, end_ms):
+    def spy(conn, start_ms, end_ms, power=None):
         seen.append((threading.get_ident(), conn, (start_ms, end_ms)))
         if seen.started is not None:
             seen.started.set()
         if seen.release is not None:
             assert seen.release.wait(10), "Test did not release the blocked report"
         time.sleep(seen.delay)
-        return real(conn, start_ms, end_ms)
+        return real(conn, start_ms, end_ms, power)
 
     monkeypatch.setattr(report_worker, "activity_report", spy)
     return seen
@@ -123,7 +123,7 @@ def test_the_window_stays_responsive_and_only_the_latest_day_is_computed(
 def test_a_failed_report_is_shown_and_the_next_one_recovers(window, monkeypatch, settle):
     real = report_worker.activity_report
 
-    def broken(conn, start_ms, end_ms):
+    def broken(conn, start_ms, end_ms, power=None):
         raise sqlite3.OperationalError("database is locked")
 
     monkeypatch.setattr(report_worker, "activity_report", broken)

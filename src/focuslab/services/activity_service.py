@@ -12,6 +12,7 @@ from focuslab.activity.auto_sessions import (
     link_manual_sessions,
 )
 from focuslab.activity.camera_overlay import overlay, session_samples
+from focuslab.activity.power import PowerSource, power_report
 from focuslab.activity.stats import ActivityStats, LabeledSpan, compute_stats, label_spans
 from focuslab.domain.activity import Category, SpanKind
 from focuslab.storage.activity_repository import ActivityRepository
@@ -97,12 +98,13 @@ def rebuild_auto_sessions(
 
 
 def activity_report(
-    conn: sqlite3.Connection, start_ms: int, end_ms: int
+    conn: sqlite3.Connection, start_ms: int, end_ms: int, power: PowerSource | None = None
 ) -> tuple[list[LabeledSpan], ActivityStats]:
     """Labeled spans (with camera overlay) and statistics for ``[start_ms, end_ms)``.
 
     Rebuilds the automatic sessions overlapping the window so they follow the latest
-    corrections. A session crossing the window edge is listed whole.
+    corrections. A session crossing the window edge is listed whole. With a ``power``
+    source the statistics also say how long the PC was on.
     """
     activity, repo = ActivityRepository(conn), Repository(conn)
     spans = activity.spans_between(start_ms, end_ms)
@@ -110,7 +112,12 @@ def activity_report(
     labeled = label_spans(spans, start_ms, end_ms, activity.user_rules(), camera)
     sessions = rebuild_auto_sessions(conn, start_ms, end_ms)
     manual = manual_session_ranges(repo, start_ms, end_ms)
-    return labeled, compute_stats(labeled, start_ms, end_ms, sessions, manual)
+    stats = compute_stats(labeled, start_ms, end_ms, sessions, manual)
+    if power is not None:
+        awake = power.on_intervals(start_ms, end_ms)
+        if awake is not None:
+            stats.power = power_report(awake, labeled, power.settings())
+    return labeled, stats
 
 
 def stored_auto_sessions(

@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from focuslab.activity.auto_sessions import AutoSession, span_label
 from focuslab.activity.camera_overlay import CameraOverlay, attended_ms
 from focuslab.activity.classifier import Classification, UserRules, effective
+from focuslab.activity.power import PowerReport
 from focuslab.domain.activity import ActivitySpan, Category, ClassReason, SpanKind
 
 # Categories that count as work when reporting "attended work time".
@@ -51,6 +52,7 @@ class ActivityStats:
     camera_covered_ms: int = 0  # work time the camera actually observed
     sessions: list[AutoSession] = field(default_factory=list)
     manual_overlap_ms: int = 0  # activity time that falls inside manual focus sessions
+    power: PowerReport | None = None  # PC power-on time, when the event log could tell
 
     @property
     def total_ms(self) -> int:
