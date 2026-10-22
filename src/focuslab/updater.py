@@ -16,7 +16,7 @@ import urllib.request
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from focuslab import __version__
 from focuslab.config import FROZEN
@@ -145,6 +145,20 @@ def _long(path: Path) -> Path:
     return Path("\\\\?\\" + str(path.resolve()))
 
 
+def _member_path(member: zipfile.ZipInfo) -> PurePosixPath:
+    return PurePosixPath(member.filename.replace("\\", "/"))
+
+
+def _package_root(members: list[zipfile.ZipInfo]) -> PurePosixPath:
+    "The folder in the zip that holds FocusLab.exe next to _internal."
+    paths = [_member_path(m) for m in members]
+    exes = [path.parent for path in paths if path.name == EXE_NAME]
+    internal = exes[0] / "_internal" if len(exes) == 1 else None
+    if internal is None or not any(internal in (path, *path.parents) for path in paths):
+        raise ValueError("the package does not contain one FocusLab folder")
+    return exes[0]
+
+
 def stage(
     zip_path: Path,
     target: Path,
@@ -152,24 +166,40 @@ def stage(
     cancelled: Cancelled | None = None,
 ) -> Path:
     """Unpack the zip's FocusLab folder next to the install folder (same volume, so the
-    later swap is two renames). Returns the unpacked folder that holds FocusLab.exe."""
+    later swap is two renames). Returns the unpacked folder that holds FocusLab.exe.
+
+    Files go straight into that folder: renaming a folder of just-written files fails with
+    "access denied" while antivirus or OneDrive still has them open."""
     staged = target.with_name(f".{target.name}-update")
-    shutil.rmtree(_long(staged), ignore_errors=True)
-    with tempfile.TemporaryDirectory(dir=_long(target.parent)) as unpack:
+    out_dir = _long(staged)
+    shutil.rmtree(out_dir, ignore_errors=True)
+    try:
         with zipfile.ZipFile(zip_path) as archive:
             members = archive.infolist()
+            root = _package_root(members)
             total = sum(m.file_size for m in members)
             done = 0
             for member in members:
                 _check(cancelled)
-                archive.extract(member, unpack)  # drops absolute and '..' member paths
+                name = _member_path(member)
+                if not name.is_relative_to(root) or name.is_absolute():
+                    continue
+                parts = name.relative_to(root).parts
+                if not parts or ".." in parts or ":" in str(name):  # never outside the folder
+                    continue
+                dest = out_dir.joinpath(*parts)
+                if member.filename.endswith(("/", "\\")):
+                    dest.mkdir(parents=True, exist_ok=True)
+                else:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(member) as source, open(dest, "wb") as out:
+                        shutil.copyfileobj(source, out, CHUNK)
                 done += member.file_size
                 if progress:
                     progress(done, total)
-        roots = [p.parent for p in Path(unpack).rglob(EXE_NAME)]
-        if len(roots) != 1 or not (roots[0] / "_internal").is_dir():
-            raise ValueError("the package does not contain one FocusLab folder")
-        roots[0].replace(_long(staged))
+    except BaseException:
+        shutil.rmtree(out_dir, ignore_errors=True)
+        raise
     return staged
 
 
@@ -184,8 +214,9 @@ def _ps(text: str | Path) -> str:
 
 def swap_script(staged: Path, target: Path, pid: int) -> str:
     """PowerShell run after FocusLab exits: rename the install folder aside, move the staged
-    folder into its place and start the new exe. If the install folder stays locked (for
-    example by a browser still connected to the native host) the old version starts again."""
+    folder into its place and start the new exe. Both renames are retried for 30 seconds
+    (a browser still connected to the native host, antivirus, or OneDrive can hold files open);
+    if either still fails the old version starts again."""
     old = target.with_name(f"{target.name}.old")
     return f"""
 $target = {_ps(target)}; $name = {_ps(target.name)}
@@ -197,8 +228,12 @@ for ($i = 0; $i -lt 30 -and -not $ok; $i++) {{
   catch {{ Start-Sleep -Seconds 1 }}
 }}
 if ($ok) {{
-  try {{ Rename-Item -LiteralPath $staged -NewName $name -ErrorAction Stop }}
-  catch {{ Rename-Item -LiteralPath $old -NewName $name; $ok = $false }}
+  $moved = $false
+  for ($i = 0; $i -lt 30 -and -not $moved; $i++) {{
+    try {{ Rename-Item -LiteralPath $staged -NewName $name -ErrorAction Stop; $moved = $true }}
+    catch {{ Start-Sleep -Seconds 1 }}
+  }}
+  if (-not $moved) {{ Rename-Item -LiteralPath $old -NewName $name; $ok = $false }}
 }}
 Start-Process -FilePath $exe
 if ($ok) {{ Remove-Item -LiteralPath $old -Recurse -Force }}
