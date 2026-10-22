@@ -118,6 +118,36 @@ def test_stage_handles_paths_past_max_path(tmp_path):
     assert (updater._long(staged) / deep).read_text() == "license"
 
 
+def test_stage_never_renames_a_folder_of_fresh_files(tmp_path, monkeypatch):
+    "Antivirus or OneDrive holding the new files open must not fail the update."
+    zip_path, _, _ = package(tmp_path)
+    install = tmp_path / "apps" / "FocusLab"
+    (install / "_internal").mkdir(parents=True)
+
+    def denied(self, *args):
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(updater.Path, "replace", denied)
+    monkeypatch.setattr(updater.Path, "rename", denied)
+    staged = updater.stage(zip_path, install)
+    assert (staged / "FocusLab.exe").read_bytes() == b"new exe"
+    assert (staged / "_internal").is_dir()
+
+
+def test_stage_takes_only_the_focuslab_folder_and_stays_inside_it(tmp_path):
+    zip_path = tmp_path / "pkg.zip"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("FocusLab.exe", b"new exe")  # the folder's files at the zip's top
+        archive.writestr("_internal/base.dll", b"dll")
+        archive.writestr("../escaped.txt", "no")
+    install = tmp_path / "apps" / "FocusLab"
+    (install / "_internal").mkdir(parents=True)
+    staged = updater.stage(zip_path, install)
+    assert sorted(p.name for p in staged.iterdir()) == ["FocusLab.exe", "_internal"]
+    assert (staged / "_internal" / "base.dll").read_bytes() == b"dll"
+    assert not (tmp_path / "apps" / "escaped.txt").exists()
+
+
 def test_stage_rejects_a_package_without_focuslab(tmp_path):
     zip_path = tmp_path / "other.zip"
     with zipfile.ZipFile(zip_path, "w") as archive:
@@ -136,6 +166,9 @@ def test_swap_script_quotes_paths_and_restarts_the_exe(tmp_path):
     exe = str(target / "FocusLab.exe").replace("'", "''")
     assert f"$exe = '{exe}'" in script
     assert "Start-Process -FilePath $exe" in script
+    # The staged folder's rename is retried like the install folder's, then rolled back.
+    assert script.count("Start-Sleep -Seconds 1") == 2
+    assert "if (-not $moved) { Rename-Item -LiteralPath $old -NewName $name" in script
 
 
 def test_source_checkouts_never_replace_themselves():
