@@ -27,7 +27,8 @@ MODEL = ROOT / "assets" / "models" / "face_landmarker.task"
 EXTENSION = ROOT / "browser_extension"
 EXTENSION_FILES = ("manifest.json", "background.js", "logic.js")
 PYTHON_DLLS = Path(sys.base_prefix) / "DLLs"
-OPENSSL_DLLS = ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
+# Python's own OpenSSL; builds name it differently (libssl-3.dll, libssl-3-x64.dll).
+OPENSSL_PATTERNS = ("libssl-3*.dll", "libcrypto-3*.dll")
 
 
 def data(source: Path, dest: str) -> str:
@@ -49,6 +50,13 @@ def build_record() -> Path:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps({"commit": commit, "committed": committed}), "utf-8")
     return path
+
+
+def python_openssl() -> list[Path]:
+    found = [dll for pattern in OPENSSL_PATTERNS for dll in sorted(PYTHON_DLLS.glob(pattern))]
+    if len(found) != len(OPENSSL_PATTERNS):
+        raise SystemExit(f"expected one libssl and one libcrypto in {PYTHON_DLLS}, found {found}")
+    return found
 
 
 def main() -> None:
@@ -86,9 +94,10 @@ def main() -> None:
     dll = internal / "mediapipe" / "tasks" / "c" / "libmediapipe.dll"
     if not dll.is_file():
         raise SystemExit(f"build is missing {dll}; the face model would fail to load")
-    for name in OPENSSL_DLLS:
-        if not filecmp.cmp(internal / name, PYTHON_DLLS / name, shallow=False):
-            raise SystemExit(f"build bundled a foreign {name}; downloads over https would fail")
+    for dll in python_openssl():
+        bundled = internal / dll.name
+        if not bundled.is_file() or not filecmp.cmp(bundled, dll, shallow=False):
+            raise SystemExit(f"build bundled a foreign {dll.name}; downloads over https would fail")
     print(f"\nBuilt {ROOT / 'dist' / 'FocusLab' / 'FocusLab.exe'}")
 
 
