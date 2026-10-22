@@ -5,7 +5,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QEvent, QLockFile, Qt, QTimer
+from PySide6.QtCore import QByteArray, QEvent, QLockFile, QRect, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QFocusEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -32,6 +32,7 @@ from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.activity_page import ActivityPage
 from focuslab.ui.consent import ask_activity_consent, ask_camera_consent
 from focuslab.ui.context import AppContext
+from focuslab.ui.guide import GuideTour, guide_steps
 from focuslab.ui.home_page import HomePage
 from focuslab.ui.onboarding import OnboardingDialog
 from focuslab.ui.overlay import SessionOverlay
@@ -165,6 +166,8 @@ class MainWindow(QMainWindow):
         self.settings.updateAvailable.connect(self._show_update)
         self.settings.restartForUpdate.connect(self._restart_for_update)
         self.settings.overlayChanged.connect(self.overlay.apply_settings)
+        self.settings.guideRequested.connect(self.show_guide)
+        self.tour: GuideTour | None = None
         if ctx.flag("update.auto_check"):  # opt-in; off by default (local-only)
             QTimer.singleShot(
                 UPDATE_CHECK_DELAY_MS, lambda: self.settings.check_updates(quiet=True)
@@ -223,6 +226,50 @@ class MainWindow(QMainWindow):
     def open_report(self, session_id: int) -> None:
         self.go(REPORT)
         self.report.show_session(session_id)
+
+    # guide --------------------------------------------------------------------------------
+    def show_guide(self) -> None:
+        "The tour over this window; skipping it still counts as seen. Ends on the page it began."
+        if self.tour is not None:
+            return
+        self.ctx.set_flag("guide.done", True)
+        start_page = self.stack.currentIndex()
+        self.tour = GuideTour(self.centralWidget(), guide_steps(), self._guide_target)
+
+        def finished(_completed: bool) -> None:
+            self.tour = None
+            self.go(start_page)
+
+        self.tour.finished.connect(finished)
+        self.tour.start()
+
+    def _guide_target(self, target: str | None) -> QRect | None:
+        "Bring a guide step's place on screen and return where it is, in global coordinates."
+        if target in ("home", "new_session"):
+            self.go(HOME)
+            if target == "new_session":
+                return _global_rect(self.home.fab)
+            return _global_rect(self.home.card_active, self.home.card_cov)
+        if target in ("activity", "reports"):
+            item = self.nav.item(NAV_PAGES.index(ACTIVITY if target == "activity" else REPORT))
+            rect = self.nav.visualItemRect(item)
+            return QRect(self.nav.viewport().mapToGlobal(rect.topLeft()), rect.size())
+        settings = {
+            "work_modes": (self.settings.modes_box,),
+            "recording": (
+                self.settings.recording_state,
+                self.settings.recording_button,
+                self.settings.recording_pause,
+            ),
+            "guide": (self.settings.guide_button,),
+        }.get(target or "")
+        if settings is None:
+            return None
+        self.go(SETTINGS)
+        for widget in reversed(settings):  # the first one ends up in view if not all fit
+            if widget.isVisible():
+                self.settings.scroll.ensureWidgetVisible(widget, 0, 60)
+        return _global_rect(*settings)
 
     def _data_changed(self) -> None:
         self.home.refresh()
@@ -526,7 +573,7 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     if not (background and window.tray.isVisible()):
         window.show()
     if ctx.needs_guide and window.isVisible():
-        window.settings.show_guide()
+        window.show_guide()
     if recovered:
         QMessageBox.information(
             window,
@@ -542,3 +589,12 @@ def run_app(demo: bool = False, background: bool = False) -> int:
     code = app.exec()
     lock.unlock()
     return code
+
+
+def _global_rect(*widgets: QWidget) -> QRect | None:
+    "The rectangle around the visible ones of `widgets`, in global coordinates."
+    rect = QRect()
+    for widget in widgets:
+        if widget.isVisible():
+            rect = rect.united(QRect(widget.mapToGlobal(widget.rect().topLeft()), widget.size()))
+    return rect if not rect.isEmpty() else None

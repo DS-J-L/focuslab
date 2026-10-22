@@ -1,18 +1,20 @@
 """Work modes added in Settings reach New session and the session record; the first-run guide
-can be stepped through, skipped, and reopened from Settings."""
+points at each place it explains, can be skipped, and reopens from Settings."""
 
 import re
 
 import pytest
-from PySide6.QtWidgets import QLabel, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from focuslab.config import DEFAULT_ALLOWED_APPS
 from focuslab.domain.models import SessionMode
 from focuslab.i18n import set_language
 from focuslab.services.session_service import Lifecycle
 from focuslab.ui.context import AppContext
-from focuslab.ui.guide import GuideDialog, guide_steps
-from focuslab.ui.main_window import HOME, SETTINGS, MainWindow
+from focuslab.ui.guide import guide_steps
+from focuslab.ui.main_window import ACTIVITY, HOME, SETTINGS, MainWindow
 from focuslab.ui.work_mode_dialog import WorkModeDialog
 from focuslab.work_modes import BUILT_IN, PRESETS, new_mode
 
@@ -150,49 +152,92 @@ def test_mode_dialog_refuses_empty_and_duplicate_names(qtbot):
     assert edit.result_mode().key == mode.key
 
 
-def test_guide_steps_forward_and_back_and_can_be_skipped(qtbot):
-    guide = GuideDialog()
-    qtbot.addWidget(guide)
-    count = len(guide_steps())
-    assert guide.counter.text() == f"{count}단계 중 1단계"
-    assert not guide.back.isEnabled() and guide.skip.isVisibleTo(guide)
-    assert guide.next.text() == "다음"
-    for _ in range(count - 1):
-        guide.next.click()
-    assert guide.last and guide.next.text() == "시작하기"
-    assert not guide.skip.isVisibleTo(guide)
-    guide.back.click()
-    assert guide.step == count - 2 and guide.skip.isVisibleTo(guide)
-    guide.skip.click()
-    assert guide.result() == GuideDialog.DialogCode.Rejected
+TARGET_PAGES = {
+    None: None,
+    "home": HOME,
+    "activity": None,
+    "new_session": HOME,
+    "work_modes": SETTINGS,
+    "recording": SETTINGS,
+    "reports": None,
+    "guide": SETTINGS,
+}
 
-    finished = GuideDialog()
-    qtbot.addWidget(finished)
-    finished.show_step(count - 1)
-    finished.next.click()
-    assert finished.result() == GuideDialog.DialogCode.Accepted
+
+def test_guide_points_at_each_place_and_ends_where_it_began(window, qtbot):
+    window.go(ACTIVITY)
+    window.show_guide()
+    tour = window.tour
+    steps = guide_steps()
+    assert tour.isVisible() and tour.geometry() == window.centralWidget().rect()
+    assert tour.counter.text() == f"{len(steps)}단계 중 1단계"
+    assert not tour.back.isEnabled() and tour.skip.isVisibleTo(tour)
+    assert tour.next.text() == "다음"
+    assert tour._hole.isEmpty()  # the welcome step points at nothing: a centered bubble
+    assert set(TARGET_PAGES) == {step.target for step in steps}
+
+    for number, step in enumerate(steps[1:], start=2):
+        tour.next.click()
+        QApplication.processEvents()  # the step is placed again once the page has switched
+        assert tour.counter.text() == f"{len(steps)}단계 중 {number}단계"
+        if TARGET_PAGES[step.target] is not None:
+            assert window.stack.currentIndex() == TARGET_PAGES[step.target]
+        assert not tour._hole.isEmpty(), step.target
+        assert tour.rect().contains(tour.bubble.geometry())
+        assert not tour.bubble.geometry().intersects(tour._hole), step.target
+
+    def center_in_hole(widget):
+        return tour._hole.contains(tour.mapFromGlobal(widget.mapToGlobal(widget.rect().center())))
+
+    assert center_in_hole(window.settings.guide_button)
+    assert tour.last and tour.next.text() == "시작하기" and not tour.skip.isVisibleTo(tour)
+    tour.back.click()
+    assert tour.step == len(steps) - 2 and tour.skip.isVisibleTo(tour)
+    tour.show_step(5)
+    QApplication.processEvents()
+    assert center_in_hole(window.settings.recording_button)
+    tour.show_step(3)
+    QApplication.processEvents()
+    assert window.stack.currentIndex() == HOME and center_in_hole(window.home.fab)
+
+    ended = []
+    tour.finished.connect(ended.append)
+    QTest.keyClick(tour, Qt.Key.Key_Escape)
+    assert ended == [False] and window.tour is None and not tour.isVisible()
+    assert window.stack.currentIndex() == ACTIVITY  # back where the tour began
+
+    window.show_guide()
+    window.tour.finished.connect(ended.append)
+    window.tour.show_step(len(steps) - 1)
+    window.tour.next.click()
+    assert ended == [False, True] and window.tour is None
 
 
 @pytest.mark.parametrize("language", ["en", "ko"])
-def test_guide_is_localized(qtbot, language):
+def test_guide_is_localized(window, language):
     set_language(language)
-    guide = GuideDialog()
-    qtbot.addWidget(guide)
+    window.show_guide()
+    tour = window.tour
     for step in range(len(guide_steps())):
-        guide.show_step(step)
-        texts = [label.text() for label in guide.findChildren(QLabel) if label.text()]
-        texts += [guide.next.text(), guide.back.text(), guide.skip.text(), guide.windowTitle()]
+        tour.show_step(step)
+        texts = [label.text() for label in tour.findChildren(QLabel) if label.text()]
+        texts += [tour.next.text(), tour.back.text(), tour.skip.text(), tour.accessibleName()]
         assert all(bool(HANGUL.search(t)) is (language == "ko") for t in texts), texts
+    tour.close_tour(False)
 
 
-def test_guide_is_offered_once_and_reopens_from_settings(window, monkeypatch):
+def test_guide_is_offered_once_and_reopens_from_settings(window):
     ctx = window.ctx
     assert not ctx.needs_guide  # never in demo mode
-    shown = []
-    monkeypatch.setattr(GuideDialog, "exec", lambda self: shown.append(self) or 0)
     assert not ctx.flag("guide.done")
-    window.settings.show_guide()  # skipped (rejected) still counts as seen
-    assert len(shown) == 1 and ctx.flag("guide.done")
+    window.go(SETTINGS)
+    window.settings.guide_button.click()
+    tour = window.tour
+    assert tour is not None and tour.isVisible() and ctx.flag("guide.done")
+    window.settings.guide_button.click()  # already open: no second tour
+    assert window.tour is tour
+    tour.skip.click()  # skipped still counts as seen
+    assert window.tour is None and ctx.flag("guide.done")
     ctx.demo = False
     assert not ctx.needs_guide
     ctx.set_flag("guide.done", False)

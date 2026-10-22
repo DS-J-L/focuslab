@@ -61,7 +61,6 @@ from focuslab.ui.consent import (
     ask_recording_consent,
 )
 from focuslab.ui.context import AppContext
-from focuslab.ui.guide import GuideDialog
 from focuslab.ui.theme import CATEGORY_LABELS, THEME_LABELS, apply_theme, style_form
 from focuslab.ui.update_dialog import UpdateDialog
 from focuslab.ui.work_mode_dialog import WorkModeDialog
@@ -105,6 +104,7 @@ class SettingsPage(QWidget):
     updateAvailable = Signal(str)  # newer version number
     restartForUpdate = Signal(object)  # unpacked folder to swap in after quitting
     overlayChanged = Signal()  # the parrots' settings changed
+    guideRequested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -121,7 +121,7 @@ class SettingsPage(QWidget):
         self._signals.updateChecked.connect(self._update_checked)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
+        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         outer.addWidget(scroll)
@@ -224,17 +224,13 @@ class SettingsPage(QWidget):
         )
         form.addRow("", self.mascot_flight)
         form.addRow(tr("Fly after"), _row(self.flight_after, self.flight_interval))
-        guide = QPushButton(tr("Show the guide"))
-        guide.clicked.connect(self.show_guide)
-        form.addRow(tr("Getting started"), _row(guide))
+        self.guide_button = QPushButton(tr("Show the guide"))
+        self.guide_button.clicked.connect(self.guideRequested)
+        form.addRow(tr("Getting started"), _row(self.guide_button))
         return box
 
-    def show_guide(self) -> None:
-        GuideDialog(self).exec()
-        self.ctx.set_flag("guide.done", True)
-
     def _modes_box(self) -> QGroupBox:
-        box = QGroupBox(tr("Work modes"))
+        box = self.modes_box = QGroupBox(tr("Work modes"))
         layout = QVBoxLayout(box)
         layout.addWidget(
             QLabel(
