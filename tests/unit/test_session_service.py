@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from focuslab.config import RuleConfig
@@ -12,6 +14,7 @@ from focuslab.focus.fusion import FaceEvidence
 from focuslab.focus.reasons import Reason
 from focuslab.mock_sources import MockActivitySource, MockFaceSource
 from focuslab.services.session_service import (
+    CHALLENGE_LIMIT_S,
     InvalidTransition,
     Lifecycle,
     SessionLifecycle,
@@ -136,6 +139,52 @@ def test_planned_time_finishes_session(make_service, clock):
     assert snap.lifecycle is Lifecycle.FINISHED and snap.planned_reached
     assert len(svc.repository.samples(sid)) == 60
     assert svc.faces[0].status is CameraStatus.OFF
+
+
+def run_challenge(svc, clock):
+    "Tick a challenge until it ends; it must end well within an hour."
+    sid = svc.start(replace(config(camera=False), challenge=True))
+    for _ in range(3600):
+        tick(svc, clock, 1)
+        if svc.snapshot().lifecycle is Lifecycle.FINISHED:
+            return sid, svc.snapshot()
+    raise AssertionError("the challenge never ended")
+
+
+def test_challenge_ends_after_five_minutes_away_in_total(make_service, clock):
+    # Off task for a while, back to work, then off task until the challenge ends.
+    script = ((60, "code.exe", "active"), (120, "game.exe", "active"),
+              (60, "code.exe", "active"), (3600, "game.exe", "active"))
+    svc = make_service(activity_script=script)
+    sid, snap = run_challenge(svc, clock)
+    assert snap.challenge_over and not snap.planned_reached
+    assert snap.departed_s == CHALLENGE_LIMIT_S
+    assert snap.seconds[FocusState.ON_TASK] > 100  # work in between did not count
+    assert snap.challenge_best_s == 0
+    record = svc.repository.get_session(sid)
+    assert record.challenge and record.status is SessionStatus.FINISHED
+    assert svc.repository.best_challenge_s() == snap.active_s
+
+    second = make_service(activity_script=((3600, "game.exe", "active"),))
+    sid2, snap2 = run_challenge(second, clock)
+    assert snap2.challenge_best_s == snap.active_s > snap2.active_s
+
+
+def test_challenge_counts_corrections_and_ignores_plain_sessions(make_service, clock):
+    svc = make_service(activity_script=((3600, "game.exe", "active"),))
+    svc.start(replace(config(camera=False), challenge=True))
+    tick(svc, clock, 30)
+    away = svc.snapshot().departed_s
+    assert away > 0
+    assert svc.correct_current(FocusState.ON_TASK)  # "that was work"
+    assert svc.snapshot().departed_s < away
+    svc.finish()
+    assert not svc.snapshot().challenge_over
+
+    plain = make_service(activity_script=((3600, "game.exe", "active"),))
+    plain.start(config(camera=False))
+    tick(plain, clock, CHALLENGE_LIMIT_S + 60)
+    assert plain.snapshot().lifecycle is Lifecycle.RUNNING
 
 
 def test_observation_gap_is_unknown(make_service, clock):

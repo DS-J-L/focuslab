@@ -225,7 +225,7 @@ class NewSessionForm(QWidget):
         self.ctx.set_allowed_apps(self.current_mode(), None)
         self._set_apps(self.ctx.allowed_apps(self.current_mode()))
 
-    def commit(self) -> SessionConfig | None:
+    def commit(self, challenge: bool = False) -> SessionConfig | None:
         "Start: confirm an empty allow list, remember the choices; None if declined."
         if not self._current_apps():
             answer = QMessageBox.question(
@@ -235,23 +235,25 @@ class NewSessionForm(QWidget):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return None
-        cfg = self.config()
+        cfg = self.config(challenge)
         self.ctx.set_setting("last.goal", cfg.goal)
         self.ctx.set_setting("last.mode", self.current_mode().key)
-        self.ctx.set_setting("last.minutes", str(cfg.planned_minutes))
+        self.ctx.set_setting("last.minutes", str(self.minutes.value()))
         self.ctx.set_flag("last.camera", cfg.camera_enabled)
         return cfg
 
-    def config(self) -> SessionConfig:
+    def config(self, challenge: bool = False) -> SessionConfig:
+        "A challenge has no target time: it runs until the time away runs out."
         goal = self.goal.text().strip() or tr("Focus session")
         mode = self.current_mode()
         return SessionConfig(
             goal,
             mode.base,
-            self.minutes.value(),
+            0 if challenge else self.minutes.value(),
             self._current_apps(),
             self.camera.isChecked(),
             mode.session_name,
+            challenge,
         )
 
 
@@ -286,14 +288,23 @@ class NewSessionPopover(QWidget):
         self.scroll.setWidget(self.form)
         outer.addWidget(self.scroll, 1)
 
-        # Cancel, then Start, on every platform.
+        # Focus challenge on the left; Cancel, then Start, on every platform.
+        self.challenge_button = QPushButton(tr("Focus challenge"))
+        self.challenge_button.setToolTip(
+            tr(
+                "Start with no time limit and keep going until you have been away from "
+                "the task for 5 minutes in total. How long you lasted is saved as your record."
+            )
+        )
+        self.challenge_button.clicked.connect(lambda: self._start(challenge=True))
         self.cancel_button = QPushButton(tr("Cancel"))
         self.cancel_button.clicked.connect(lambda: self.dismiss())
         self.start_button = QPushButton(tr("Start"), objectName="Primary")
-        self.start_button.clicked.connect(self._start)
-        self.form.goal.returnPressed.connect(self._start)
+        self.start_button.clicked.connect(lambda: self._start())
+        self.form.goal.returnPressed.connect(lambda: self._start())
         row = QHBoxLayout()
         row.setSpacing(8)
+        row.addWidget(self.challenge_button)
         row.addStretch()
         row.addWidget(self.cancel_button)
         row.addWidget(self.start_button)
@@ -326,8 +337,8 @@ class NewSessionPopover(QWidget):
         else:
             self._closed()
 
-    def _start(self) -> None:
-        config = self.form.commit()
+    def _start(self, challenge: bool = False) -> None:
+        config = self.form.commit(challenge)
         if config is not None:
             self.dismiss(animated=False)
             self.started.emit(config)

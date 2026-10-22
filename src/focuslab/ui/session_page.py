@@ -24,7 +24,12 @@ from focuslab.focus.reasons import Reason, describe
 from focuslab.i18n import LocalizedMapping, tr
 from focuslab.relevance.explain import evidence, sentence
 from focuslab.relevance.models import RelevanceLevel
-from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
+from focuslab.services.session_service import (
+    ACTIVE,
+    CHALLENGE_LIMIT_S,
+    Lifecycle,
+    LiveSnapshot,
+)
 from focuslab.ui.context import AppContext
 from focuslab.ui.theme import CAMERA_LABELS, CORRECTION_LABELS, SHORT_LABELS
 from focuslab.ui.widgets import (
@@ -321,7 +326,10 @@ class SessionPage(QWidget):
             Lifecycle.IDLE: "",
         }[snap.lifecycle]
         label = mode_label(cfg.mode, cfg.mode_name)
-        self.subtitle.setText(tr("{p0} mode · {p1}", p0=label, p1=state_word))
+        if cfg.challenge:
+            self.subtitle.setText(tr("Focus challenge · {p0} mode · {p1}", p0=label, p1=state_word))
+        else:
+            self.subtitle.setText(tr("{p0} mode · {p1}", p0=label, p1=state_word))
         self.pause_button.setText(
             tr("Resume") if snap.lifecycle is Lifecycle.PAUSED else tr("Pause")
         )
@@ -345,6 +353,20 @@ class SessionPage(QWidget):
             self.remaining.setText(other)
             self.progress.setRange(0, planned)
             self.progress.setValue(min(planned, snap.active_s))
+        elif cfg.challenge:
+            # The bar fills with time away; the challenge ends when it is full.
+            self.clock.setToolTip("")
+            away = tr(
+                "  Away {p0} of {p1} · Paused {p2}",
+                p0=clock_text(snap.departed_s),
+                p1=clock_text(CHALLENGE_LIMIT_S),
+                p2=clock_text(snap.paused_s),
+            )
+            if snap.challenge_best_s:
+                away += tr(" · Best {p0}", p0=format_duration(snap.challenge_best_s))
+            self.remaining.setText(away)
+            self.progress.setRange(0, CHALLENGE_LIMIT_S)
+            self.progress.setValue(min(CHALLENGE_LIMIT_S, snap.departed_s))
         else:
             self.clock.setToolTip("")
             self.remaining.setText(

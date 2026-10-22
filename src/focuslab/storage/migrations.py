@@ -192,6 +192,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         ALTER TABLE session ADD COLUMN mode_name TEXT;
         """,
     ),
+    (
+        9,
+        # Focus challenge sessions; their observed time is the challenge record.
+        """
+        ALTER TABLE session ADD COLUMN challenge INTEGER NOT NULL DEFAULT 0;
+        """,
+    ),
 ]
 
 
