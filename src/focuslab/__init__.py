@@ -1,3 +1,3 @@
 """FocusLab: local-first Windows work-pattern observation prototype."""
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
