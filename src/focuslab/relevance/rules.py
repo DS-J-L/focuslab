@@ -78,7 +78,13 @@ ENTERTAINMENT_MARKERS = (
     "예능", "먹방", "mukbang", "뮤직비디오", "music video", "official mv", "m/v", "직캠",
     "fancam", "드라마", "몰아보기", "리액션", "reaction", "웃긴", "funny", "브이로그", "vlog",
     "asmr", "배그", "롤토체스", "league of legends", "리그오브레전드", "매드무비", "명장면",
-    "예고편", "trailer",
+    "예고편", "trailer", "게임", "game", "실황", "e스포츠", "esports", "lck", "월드 챔피언십",
+)
+# Phrases that mark study material; a title with both kinds of marker says neither.
+STUDY_MARKERS = (
+    "공부", "강의", "인강", "수업", "강좌", "시험", "중간고사", "기말고사", "기출", "예상문제",
+    "풀이", "해설", "암기", "퀴즈", "개념", "복습", "예습", "과제", "lecture", "tutorial",
+    "course", "exam", "quiz", "homework",
 )
 # Goals that make games or media part of the task (game design, film review...).
 _MEDIA_GOAL_TERMS = frozenset(
@@ -194,6 +200,14 @@ def _has_marker(title: str, markers: Iterable[str]) -> bool:
     )
 
 
+def title_kind(title: str) -> Category | None:
+    """STUDY or ENTERTAINMENT when a cleaned title says so on its own, else None."""
+    study, leisure = _has_marker(title, STUDY_MARKERS), _has_marker(title, ENTERTAINMENT_MARKERS)
+    if study == leisure:  # "게임이론 강의": neither
+        return None
+    return Category.STUDY if study else Category.ENTERTAINMENT
+
+
 def _goal_mentions_media(goal: str) -> bool:
     return any(t in _MEDIA_GOAL_TERMS for t in words(goal))
 
@@ -207,7 +221,7 @@ def judge_title(data: RelevanceInput) -> TaskRelevanceResult:
     if _nfc(title) in _EMPTY_TITLES or len(title) < 3:
         return _rule(RelevanceLevel.UNCERTAIN, None, RelevanceReason.TITLE_UNINFORMATIVE)
     match = match_title(data.goal, title)
-    leisure = _has_marker(title, ENTERTAINMENT_MARKERS)
+    leisure = title_kind(title) is Category.ENTERTAINMENT
     if match.matched and leisure:  # "게임 기획" vs. a gameplay compilation
         return _rule(RelevanceLevel.UNCERTAIN, match.score, RelevanceReason.TITLE_MIXED_SIGNALS)
     if match.matched:

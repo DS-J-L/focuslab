@@ -68,7 +68,7 @@ CATEGORY_LABELS = LocalizedMapping(
         Category.DOCUMENTATION: "Documentation",
         Category.RESEARCH: "Research",
         Category.COMMUNICATION: "Communication",
-        Category.ENTERTAINMENT: "Entertainment",
+        Category.ENTERTAINMENT: "Watching videos",
         Category.GAMING: "Gaming",
         Category.PRODUCTIVITY: "Productivity tools",
         Category.BREAK: "Break / inactive",
