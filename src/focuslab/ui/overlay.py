@@ -142,13 +142,6 @@ class PerchView(QWidget):
         for seat, button in zip(SEATS, self.parrots, strict=True):
             button.setGeometry(int(seat - 36), 76, 72, 92)
             button.installEventFilter(self)
-        self.action_labels = tuple(
-            QLabel(self, objectName="OverlayAction", alignment=Qt.AlignmentFlag.AlignCenter)
-            for _ in SEATS
-        )
-        for seat, label in zip(SEATS, self.action_labels, strict=True):
-            label.setGeometry(int(seat - 33), 180, 66, 15)
-            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.time = QLabel(self, objectName="OverlayTime", alignment=Qt.AlignmentFlag.AlignCenter)
         self.time.setGeometry(PLAQUE.adjusted(5, 0, -5, -5).toRect())
         self.time.setToolTip(tr("Session time without pauses and breaks, not estimated focus"))
@@ -403,11 +396,6 @@ class SessionOverlay(QWidget):
         self.break_button.icon_name = "back" if snap.on_break else "cup"
         self.break_button.emblem = "cup"
         self.break_button.setEnabled(snap.lifecycle is Lifecycle.RUNNING)
-        for label, action in zip(
-            self.perch.action_labels, (pause_text, tr("End"), break_text), strict=True
-        ):
-            label.setText(action)
-        self.perch.action_labels[BREAK].setEnabled(self.break_button.isEnabled())
         planned = snap.config.planned_minutes * 60 if snap.config else 0
         self.perch.progress_fraction = (
             min(1.0, snap.active_s / planned) if planned > 0 else None
