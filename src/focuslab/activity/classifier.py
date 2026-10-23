@@ -4,6 +4,8 @@ Principles:
 - A program or site with several common uses (YouTube, search engines, video players) is
   ``UNKNOWN`` with a reason instead of being forced into a category.
 - A browser without a reported site is ``UNKNOWN`` ("browser activity details unavailable").
+- With a page title, a multi-use or reference site is judged by what the title says: a
+  ChatGPT chat titled "중간고사 예상문제" is study, a YouTube "LCK 하이라이트" is leisure.
 - The user's rules (created from corrections) win over built-in rules; a per-span correction
   wins over both. Corrections are optional: everything is classified without user input.
 """
@@ -26,6 +28,8 @@ CLASS_REASON_TEXT = LocalizedMapping(
             "Site may be used for study or entertainment; classification deferred"
         ),
         ClassReason.BROWSER_NO_SITE: "Browser activity details unavailable",
+        ClassReason.TITLE_STUDY: "Page title looks like study material",
+        ClassReason.TITLE_LEISURE: "Page title looks like a video or game for fun",
         ClassReason.NEUTRAL_SHELL: "Desktop, app switcher, or FocusLab",
         ClassReason.UNREADABLE_APP: "Cannot read the program name",
         ClassReason.NO_RULE: "No matching rule",
@@ -325,6 +329,7 @@ def classify(
     game_library: bool = False,
     excluded: bool = False,
     user: UserRules | None = None,
+    page_title: str | None = None,
 ) -> Classification:
     if kind is SpanKind.IDLE:
         return Classification(C.BREAK, 1.0, ClassReason.IDLE, ClassSource.SYSTEM)
@@ -346,7 +351,7 @@ def classify(
     if exe_name is None:
         return Classification(C.UNKNOWN, 0.0, ClassReason.UNREADABLE_APP, ClassSource.RULE)
     if exe_name in BROWSER_EXES or domain:
-        return _classify_site(domain)
+        return by_title(_classify_site(domain), domain, page_title)
     if exe_name in NEUTRAL_APPS:
         return Classification(C.UNKNOWN, 0.0, ClassReason.NEUTRAL_SHELL, ClassSource.RULE)
     if game_library:
@@ -372,6 +377,21 @@ def _classify_site(domain: str | None) -> Classification:
     return Classification(C.UNKNOWN, 0.0, ClassReason.NO_RULE, ClassSource.RULE)
 
 
+def by_title(base: Classification, domain: str | None, title: str | None) -> Classification:
+    """Refine a built-in site result that says little (unclassified or research) by the page
+    title; any other result, or a title that says neither study nor leisure, is kept."""
+    if not (domain and title) or base.category not in (C.UNKNOWN, C.RESEARCH):
+        return base
+    from focuslab.relevance import rules  # rules imports this module
+
+    kind = rules.title_kind(rules.clean_title(title, domain))
+    if kind is C.STUDY:
+        return Classification(C.STUDY, 0.6, ClassReason.TITLE_STUDY, ClassSource.RULE)
+    if kind is C.ENTERTAINMENT:
+        return Classification(C.ENTERTAINMENT, 0.6, ClassReason.TITLE_LEISURE, ClassSource.RULE)
+    return base
+
+
 def is_excluded(
     exe_name: str | None, domain: str | None, apps: frozenset[str], sites: frozenset[str]
 ) -> tuple[bool, bool]:
@@ -383,7 +403,8 @@ def is_excluded(
 
 def effective(span: ActivitySpan, user: UserRules) -> Classification:
     """What reports show: the user's correction, then the user's rules (they also relabel
-    earlier spans), then the classification stored at recording time."""
+    earlier spans), then the classification stored at recording time, refined by the page
+    title if one was kept."""
     if span.user_category:
         return Classification(
             span.user_category, 1.0, ClassReason.USER_CORRECTION, ClassSource.USER
@@ -393,10 +414,15 @@ def effective(span: ActivitySpan, user: UserRules) -> Classification:
         if ruled.source is ClassSource.USER_RULE:
             return ruled
     if span.category is not None:
-        return Classification(
+        stored = Classification(
             span.category,
             span.confidence or 0.0,
             span.reason or ClassReason.NO_RULE,
             span.source or ClassSource.RULE,
         )
-    return classify(span.kind, span.exe_name, span.domain, excluded=span.excluded)
+        if stored.source is ClassSource.RULE:  # the title is judged when shown, not stored
+            return by_title(stored, span.domain, span.page_title)
+        return stored
+    return classify(
+        span.kind, span.exe_name, span.domain, excluded=span.excluded, page_title=span.page_title
+    )

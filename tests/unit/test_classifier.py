@@ -66,6 +66,33 @@ def test_uncertain_cases_stay_unknown():
         assert result.confidence == 0.0
 
 
+@pytest.mark.parametrize("domain,title,category,reason", [
+    ("chatgpt.com", "운체 중간고사 시험", Category.STUDY, ClassReason.TITLE_STUDY),
+    ("chatgpt.com", "객관식 암기 퀴즈", Category.STUDY, ClassReason.TITLE_STUDY),
+    ("chatgpt.com", "원드라이브 자동 실행 끄기", Category.RESEARCH, ClassReason.SITE_RULE),
+    ("youtube.com", "[운영체제] 3강 프로세스 강의 - YouTube", Category.STUDY,
+     ClassReason.TITLE_STUDY),
+    ("youtube.com", "스위스 스테이지 Day 1 | 2026 월드 챔피언십 - YouTube",
+     Category.ENTERTAINMENT, ClassReason.TITLE_LEISURE),
+    ("youtube.com", "공포 게임 실황 - YouTube", Category.ENTERTAINMENT, ClassReason.TITLE_LEISURE),
+    ("youtube.com", "게임이론 강의 - YouTube", Category.UNKNOWN, ClassReason.AMBIGUOUS_SITE),
+    ("github.com", "game engine exam", Category.DEVELOPMENT, ClassReason.SITE_RULE),
+])
+def test_page_titles_refine_multi_use_and_reference_sites(domain, title, category, reason):
+    result = classify(A, "chrome.exe", domain, page_title=title)
+    assert (result.category, result.reason) == (category, reason)
+
+
+def test_stored_spans_are_refined_by_their_title_when_shown():
+    stored = ActivitySpan(0, 1, A, "chrome.exe", domain="chatgpt.com", span_id=1,
+                          category=Category.RESEARCH, confidence=0.75,
+                          reason=ClassReason.SITE_RULE, source=ClassSource.RULE,
+                          page_title="데이터통신 공부 계획")
+    assert effective(stored, UserRules.empty()).category is Category.STUDY
+    ruled = UserRules({}, {"chatgpt.com": Category.DEVELOPMENT})
+    assert effective(stored, ruled).category is Category.DEVELOPMENT  # the user's rule wins
+
+
 def test_user_rules_override_built_in_rules():
     rules = UserRules({"chrome.exe": Category.STUDY, "steam.exe": Category.BREAK},
                       {"youtube.com": Category.STUDY})
