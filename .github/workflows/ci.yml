@@ -104,3 +104,12 @@ jobs:
           $process.Refresh()
           Get-Content -LiteralPath $updateReport
           if ($process.ExitCode -ne 0) { throw "Packaged incremental update check failed" }
+          $pettingReport = Join-Path $PWD 'build/packaged-petting-check.json'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--selftest-petting-report', $pettingReport) -PassThru
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id
+            throw "Packaged petting check timed out"
+          }
+          $process.Refresh()
+          Get-Content -LiteralPath $pettingReport
+          if ($process.ExitCode -ne 0) { throw "Packaged petting check failed" }
