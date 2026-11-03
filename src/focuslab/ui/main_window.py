@@ -40,6 +40,7 @@ from focuslab.ui.report_page import ReportPage
 from focuslab.ui.report_worker import ActivityReporter
 from focuslab.ui.session_page import SessionPage
 from focuslab.ui.settings_page import SettingsPage
+from focuslab.ui.sidebar_prompts import SidebarPrompt
 from focuslab.ui.theme import SELF_REPORT_LABELS, apply_theme
 from focuslab.ui.tray import Tray, make_icon
 from focuslab.ui.widgets import timer_text
@@ -95,10 +96,8 @@ class MainWindow(QMainWindow):
         # With the integrated title bar, the brand still lines up with the page title.
         side.setContentsMargins(0, TITLE_HEIGHT if INTEGRATED_FRAME else 0, 0, 12)
         side.addWidget(QLabel("FocusLab", objectName="Brand"))
-        tagline = QLabel(
-            tr("Know your workflow,\nnot just your screen time."), objectName="BrandSub"
-        )
-        side.addWidget(tagline)
+        self.tagline = SidebarPrompt()
+        side.addWidget(self.tagline)
         self.nav = NavList()
         self.nav.addItems([tr("Home"), tr("Activity"), tr("Reports"), tr("Settings")])
         side.addWidget(self.nav, 1)
@@ -519,6 +518,7 @@ class MainWindow(QMainWindow):
         report worker, the recorder and the session service."""
         self._timer.stop()
         self._activity_timer.stop()
+        self.tagline.stop()
         self.overlay.close()
         self.reporter.shutdown()
         self.ctx.stop_recording()

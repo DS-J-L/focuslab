@@ -59,12 +59,18 @@ def _check(report: Path | None = None) -> int:
     lines.append(f"Parrot art: {len(art)} characters, 9 face states each, {fallbacks} fallbacks")
     lines.append(f"Directional parrot rigs: {sum(bool(item.views) for item in art)}/3 "
                  "(5 yaw, 4 pitch/preening views, 3 eyelid states)")
+    from focuslab.i18n import korean_catalog
+    from focuslab.ui.sidebar_prompts import PROMPTS
+
+    translated = sum(bool(korean_catalog().get(message)) for message in PROMPTS)
+    prompts_ok = len(PROMPTS) == len(set(PROMPTS)) == translated == 50
+    lines.append(f"Sidebar prompts: {len(PROMPTS)} messages, {translated}/50 Korean translations")
     text = "\n".join(lines)
     print(text)
     if report is not None:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(text + "\n", encoding="utf-8")
-    return 1 if fallbacks else 0
+    return 1 if fallbacks or not prompts_ok else 0
 
 
 def _relevance_selftest() -> int:
