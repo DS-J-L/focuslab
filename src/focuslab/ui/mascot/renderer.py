@@ -452,6 +452,17 @@ def paint_emote(p: QPainter, emote: str, head: QPointF, t: float) -> None:
         for i in range(3):
             lift = 1.5 * math.sin(t * 6 - i)
             p.drawEllipse(box.center() + QPointF((i - 1) * 8, -max(0.0, lift)), 2, 2)
+    elif emote == "pet-heart":
+        for dx, delay, size in ((-10, 0, .8), (16, .3, 1.0), (2, .6, .65)):
+            phase = (t - delay) / 1.6
+            if 0 <= phase <= 1:
+                p.save()
+                p.setOpacity(p.opacity() * math.sin(math.pi * phase))
+                p.translate(head + QPointF(dx, -28 - 26 * phase))
+                p.scale(size, size)
+                # Reuse the authored visual language of the existing heart symbol.
+                paint_emote(p, "heart", QPointF(-18, 26), 0)
+                p.restore()
     elif emote == "heart":
         c = head + QPointF(18, -26 - (t * 6) % 6)
         p.setPen(Qt.PenStyle.NoPen)

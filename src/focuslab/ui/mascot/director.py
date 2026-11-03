@@ -74,6 +74,7 @@ class Director:
         motion = MOTION.get(level, MOTION[DEFAULT_MOTION])
         for actor in self.actors:
             actor.idle_gaze = motion.gap is not None
+            actor.reduced_motion = motion.gap is None
         if motion != self.motion:
             self.motion = motion
             for actor in self.actors:  # restart, moving or still
@@ -131,6 +132,11 @@ class Director:
             self.away.discard(i)
             actor.play(self.behaviors["land"], now)
 
+    def pet(self, i: int, now: float) -> None:
+        "Pet only a parrot actually sitting on this branch; never alter the focus policy."
+        if i not in self.away:
+            self.actors[i].pet(now, still=self.still)
+
     def poses(self, now: float) -> list[Pose]:
         self._schedule(now)
         poses = [actor.pose(now) for actor in self.actors]
@@ -142,7 +148,8 @@ class Director:
         return all(actor.resting for actor in self.actors)
 
     def _idle(self, i: int, now: float) -> bool:
-        return i not in self.away and self.hover != i and not self.actors[i].busy(now)
+        return (i not in self.away and self.hover != i and not self.actors[i].content(now)
+                and not self.actors[i].busy(now))
 
     # scheduling ---------------------------------------------------------------------
     def _schedule(self, now: float) -> None:

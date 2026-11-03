@@ -10,6 +10,7 @@ from focuslab.ui.mascot.renderer import RESTING_YAW, Plumage
 BLINK_S = 0.18
 HOVER_S = 0.12  # time constant for perking up and settling down
 TRANSITION_S = 0.18
+CONTENT_S = 20.0
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,10 @@ class BirdActor:
         self._last_base = NEUTRAL
         self._transition_from = NEUTRAL
         self._returning = False
+        self._petted_at: float | None = None
+        self._pet_burst_at = 0.0
+        self._affection = 0.0
+        self.reduced_motion = False
 
     # behaviors ----------------------------------------------------------------------
     def play(self, behavior: Behavior, now: float, side: int = 1, still: bool = False) -> None:
@@ -84,6 +89,17 @@ class BirdActor:
             self._emote_since = now
         self.attention = attention
 
+    def pet(self, now: float, still: bool = False) -> None:
+        "Enjoy an intentional stroke, then keep a little contentment after the hand leaves."
+        if self._petted_at is None or now - self._petted_at > 1.0:
+            self._pet_burst_at = now
+            self.stop()
+        self._petted_at = now
+        self.reduced_motion = still
+
+    def content(self, now: float) -> bool:
+        return self._petted_at is not None and now - self._petted_at < CONTENT_S
+
     def pose(self, now: float) -> Pose:
         dt = 0.0 if self._last is None else now - self._last
         self._last = now
@@ -108,7 +124,8 @@ class BirdActor:
         self._glance = approach(self._glance, toward, dt, HOVER_S * 2.5)
         self._up = approach(self._up, up, dt, HOVER_S * 1.5)
         gaze_moving = self._idle_look(now, dt, self.behavior is None and a == CALM
-                                      and now >= self._watch_until and not self._returning)
+                                      and now >= self._watch_until and not self._returning
+                                      and not self.content(now))
         # Only breathing and blinking: the view can then draw fewer frames.
         self.resting = (
             self.behavior is None
@@ -152,7 +169,47 @@ class BirdActor:
             pose = blend(pose, perked, self._perk)
         if a.emote:
             pose = replace(pose, emote=a.emote, emote_t=now - self._emote_since)
+        pose = self._enjoy_pet(pose, now, dt)
         return pose
+
+    def _enjoy_pet(self, pose: Pose, now: float, dt: float) -> Pose:
+        if self._petted_at is None:
+            return pose
+        age = max(0.0, now - self._petted_at)
+        target = 1 - ease_in_out((age - 12) / (CONTENT_S - 12))
+        self._affection = approach(self._affection, target, dt, .18)
+        love = self._affection
+        if love < .005 and not self.content(now):
+            self._petted_at = None
+            self._affection = 0.0
+            return pose
+        contact = 1 - ease_in_out((age - .45) / .8)
+        phase = (age - 1.25) % 4.8
+        smile = (ease_in_out(phase / .1) * (1 - ease_in_out((phase - .45) / .13))
+                 if age > 1.25 and not self.reduced_motion else 0.0)
+        openness = .12 if contact > .4 else .95 - .8 * smile
+        # Preserve the authored side view: "happy" currently selects a frontal face.
+        # Closed and half-closed eyes are available in every directional image rig.
+        pleased = replace(
+            pose, eyes="normal", eye_open=pose.eye_open * openness,
+            scale=1.0, y=0.0, wing_l=0.0, wing_r=0.0,
+            turn=0.0, look_x=0.0, look_y=-.1, puff=.18, emote=None,
+        )
+        if not self.reduced_motion:
+            side = -1 if self.name == "blue" else 1
+            nuzzle = 1.2 * contact * math.sin((now - self._pet_burst_at) * math.tau * 1.3)
+            pleased = replace(pleased, head_tilt=side * (4 + 4 * contact) + nuzzle,
+                              squash=pose.squash * (1 - .015 * contact))
+        burst = now - self._pet_burst_at
+        if 0 <= burst < 2.2:
+            pleased = replace(pleased, emote="heart" if self.reduced_motion else "pet-heart",
+                              emote_t=0.0 if self.reduced_motion else burst)
+        elif age < 6:
+            pleased = replace(pleased, emote="heart", emote_t=0.0)
+        self.resting = (self.resting and abs(love - target) < .01
+                        and (burst >= 2.2 or self.reduced_motion)
+                        and not (age > 1.25 and phase < .65 and not self.reduced_motion))
+        return blend(pose, pleased, love)
 
     def _idle_look(self, now: float, dt: float, available: bool) -> bool:
         """Independent dwell times and directions; never a left/right metronome."""

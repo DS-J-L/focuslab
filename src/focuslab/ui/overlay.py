@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QHideEvent,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPixmap,
     QResizeEvent,
@@ -38,10 +39,11 @@ from focuslab.i18n import tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.mascot.animation import Pose
-from focuslab.ui.mascot.artwork import preload_artwork
+from focuslab.ui.mascot.artwork import character_art, preload_artwork
 from focuslab.ui.mascot.behavior_policy import BehaviorPolicy, Mood
 from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
 from focuslab.ui.mascot.flight_overlay import FlightController, screen_area
+from focuslab.ui.mascot.petting import PettingGesture
 from focuslab.ui.mascot.renderer import (
     HEAD_Y,
     RED,
@@ -117,6 +119,10 @@ class ParrotButton(QAbstractButton):
         self.emblem = ""  # worn on the parrot's necklace pendant
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMouseTracking(True)
+        self.setAccessibleDescription(tr(
+            "Move the pointer up and down over the head to pet this parrot. No click needed."
+        ))
 
     def paintEvent(self, event: QPaintEvent) -> None:
         pass
@@ -131,6 +137,18 @@ class PerchView(QWidget):
         self.setFixedSize(SCENE_W, SCENE_H)
         self.clock = clock
         self.director = Director()
+        self.setMouseTracking(True)
+        self._pet_gesture = PettingGesture()
+        self._pet_target: int | None = None
+        self._pet_zones = []
+        for actor in self.director.actors:
+            zone = QPainterPath()
+            zone.setFillRule(Qt.FillRule.WindingFill)  # crest/head overlap is still pettable
+            zone.addEllipse(QRectF(-35, -110, 70, 68))
+            crest = character_art(actor.plumage.character_id).crest
+            if crest is not None:
+                zone.addRect(crest.adjusted(-3, -3, 3, 3))
+            self._pet_zones.append(zone)
         self.visual_state = "focusing"
         self.progress_fraction: float | None = None
 
@@ -167,10 +185,19 @@ class PerchView(QWidget):
 
     def hideEvent(self, event: QHideEvent) -> None:
         self._timer.stop()
+        self._reset_pet()
+        self.director.set_hover(None, self.clock())
         super().hideEvent(event)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         kind = event.type()
+        if watched in self.parrots:
+            if kind == QEvent.Type.MouseMove:
+                self._track_pet(event.position() + QPointF(watched.pos()), event.buttons())
+            elif kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+                self._reset_pet()
+            elif kind == QEvent.Type.Leave and self._pet_target == self.parrots.index(watched):
+                self._reset_pet()
         if kind in (QEvent.Type.Enter, QEvent.Type.Leave):
             entered = kind is QEvent.Type.Enter
             if watched in self.parrots:
@@ -180,6 +207,36 @@ class PerchView(QWidget):
                 target = WINDOW if entered else None
             self.director.set_hover(target, self.clock())
         return False
+
+    def _reset_pet(self) -> None:
+        self._pet_target = None
+        self._pet_gesture.reset()
+        for button in self.parrots:
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def _track_pet(self, point: QPointF, buttons: Qt.MouseButton) -> None:
+        if buttons != Qt.MouseButton.NoButton or not self.isVisible():
+            self._reset_pet()
+            return
+        target = next((i for i, zone in enumerate(self._pet_zones)
+                       if i not in self.director.away and zone.contains(
+                           (point - QPointF(SEATS[i], SEAT_Y)) / BIRD_SCALE)), None)
+        if target != self._pet_target:
+            self._reset_pet()
+            self._pet_target = target
+        if target is None:
+            return
+        self.parrots[target].setCursor(Qt.CursorShape.OpenHandCursor)
+        if self._pet_gesture.move(point.x(), point.y(), self.clock()):
+            self.director.pet(target, self.clock())
+            self._timer.setInterval(FRAME_MS)
+            self.update()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        # Disabled action buttons (yellow during a pause) may propagate moves here;
+        # the bird can still enjoy petting while its necklace action is unavailable.
+        self._track_pet(event.position(), event.buttons())
+        super().mouseMoveEvent(event)
 
     def _background(self) -> QPixmap:
         "The branch and plaque never move: paint them once per display scale."
@@ -229,7 +286,8 @@ class PerchView(QWidget):
             if pose.emote:
                 paint_emote(p, pose.emote, scene_point(seat, pose, HEAD_Y), pose.emote_t)
         hovered = self.director.hover
-        if isinstance(hovered, int) and self.parrots[hovered].icon_name:
+        if (isinstance(hovered, int) and self.parrots[hovered].icon_name
+                and not self.director.actors[hovered].content(self.clock())):
             top = character_top(self.director.actors[hovered].plumage)
             tip = scene_point(SEATS[hovered], poses[hovered], top) + QPointF(4, 0)
             tip.setY(max(84, tip.y()))  # keep the hint below the status/header controls
@@ -394,7 +452,8 @@ class SessionOverlay(QWidget):
         now = self.perch.clock()
         mood = self.policy.update(snap, now)
         self.perch.director.set_mood(mood, now)
-        self.flight.consider(mood is Mood.ALARM, self.isVisible())
+        content = any(actor.content(now) for actor in self.perch.director.actors)
+        self.flight.consider(mood is Mood.ALARM and not content, self.isVisible())
         paused = snap.lifecycle is Lifecycle.PAUSED
         focusing, paused_text, break_text = status_texts()
         self.status.setText(paused_text if paused else break_text if snap.on_break else focusing)
