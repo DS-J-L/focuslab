@@ -1,4 +1,4 @@
-"""Reference-preserving image rigs, the perch, action pins and speech bubbles.
+"""Reference-preserving image rigs, the perch, action necklaces and speech bubbles.
 
 Faces keep their original artwork. Only registered eye/mouth patches change; the
 head silhouette, feather texture and feet remain stable during small movements.
@@ -26,6 +26,7 @@ from focuslab.ui.mascot.artwork import CharacterArt, character_art, eye_frame
 HEAD_Y = -73.0
 TOP_Y = -133.0  # clears the cockatiel's separate crest, including its sway
 INK = QColor("#20222B")
+PENDANT_CENTER = QPointF(0, -28)
 
 
 @dataclass(frozen=True)
@@ -102,7 +103,8 @@ def head_placement(art: CharacterArt, pose: Pose) -> HeadPlacement:
             contact = wing_contact(side, angle, pose.preen_stroke)
         elif pose.preen_chest > .08:
             view = art.views["pitch"][1]
-            contact = QPointF(0, -30 + pose.preen_stroke * 3)
+            # Tuck into the upper chest feathers above the cord and pendant.
+            contact = QPointF(0, -46 + pose.preen_stroke * 3)
         elif pose.eyes != "happy" and pose.beak_open <= .3:
             if pose.look_y < -.6:
                 view = art.views["pitch"][0]
@@ -133,7 +135,10 @@ def head_placement(art: CharacterArt, pose: Pose) -> HeadPlacement:
     return HeadPlacement(image, rect, transform, beak, contact)
 
 
-def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = None) -> None:
+def paint_bird(
+    p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = None,
+    *, enabled: bool = True, focused: bool = False, hovered: bool = False,
+) -> None:
     """One continuous rig shared by the perch, collapsed preview and flight window."""
     art = character_art(plumage.character_id)
     p.save()
@@ -144,6 +149,8 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     p.rotate(max(-16.0, min(16.0, pose.tilt)))
     if art.fallback is not None:
         p.drawImage(QRectF(-61, -122, 122, 122), art.fallback)
+        if emblem:
+            paint_necklace(p, pose, emblem, enabled, focused, hovered)
         p.restore()
         return
     parts = art.parts
@@ -171,6 +178,8 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     p.save()
     p.scale((1 + 0.045 * pose.puff) / math.sqrt(squash), squash)
     p.drawImage(QRectF(-32, -59, 64, 56), parts[1])
+    if emblem:
+        paint_necklace(p, pose, emblem, enabled, focused, hovered)
     p.restore()
     _wing(p, parts, 1, wing_r, pose.airborne)
 
@@ -187,6 +196,47 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
         p.drawImage(art.crest, parts[8])
         p.restore()
     p.restore()
+    p.restore()
+
+
+def paint_necklace(
+    p: QPainter, pose: Pose, icon: str, enabled: bool, focused: bool, hovered: bool,
+) -> None:
+    """A neck cord and small action pendant, attached to the breathing torso."""
+    p.save()
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    cord = QPainterPath(QPointF(-20, -51))
+    cord.cubicTo(-12, -35, 12, -35, 20, -51)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.setPen(_pen("#705239", 2.2))
+    p.drawPath(cord)
+    p.setPen(_pen("#EBCB8C", .9))
+    p.drawPath(cord)
+    p.translate(0, -40)
+    p.rotate(max(-3, min(3, pose.crest * .08 + pose.tilt * .1)))
+    p.translate(0, 40)
+    p.setPen(_pen("#9C7540", 1))
+    p.drawEllipse(QPointF(0, -40), 2, 2.8)
+    center = PENDANT_CENTER
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(54, 37, 20, 75))
+    p.drawEllipse(center + QPointF(.7, 1.2), 11.5, 11.5)
+    face = QLinearGradient(center + QPointF(0, -11), center + QPointF(0, 11))
+    face.setColorAt(0, QColor("#FFFBEF"))
+    face.setColorAt(1, QColor("#F5DDA7"))
+    p.setBrush(face)
+    p.setPen(_pen("#AD8043", 1.2))
+    p.drawEllipse(center, 10.8, 10.8)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.setPen(_pen("#FFF4CE", .8))
+    p.drawEllipse(center, 9.2, 9.2)
+    p.save()
+    p.setOpacity(p.opacity() * (1 if enabled else .30))
+    paint_icon(p, icon, center, 6.8, on_belly=True)
+    p.restore()
+    if focused or (hovered and enabled):
+        p.setPen(_pen("#B8E8F4" if focused else "#FFF4D5", 1.4))
+        p.drawEllipse(center, 13.5, 13.5)
     p.restore()
 
 

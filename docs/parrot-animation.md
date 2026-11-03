@@ -5,7 +5,7 @@ lovebird for pause/resume, a blue parrotlet for finish, and a lemon cockatiel fo
 The same image rig renders the expanded overlay, collapsed lovebird and opted-in flier.
 The original control functions and existing observation/consent defaults are preserved.
 
-![Actual source overlay at 200%](images/parrot-animation.png)
+![Actual compact source overlay at 200%](images/parrot-necklaces.png)
 
 ## Artwork and movement
 
@@ -55,8 +55,15 @@ hardware-independent frame-rate or vsync guarantee.
 
 Flight uses the same unfurled wing art, continuous wing rotation, foot tuck and the
 existing path, scale and return logic. Flapping amplitude settles during takeoff/landing.
-The flier window has space for the larger crest and wings. Function symbols sit below
-the branch; they do not obscure the character artwork. Hover hints stay below the header.
+The flier window has space for the larger crest and wings. The expanded perch is 360×288
+logical pixels (previously 464×314), with the same bird scale and closer seat spacing.
+Session actions are small cream-and-gold necklace pendants, attached to the breathing
+torso beneath the head and wings. The cord and pendant follow body motion; keyboard focus
+has a visible ring and the unavailable break symbol is muted during a pause. Each whole
+parrot remains clickable, with separate nonoverlapping targets. The old button row below
+the branch is removed. Chest grooming targets feathers above the necklace. Hover hints
+stay below the header. The default resting head is forward-facing; idle gaze is enabled
+only in normal/lively motion.
 
 The implementation combines articulated image parts with authored head viewpoints rather
 than baking all frame-equivalents into separate PNGs. Rear views, walk cycles and a full
