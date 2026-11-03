@@ -1,7 +1,6 @@
 name: Release
 # Pushing a version tag (v<version>) builds FocusLab.exe on Windows and publishes
-# FocusLab-<version>-win64.zip plus its .sha256 as a GitHub Release. The app's opt-in
-# update check (focuslab.updater) reads the latest release and verifies that checksum.
+# A normal ZIP and its verified file index support both full and changed-file clients.
 on:
   push:
     tags: ['v*']
@@ -45,15 +44,12 @@ jobs:
       - name: Package the FocusLab folder
         shell: pwsh
         run: |
-          $name = "FocusLab-$env:VERSION-win64.zip"
-          Compress-Archive -Path dist/FocusLab -DestinationPath $name
-          $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
-          "$hash  $name" | Out-File -Encoding ascii "$name.sha256"
-          "ASSET=$name" >> $env:GITHUB_ENV
+          uv run python scripts/package_release.py --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { throw "Release packaging failed" }
       - name: Publish the release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create $env:TAG $env:ASSET "$env:ASSET.sha256"
-          --verify-tag --generate-notes --title "FocusLab $env:VERSION"
+        run: |
+          $name = "dist/release/FocusLab-$env:VERSION-win64"
+          gh release create $env:TAG "$name.zip" "$name.zip.sha256" "$name.manifest.json" "$name.manifest.json.sha256" --verify-tag --generate-notes --title "FocusLab $env:VERSION"

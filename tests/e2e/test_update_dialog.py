@@ -80,6 +80,24 @@ def test_progress_is_one_bar_across_download_and_unpack(qtbot):
     assert dialog.detail.text().startswith("3.0 MB")
 
 
+def test_changed_file_progress_shows_actual_transfer_and_fallback(qtbot):
+    dialog = UpdateDialog(RELEASE)
+    qtbot.addWidget(dialog)
+    dialog._progress("check", 10, 20)
+    assert dialog.step.text() == "설치된 파일 확인 중…"
+    assert dialog.bar.value() == 5
+    dialog._progress(DOWNLOAD, 1024 * 1024, 2 * 1024 * 1024)
+    assert dialog.step.text() == "변경된 파일만 받는 중…"
+    assert "1.0 / 2.0 MB" in dialog.detail.text()
+    assert dialog.bar.value() == 45
+    dialog._progress("verify", 10, 20)
+    assert dialog.bar.value() == 90 and dialog.detail.text() == "파일 검증 중"
+    dialog._progress("fallback", 0, 0)
+    dialog._progress(DOWNLOAD, 50, 100)
+    assert dialog.step.text() == "전체 패키지를 받는 중…"
+    assert dialog.bar.value() == 40
+
+
 def test_cancel_stops_the_download_and_installs_nothing(page, qtbot, monkeypatch):
     started = threading.Event()
 

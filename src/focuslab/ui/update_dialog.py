@@ -30,7 +30,7 @@ MB = 1024 * 1024
 
 
 class _Signals(QObject):
-    progress = Signal(str, int, int)  # step, done bytes, total bytes (0 when unknown)
+    progress = Signal(str, object, object)  # Python ints also allow packages over 2 GiB
     finished = Signal(object)  # unpacked folder, UpdateCancelled or another exception
 
 
@@ -84,6 +84,9 @@ class UpdateDialog(QDialog):
         self._stop = threading.Event()
         self._running = False
         self._started = 0.0
+        self._incremental = False
+        self._fallback = False
+        self._downloading = False
         self._signals = _Signals()
         self._signals.progress.connect(self._progress)
         self._signals.finished.connect(self._finished)
@@ -99,21 +102,13 @@ class UpdateDialog(QDialog):
     def _work(self) -> None:
         emit = self._signals.progress.emit
         try:
-            package = updater.download(
+            staged = updater.prepare(
                 self.release,
                 data_dir() / "updates",
-                lambda done, total: emit(DOWNLOAD, done, total),
+                updater.install_dir(),
+                emit,
                 self._stop.is_set,
             )
-            try:
-                staged = updater.stage(
-                    package,
-                    updater.install_dir(),
-                    lambda done, total: emit(UNPACK, done, total),
-                    self._stop.is_set,
-                )
-            finally:
-                package.unlink(missing_ok=True)
             self._signals.finished.emit(staged)
         except Exception as exc:  # cancel, network, checksum and disk errors
             self._signals.finished.emit(exc)
@@ -122,9 +117,35 @@ class UpdateDialog(QDialog):
     def _progress(self, step: str, done: int, total: int) -> None:
         if self._stop.is_set():
             return
+        if step == "fallback":
+            self._incremental = False
+            self._fallback = True
+            self._downloading = False
+            self.step.setText(tr("Downloading full package…"))
+            self.detail.setText(tr("This release needs the full package."))
+            self.bar.setRange(0, 0)
+            self.percent.setText("")
+            return
         base = 0.0 if step == DOWNLOAD else WEIGHT[DOWNLOAD]
+        weight = WEIGHT.get(step, 0.1)
+        if step == "check":
+            self._incremental = True
+            base, weight = 0.0, 0.1
+            self.step.setText(tr("Checking installed files…"))
+            self.detail.setText(tr("{p0} / {p1} files", p0=done, p1=total))
+        elif step == "verify":
+            base, weight = 0.8, 0.2
+            self.step.setText(tr("Preparing the update…"))
+            self.detail.setText(tr("Verifying files"))
         if step == DOWNLOAD:
-            self.step.setText(tr("Downloading…"))
+            if not self._downloading:
+                self._started = time.monotonic()
+                self._downloading = True
+            if self._incremental:
+                base, weight = 0.1, 0.7
+            label = ("Downloading changed files…" if self._incremental else
+                     "Downloading full package…" if self._fallback else "Downloading…")
+            self.step.setText(tr(label))
             elapsed = max(time.monotonic() - self._started, 1e-3)
             speed = tr("{p0} MB/s", p0=_mb(int(done / elapsed)))
             if total:
@@ -133,17 +154,18 @@ class UpdateDialog(QDialog):
                 )
             else:
                 self.detail.setText(tr("{p0} MB · {p1}", p0=_mb(done), p1=speed))
-        else:
+        elif step == UNPACK:
             self.step.setText(tr("Preparing the update…"))
             self.detail.setText(tr("Unpacking files"))
         if not total:  # no Content-Length: a moving bar instead of a made-up share
             self.bar.setRange(0, 0)
             self.percent.setText("")
             return
-        share = base + WEIGHT[step] * done / total
+        share = min(1.0, base + weight * done / total)
         self.bar.setRange(0, 100)
-        self.bar.setValue(int(share * 100))
-        self.percent.setText(f"{int(share * 100)}%")
+        percent = round(share * 100)
+        self.bar.setValue(percent)
+        self.percent.setText(f"{percent}%")
 
     def _finished(self, result: object) -> None:
         self._running = False

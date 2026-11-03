@@ -136,6 +136,10 @@ def main(argv: list[str] | None = None) -> int:
         help="run the headless check and write its result to this file (also for windowed EXEs)",
     )
     parser.add_argument(
+        "--selftest-update-report", type=Path,
+        help="test changed-file updates with isolated synthetic files and loopback HTTP",
+    )
+    parser.add_argument(
         "--preview-overlay", action="store_true",
         help="preview the parrots using isolated demo data without sensors",
     )
@@ -178,6 +182,10 @@ def main(argv: list[str] | None = None) -> int:
                 args.check_report.parent.mkdir(parents=True, exist_ok=True)
                 args.check_report.write_text(text + "\n", encoding="utf-8")
             return 1
+    if args.selftest_update_report:
+        from focuslab.update_smoke import run
+
+        return run(args.selftest_update_report)
     if args.preview_overlay:
         from focuslab.ui.mascot.preview import run
 
