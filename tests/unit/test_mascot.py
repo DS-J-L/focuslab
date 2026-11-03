@@ -7,6 +7,7 @@ import pytest
 
 from focuslab.ui.mascot.animation import Pose, blend, load_behaviors, parse_behaviors
 from focuslab.ui.mascot.director import BREAK, FINISH, MOTION, PAUSE, WINDOW, Director
+from focuslab.ui.mascot.renderer import RED, YELLOW, facing_yaw
 
 
 def frames(director, start, seconds, fps=30):
@@ -44,7 +45,8 @@ def test_pointed_at_parrot_perks_up_and_the_others_look_at_it():
     director.set_hover(FINISH, 0.0)
     red, blue, yellow = frames(director, 0.0, 1)[-1]
     assert blue.scale > 1.05 and blue.eyes == "wide" and blue.y < 0
-    assert red.turn > 0.5 and yellow.turn < -0.5  # both glance at the middle one
+    assert facing_yaw(RED.character_id, red) > .5
+    assert facing_yaw(YELLOW.character_id, yellow) < -.5  # both glance at the middle one
 
     director.set_hover(None, 1.0)
     calm = frames(director, 1.0, 1.5)[-1]
@@ -144,7 +146,8 @@ def test_pairs_lean_on_each_other_and_others_watch_a_performance():
     director._next = [1e9, 1e9, 1e9]
     director._start(1, director.behaviors["sing"], 0.0)
     poses = frames(director, 0.0, 1)[-1]
-    assert poses[0].turn > 0.3 and poses[2].turn < -0.3  # both look at the singer
+    assert facing_yaw(RED.character_id, poses[0]) > .3
+    assert facing_yaw(YELLOW.character_id, poses[2]) < -.3  # both look at the singer
 
 
 def test_minimal_movement_only_breathes_and_blinks():

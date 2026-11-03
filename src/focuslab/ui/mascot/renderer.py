@@ -27,6 +27,7 @@ HEAD_Y = -73.0
 TOP_Y = -133.0  # clears the cockatiel's separate crest, including its sway
 INK = QColor("#20222B")
 PENDANT_CENTER = QPointF(0, -28)
+RESTING_YAW = {"peach-lovebird": .5, "sky-parrot": -.5, "lemon-cockatiel": .8}
 
 
 @dataclass(frozen=True)
@@ -88,9 +89,14 @@ def wing_contact(side: int, angle: float, stroke: float = 0) -> QPointF:
     return transform.map(QPointF(4, 12 + 4 * stroke))
 
 
+def facing_yaw(character_id: str, pose: Pose) -> float:
+    """The rendered direction: neutral poses rest off-camera for every character."""
+    return max(-1, min(1, RESTING_YAW[character_id] + .75 * pose.turn + .25 * pose.look_x))
+
+
 def head_placement(art: CharacterArt, pose: Pose) -> HeadPlacement:
     """Select an authored view, then solve the beak's feather contact in that view."""
-    yaw = max(-1, min(1, .75 * pose.turn + .25 * pose.look_x))
+    yaw = facing_yaw(art.character_id, pose)
     column = max(0, min(4, math.floor((yaw + 1) * 2 + .5)))
     view = None
     amount = min(1, max(abs(pose.preen), pose.preen_chest))
