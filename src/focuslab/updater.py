@@ -2,24 +2,31 @@
 
 Nothing here runs on its own: the Settings page calls it when the user presses "Check now",
 or at startup only after the user turned on "Check for updates when FocusLab starts".
-A check is one request to the GitHub API; an update downloads the release zip, verifies its
-SHA256, unpacks it next to the install folder and swaps the folders after FocusLab exits.
+A check is one request to the GitHub API. New releases have a verified file index:
+updates reuse matching installed files and fetch only changed ZIP entries. Older releases
+and servers without byte ranges retain the verified full-ZIP path. Both stage a complete
+folder and swap it only after FocusLab exits.
 """
 
 import hashlib
+import http.client
 import json
+import logging
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from focuslab import __version__
 from focuslab.config import FROZEN
+from focuslab.update_manifest import is_link, manifest_name, safe_path
 
 REPO = "DS-J-L/focuslab"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
@@ -30,10 +37,15 @@ CHUNK = 256 * 1024  # small enough for a smooth progress bar and a prompt cancel
 
 Progress = Callable[[int, int], None]  # (done, total) bytes; total 0 when unknown
 Cancelled = Callable[[], bool]
+PhasedProgress = Callable[[str, int, int], None]
 
 
 class UpdateCancelled(Exception):
     "The user stopped the update; nothing was installed and no partial files are kept."
+
+
+class UnsafeUpdatePath(ValueError):
+    "A redirected local folder must never be used for staging or cleanup."
 
 
 @dataclass(frozen=True)
@@ -42,6 +54,8 @@ class Release:
     page_url: str
     zip_url: str | None
     sha256_url: str | None
+    manifest_url: str | None = None
+    manifest_sha256_url: str | None = None
 
 
 def asset_name(version: str) -> str:
@@ -58,9 +72,9 @@ def is_newer(release: Release, current: str = __version__) -> bool:
     return parse_version(release.version) > parse_version(current)
 
 
-def _open(url: str, accept: str = "application/octet-stream"):
+def _open(url: str, accept: str = "application/octet-stream", headers: dict | None = None):
     request = urllib.request.Request(
-        url, headers={"Accept": accept, "User-Agent": f"FocusLab/{__version__}"}
+        url, headers={"Accept": accept, "User-Agent": f"FocusLab/{__version__}", **(headers or {})}
     )
     return urllib.request.urlopen(request, timeout=TIMEOUT_S)
 
@@ -74,6 +88,8 @@ def parse_release(data: dict) -> Release:
         page_url=data.get("html_url") or RELEASES_PAGE,
         zip_url=urls.get(name),
         sha256_url=urls.get(f"{name}.sha256"),
+        manifest_url=urls.get(manifest_name(version)),
+        manifest_sha256_url=urls.get(f"{manifest_name(version)}.sha256"),
     )
 
 
@@ -149,6 +165,19 @@ def _member_path(member: zipfile.ZipInfo) -> PurePosixPath:
     return PurePosixPath(member.filename.replace("\\", "/"))
 
 
+def _staging_path(target: Path) -> Path:
+    """Clean only our sibling staging folder; never traverse a junction or symlink."""
+    target = target.absolute()
+    staged = target.with_name(f".{target.name}-update")
+    for folder in (target, *target.parents, staged):
+        if folder.exists() or folder.is_symlink():
+            if is_link(folder):
+                raise UnsafeUpdatePath("update folders cannot contain links or junctions")
+    if staged.exists():
+        shutil.rmtree(_long(staged))
+    return staged
+
+
 def _package_root(members: list[zipfile.ZipInfo]) -> PurePosixPath:
     "The folder in the zip that holds FocusLab.exe next to _internal."
     paths = [_member_path(m) for m in members]
@@ -170,9 +199,8 @@ def stage(
 
     Files go straight into that folder: renaming a folder of just-written files fails with
     "access denied" while antivirus or OneDrive still has them open."""
-    staged = target.with_name(f".{target.name}-update")
+    staged = _staging_path(target)
     out_dir = _long(staged)
-    shutil.rmtree(out_dir, ignore_errors=True)
     try:
         with zipfile.ZipFile(zip_path) as archive:
             members = archive.infolist()
@@ -187,6 +215,7 @@ def stage(
                 parts = name.relative_to(root).parts
                 if not parts or ".." in parts or ":" in str(name):  # never outside the folder
                     continue
+                safe_path("/".join(parts))
                 dest = out_dir.joinpath(*parts)
                 if member.filename.endswith(("/", "\\")):
                     dest.mkdir(parents=True, exist_ok=True)
@@ -201,6 +230,41 @@ def stage(
         shutil.rmtree(out_dir, ignore_errors=True)
         raise
     return staged
+
+
+def prepare(
+    release: Release, dest_dir: Path, target: Path,
+    progress: PhasedProgress | None = None, cancelled: Cancelled | None = None,
+) -> Path:
+    """Prepare a complete update without modifying the running installation.
+
+    Cancellation never triggers a fallback download. An unavailable/invalid index or
+    unsupported range response falls back to the existing SHA256-verified full ZIP.
+    """
+    def emit(phase: str, done: int, total: int) -> None:
+        if progress:
+            progress(phase, done, total)
+
+    _check(cancelled)
+    if release.manifest_url and release.manifest_sha256_url:
+        from focuslab.incremental_update import stage_changed
+
+        try:
+            return stage_changed(release, target, emit, cancelled)
+        except (UpdateCancelled, UnsafeUpdatePath):
+            raise
+        except (ValueError, KeyError, TypeError, urllib.error.URLError, http.client.HTTPException,
+                TimeoutError, ConnectionError, zlib.error) as exc:
+            logging.getLogger(__name__).warning("Incremental update unavailable: %s", exc)
+            _check(cancelled)
+            emit("fallback", 0, 0)
+    else:
+        emit("fallback", 0, 0)
+    package = download(release, dest_dir, lambda d, t: emit("download", d, t), cancelled)
+    try:
+        return stage(package, target, lambda d, t: emit("unpack", d, t), cancelled)
+    finally:
+        package.unlink(missing_ok=True)
 
 
 def discard(staged: Path) -> None:

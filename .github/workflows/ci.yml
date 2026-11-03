@@ -95,3 +95,12 @@ jobs:
           $process.Refresh()
           Get-Content -LiteralPath $report
           if ($process.ExitCode -ne 0) { throw "Packaged check failed: $($process.ExitCode)" }
+          $updateReport = Join-Path $PWD 'build/packaged-update-check.json'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--selftest-update-report', $updateReport) -PassThru
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id
+            throw "Packaged incremental update check timed out"
+          }
+          $process.Refresh()
+          Get-Content -LiteralPath $updateReport
+          if ($process.ExitCode -ne 0) { throw "Packaged incremental update check failed" }
