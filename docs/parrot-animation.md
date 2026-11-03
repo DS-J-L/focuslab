@@ -5,7 +5,7 @@ lovebird for pause/resume, a blue parrotlet for finish, and a lemon cockatiel fo
 The same image rig renders the expanded overlay, collapsed lovebird and opted-in flier.
 The original control functions and existing observation/consent defaults are preserved.
 
-![Actual compact source overlay at 200%](images/parrot-necklaces.png)
+![Actual compact source overlay at 200%](images/parrot-averted-gaze.png)
 
 ## Artwork and movement
 
@@ -35,8 +35,12 @@ At most one random performance (including a planned two-bird interaction) runs a
 
 Five authored yaw views distinguish front, shallow left/right and deeper left/right.
 Pitch art adds up, down and each side's preening view. Turned heads have three registered
-eyelid states with unchanged alpha silhouettes. Neutral forward expressions replace the
-previous permanently angled face. Each actor has an independently seeded gaze sequence,
+eyelid states with unchanged alpha silhouettes. Neutral poses use different off-camera
+angles: the lovebird looks shallow right, blue shallow left, and yellow farther right.
+This also applies to the first frame, minimal motion and the collapsed bird. Idle targets
+exclude a forward stare; a turn may briefly pass through front. Gesture offsets settle
+back to the character's own resting angle. Friendly closed-eye/open-beak expression art
+remains available for reactions. Each actor has an independently seeded gaze sequence,
 3–7.5 second dwell times and smoothed movement. Repeated targets are excluded; directions
 do not follow a fixed alternating sweep. Attention and explicit behaviors take priority;
 minimal movement disables idle gaze. Large idle direction changes are accompanied by a blink.
@@ -62,7 +66,7 @@ torso beneath the head and wings. The cord and pendant follow body motion; keybo
 has a visible ring and the unavailable break symbol is muted during a pause. Each whole
 parrot remains clickable, with separate nonoverlapping targets. The old button row below
 the branch is removed. Chest grooming targets feathers above the necklace. Hover hints
-stay below the header. The default resting head is forward-facing; idle gaze is enabled
+stay below the header. Default resting heads face off-camera; idle gaze is enabled
 only in normal/lively motion.
 
 The implementation combines articulated image parts with authored head viewpoints rather

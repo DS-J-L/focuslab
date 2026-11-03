@@ -17,9 +17,9 @@ class Pose:
     squash: float = 1.0  # >1 stretches up, <1 squats
     scale: float = 1.0
     puff: float = 0.0  # 0..1 fluffed-up feathers (angry, cold)
-    turn: float = 0.0  # -1..1 face turned left/right
+    turn: float = 0.0  # left/right offset from the character's off-camera resting angle
     head_tilt: float = 0.0  # degrees
-    look_x: float = 0.0  # -1..1 pupils
+    look_x: float = 0.0  # lateral gaze offset; rendered yaw is clamped to -1..1
     look_y: float = 0.0  # -1..1, negative looks up
     eye_open: float = 1.0  # 0 closed .. 1 open
     beak_open: float = 0.0  # 0..1

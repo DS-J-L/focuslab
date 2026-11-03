@@ -5,7 +5,7 @@ import random
 from dataclasses import dataclass, replace
 
 from focuslab.ui.mascot.animation import NEUTRAL, Behavior, Pose, approach, blend, ease_in_out
-from focuslab.ui.mascot.renderer import Plumage
+from focuslab.ui.mascot.renderer import RESTING_YAW, Plumage
 
 BLINK_S = 0.18
 HOVER_S = 0.12  # time constant for perking up and settling down
@@ -29,6 +29,7 @@ class BirdActor:
     def __init__(self, name: str, plumage: Plumage, rng: random.Random) -> None:
         self.name = name
         self.plumage = plumage
+        self._rest_yaw = RESTING_YAW[plumage.character_id]
         self.rng = rng
         self._gaze_rng = random.Random(rng.getrandbits(64))
         self.idle_gaze = True
@@ -128,10 +129,12 @@ class BirdActor:
             look_y=base.look_y + self._gaze_y,
         )
         if self._glance or self._up:
+            # Attention uses a world direction, independent of the resting angle.
+            bias = self._rest_yaw * min(1, abs(self._glance))
             pose = replace(
                 pose,
-                turn=pose.turn + 0.7 * self._glance,
-                look_x=max(-1.0, min(1.0, pose.look_x + self._glance + 0.4 * self._up)),
+                turn=pose.turn + 0.7 * self._glance - bias,
+                look_x=pose.look_x + self._glance + 0.4 * self._up - bias,
                 look_y=pose.look_y - self._up,
                 tilt=pose.tilt + 4 * self._glance,
             )
@@ -157,11 +160,11 @@ class BirdActor:
             if self._gaze_at is None:
                 self._gaze_at = now + self._gaze_rng.uniform(2.5, 6.5)
             elif now >= self._gaze_at:
-                options = ((0., 0.), (-.5, 0.), (.5, 0.), (-1., 0.), (1., 0.),
-                           (0., -.9), (0., .8))
-                weights = (4, 3, 3, 1, 1, 1, 1)
-                candidates = [(p, w) for p, w in zip(options, weights, strict=True)
-                              if p != self._gaze_target]
+                choices = [((0., 0.), 4), ((0., -.9), 1), ((0., .8), 1)]
+                for yaw, weight in ((-.5, 3), (.5, 3), (-1., 1), (1., 1)):
+                    if abs(yaw - self._rest_yaw) > .01:
+                        choices.append(((yaw - self._rest_yaw, 0.), weight))
+                candidates = [(p, w) for p, w in choices if p != self._gaze_target]
                 self._gaze_target = self._gaze_rng.choices(
                     [p for p, _ in candidates], [w for _, w in candidates])[0]
                 self._gaze_at = now + self._gaze_rng.uniform(3.0, 7.5)

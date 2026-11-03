@@ -15,7 +15,9 @@ from focuslab.ui.mascot.renderer import (
     BLUE,
     PENDANT_CENTER,
     RED,
+    RESTING_YAW,
     YELLOW,
+    facing_yaw,
     head_placement,
     paint_bird,
 )
@@ -126,7 +128,8 @@ def test_future_staggered_gesture_does_not_start_before_its_time():
 
 @pytest.mark.parametrize("plumage", (RED, BLUE, YELLOW))
 def test_authored_head_directions_are_distinct_and_keep_the_toes_planted(qapp, plumage):
-    directions = [Pose(turn=x, look_x=x) for x in (-1, -.5, 0, .5, 1)]
+    rest = RESTING_YAW[plumage.character_id]
+    directions = [Pose(turn=x - rest, look_x=x - rest) for x in (-1, -.5, 0, .5, 1)]
     directions += [Pose(look_y=-1), Pose(look_y=1)]
     images = [pixels(render(plumage, pose)) for pose in directions]
     assert len({im.tobytes() for im in images}) == 7
@@ -195,3 +198,32 @@ def test_director_chooses_both_preening_sides_without_alternating_by_rule():
         sides.append(director.actors[1]._side)
     assert set(sides) == {-1, 1}
     assert any(a == b for a, b in zip(sides, sides[1:], strict=False))
+
+
+@pytest.mark.parametrize("plumage", (RED, BLUE, YELLOW))
+def test_neutral_minimal_and_post_grooming_heads_rest_off_camera(qapp, plumage):
+    rig = artwork.character_art(plumage.character_id)
+    rest = RESTING_YAW[plumage.character_id]
+    front = head_placement(rig, Pose(turn=-rest, look_x=-rest))
+    neutral = head_placement(rig, Pose())
+    assert neutral.image.cacheKey() != front.image.cacheKey()
+    actor = BirdActor("test", plumage, random.Random(1))
+    actor.idle_gaze = False
+    actor._next_blink = 10000
+    initial = actor.pose(100)
+    assert head_placement(rig, initial).image.cacheKey() == neutral.image.cacheKey()
+    actor.play(load_behaviors()["preen"], 100)
+    actor.pose(102)
+    settled = actor.pose(106)
+    assert head_placement(rig, settled).image.cacheKey() == neutral.image.cacheKey()
+
+
+def test_idle_gazes_do_not_dwell_facing_the_camera():
+    from focuslab.ui.mascot.director import Director
+
+    director = Director(random.Random(42), behaviors={})
+    for step in range(3600):
+        poses = director.poses(step / 30)
+        for actor, pose in zip(director.actors, poses, strict=True):
+            if actor.resting:
+                assert abs(facing_yaw(actor.plumage.character_id, pose)) > .3
