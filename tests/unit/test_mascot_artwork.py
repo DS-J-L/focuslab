@@ -11,7 +11,14 @@ from PySide6.QtGui import QImage, QPainter
 from focuslab.ui.mascot import artwork
 from focuslab.ui.mascot.animation import Pose, load_behaviors
 from focuslab.ui.mascot.bird_actor import BirdActor
-from focuslab.ui.mascot.renderer import BLUE, RED, YELLOW, head_placement, paint_bird
+from focuslab.ui.mascot.renderer import (
+    BLUE,
+    PENDANT_CENTER,
+    RED,
+    YELLOW,
+    head_placement,
+    paint_bird,
+)
 
 
 def render(plumage, pose=None):
@@ -144,6 +151,9 @@ def test_preening_beak_follows_the_feather_through_each_stroke(qapp, plumage, be
         head = head_placement(rig, pose)
         assert head.contact is not None
         assert (head.transform.map(head.beak) - head.contact).manhattanLength() < .001
+        if behavior == "preen_chest":
+            delta = head.contact - PENDANT_CENTER
+            assert delta.x() ** 2 + delta.y() ** 2 > 14 ** 2  # exposed feathers
         image = pixels(render(plumage, pose))
         assert np.array_equal(toes, image[296:306])
         assert not image[0, 3::4].any() and not image[-1, 3::4].any()

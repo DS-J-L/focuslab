@@ -15,8 +15,6 @@ from PySide6.QtGui import (
     QRadialGradient,
 )
 
-from focuslab.ui.mascot.renderer import paint_icon
-
 INK = QColor("#101725")
 MINT = QColor("#72E5C5")
 SKY = QColor("#8BB6FF")
@@ -71,21 +69,6 @@ def paint_seat(p: QPainter, x: float, y: float, hovered: bool, enabled: bool) ->
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.setPen(QPen(QColor(216, 234, 255, 115), 1.25))
         p.drawEllipse(QPointF(x, y - 42), 36, 47)
-    p.restore()
-
-
-def paint_action_pin(p: QPainter, x: float, icon: str, enabled: bool, focused: bool) -> None:
-    """Keep function symbols below the perch, away from character artwork."""
-    p.save()
-    p.setOpacity(1.0 if enabled else 0.38)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#FFF5DF"))
-    p.drawEllipse(QPointF(x, 238), 11, 11)
-    paint_icon(p, icon, QPointF(x, 238), 7, on_belly=True)
-    if focused:
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QColor("#B8E8F4"))
-        p.drawEllipse(QPointF(x, 238), 15, 15)
     p.restore()
 
 

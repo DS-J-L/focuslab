@@ -327,3 +327,36 @@ def test_studio_overlay_shows_target_progress(window):
     overlay.break_button.click()
     assert perch.visual_state == "break"
     assert not perch.findChildren(QLabel, "OverlayAction")  # no captions under the parrots
+
+
+def test_necklace_controls_activate_their_own_parrot_without_overlapping(window, qtbot):
+    from focuslab.ui.mascot.renderer import PENDANT_CENTER
+    from focuslab.ui.overlay import BIRD_SCALE, SEAT_Y, SEATS
+
+    overlay = window.overlay
+    start(window)
+    perch = overlay.perch
+    buttons = (overlay.pause_button, overlay.finish_button, overlay.break_button)
+    points = [QPoint(round(x), round(SEAT_Y + PENDANT_CENTER.y() * BIRD_SCALE)) for x in SEATS]
+    for button, point in zip(buttons, points, strict=True):
+        assert perch.childAt(point) is button
+        assert not any(button.geometry().intersects(other.geometry())
+                       for other in buttons if other is not button)
+
+    def click_pendant(i):
+        button = buttons[i]
+        qtbot.mouseClick(button, Qt.MouseButton.LeftButton,
+                         pos=button.mapFrom(perch, points[i]))
+
+    click_pendant(0)
+    assert snapshot(window).lifecycle is Lifecycle.PAUSED
+    click_pendant(2)  # the muted yellow pendant remains unavailable during a pause
+    assert not snapshot(window).on_break
+    click_pendant(0)
+    assert snapshot(window).lifecycle is Lifecycle.RUNNING
+    click_pendant(2)
+    assert snapshot(window).on_break
+    click_pendant(2)
+    assert not snapshot(window).on_break
+    click_pendant(1)
+    assert snapshot(window).lifecycle is Lifecycle.FINISHED

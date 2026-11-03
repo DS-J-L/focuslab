@@ -53,7 +53,6 @@ from focuslab.ui.mascot.renderer import (
     paint_plaque,
 )
 from focuslab.ui.mascot.studio import (
-    paint_action_pin,
     paint_progress,
     paint_scene,
     paint_seat,
@@ -68,12 +67,12 @@ FRAME_MS = 16  # target ~60 Hz during gestures and the complete blink
 RESTING_FRAME_MS = 33  # gentle breathing; a due blink wakes the faster timer
 
 # Scene geometry (px) of the expanded overlay.
-SCENE_W, SCENE_H = 464, 314
-SEATS = (96.0, 232.0, 368.0)  # x of each parrot's feet
-BRANCH = QRectF(20, 206, 424, 15)
+SCENE_W, SCENE_H = 360, 288
+SEATS = (76.0, 180.0, 284.0)  # x of each parrot's feet
+BRANCH = QRectF(14, 198, 332, 14)
 SEAT_Y = BRANCH.top() + 3
-PLAQUE = QRectF(72, 261, 320, 41)
-STRINGS = (142.0, 322.0)
+PLAQUE = QRectF(54, 235, 252, 38)
+STRINGS = (112.0, 248.0)
 BIRD_SCALE = 1.08
 
 
@@ -115,7 +114,7 @@ class ParrotButton(QAbstractButton):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.icon_name = ""  # shown in the speech bubble while hovered
-        self.emblem = ""  # drawn in a separate action pin below the perch
+        self.emblem = ""  # worn on the parrot's necklace pendant
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -147,7 +146,7 @@ class PerchView(QWidget):
 
         self.parrots = tuple(ParrotButton(self) for _ in SEATS)
         for seat, button in zip(SEATS, self.parrots, strict=True):
-            button.setGeometry(int(seat - 56), 43, 112, 209)
+            button.setGeometry(int(seat - 48), 43, 96, 176)
             button.installEventFilter(self)
         self.time = QLabel(self, objectName="OverlayTime", alignment=Qt.AlignmentFlag.AlignCenter)
         self.time.setGeometry(PLAQUE.adjusted(5, 0, -5, -5).toRect())
@@ -219,10 +218,12 @@ class PerchView(QWidget):
             p.save()
             p.translate(seat, SEAT_Y)
             p.scale(BIRD_SCALE, BIRD_SCALE)
-            paint_bird(p, pose, actor.plumage)
+            paint_bird(
+                p, pose, actor.plumage, button.emblem,
+                enabled=button.isEnabled(), focused=button.hasFocus(),
+                hovered=self.director.hover == self.parrots.index(button),
+            )
             p.restore()
-            # Actions remain readable without placing interface symbols on the art.
-            paint_action_pin(p, seat, button.emblem, button.isEnabled(), button.hasFocus())
         # Symbols and bubbles last, so a neighbour never covers them.
         for seat, pose in zip(SEATS, poses, strict=True):
             if pose.emote:
