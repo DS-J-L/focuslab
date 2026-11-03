@@ -4,11 +4,12 @@ import math
 import random
 from dataclasses import dataclass, replace
 
-from focuslab.ui.mascot.animation import NEUTRAL, Behavior, Pose, approach, blend
+from focuslab.ui.mascot.animation import NEUTRAL, Behavior, Pose, approach, blend, ease_in_out
 from focuslab.ui.mascot.renderer import Plumage
 
-BLINK_S = 0.14
+BLINK_S = 0.18
 HOVER_S = 0.12  # time constant for perking up and settling down
+TRANSITION_S = 0.18
 
 
 @dataclass(frozen=True)
@@ -44,14 +45,22 @@ class BirdActor:
         self._still = False
         self._watch = 0.0  # direction of a neighbour being watched, until _watch_until
         self._watch_until = 0.0
+        self._last_base = NEUTRAL
+        self._transition_from = NEUTRAL
+        self._returning = False
 
     # behaviors ----------------------------------------------------------------------
     def play(self, behavior: Behavior, now: float, side: int = 1, still: bool = False) -> None:
         "Start ``behavior`` at ``now``; ``still`` holds its expression without moving."
+        self._transition_from = self._last_base
+        self._returning = False
         self.behavior, self._started, self._side = behavior, now, side
         self._still = still
 
     def stop(self) -> None:
+        self._transition_from = self._last_base
+        self._started = self._last if self._last is not None else 0.0
+        self._returning = True
         self.behavior = None
 
     def busy(self, now: float) -> bool:
@@ -75,7 +84,15 @@ class BirdActor:
         base = NEUTRAL
         if self.busy(now):
             t = self.behavior.duration * 0.25 if self._still else now - self._started
-            base = self.behavior.sample(t, self._side)
+            target = self.behavior.sample(max(0.0, t), self._side)
+            u = ease_in_out((now - self._started) / TRANSITION_S)
+            base = target if self._still else blend(self._transition_from, target, u)
+        elif self._returning:
+            u = ease_in_out((now - self._started) / TRANSITION_S)
+            base = blend(self._transition_from, NEUTRAL, u)
+            if u >= 1:
+                self._returning = False
+        self._last_base = base
         a = self.attention
         toward = a.toward
         if a == CALM and now < self._watch_until:
@@ -87,6 +104,7 @@ class BirdActor:
         # Only breathing and blinking: the view can then draw fewer frames.
         self.resting = (
             self.behavior is None
+            and not self._returning
             and a.emote is None
             and max(abs(self._perk - perk), abs(self._glance - toward), abs(self._up - up)) < 0.01
         )
@@ -94,8 +112,8 @@ class BirdActor:
         breath = math.sin(now * math.tau / 3.4 + self._phase)
         pose = replace(
             base,
-            squash=base.squash * (1 + 0.022 * breath),
-            crest=base.crest + 3 * math.sin(now * math.tau / 5.0 + self._phase),
+            squash=base.squash * (1 + 0.012 * breath),
+            crest=base.crest + 3 * math.sin((now - 0.055) * math.tau / 5.0 + self._phase),
             eye_open=base.eye_open * self._blink(now),
         )
         if self._glance or self._up:
@@ -126,6 +144,8 @@ class BirdActor:
         if self._next_blink is None:
             self._next_blink = now + self.rng.uniform(0.8, 4.0)
         if now < self._next_blink:
+            if self._next_blink - now < 0.034:
+                self.resting = False  # wake before the first eyelid frame
             return 1.0
         t = now - self._next_blink
         if t >= BLINK_S:
@@ -133,4 +153,9 @@ class BirdActor:
             gap = 0.25 if self.rng.random() < 0.15 else self.rng.uniform(2.5, 6.0)
             self._next_blink = now + gap
             return 1.0
-        return abs(math.cos(math.pi * t / BLINK_S))
+        self.resting = False
+        if t < 0.068:
+            return 1.0 - ease_in_out(t / 0.068)
+        if t < 0.100:
+            return 0.0
+        return ease_in_out((t - 0.100) / (BLINK_S - 0.100))

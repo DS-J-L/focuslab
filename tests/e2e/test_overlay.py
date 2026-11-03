@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QColor, QGuiApplication, QMouseEvent
+from PySide6.QtGui import QGuiApplication, QMouseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from focuslab.domain.models import Decision, FocusState, SessionConfig, SessionMode
@@ -187,26 +187,27 @@ def test_parrots_animate_only_while_expanded_and_shown(window):
     assert not overlay.perch.animating
 
 
-def test_the_three_parrots_are_drawn_in_their_colours(window):
+def test_the_three_reference_species_are_visible_in_the_correct_seats(window):
+    from focuslab.ui.overlay import SEATS
+
     overlay = window.overlay
     start(window)
     image = overlay.perch.grab().toImage()
 
     ratio = image.devicePixelRatio()
 
-    def count(colour, x_range):
-        target = QColor(colour)
+    def count(seat, matches):
         hits = 0
-        for x in range(*x_range, 2):
-            for y in range(70, 170, 2):
+        for x in range(int(seat - 40), int(seat + 40), 2):
+            for y in range(75, 207, 2):
                 c = image.pixelColor(int(x * ratio), int(y * ratio))
-                diff = (c.red() - target.red(), c.green() - target.green())
-                hits += max(map(abs, (*diff, c.blue() - target.blue()))) < 12
+                hits += matches(c.red(), c.green(), c.blue())
         return hits
 
-    seats = (("#E8483F", (45, 112)), ("#3E72E6", (117, 184)), ("#F8C935", (189, 256)))
-    for colour, x_range in seats:
-        assert count(colour, x_range) > 100, colour
+    assert count(SEATS[0], lambda r, g, b: r > 160 and r > g * 1.15 and r > b * 1.25) > 100
+    assert count(SEATS[0], lambda r, g, b: g > 120 and g > r * .95 and g > b * 1.2) > 100
+    assert count(SEATS[1], lambda r, g, b: b > 140 and b > r * 1.15 and g > r * 1.1) > 100
+    assert count(SEATS[2], lambda r, g, b: r > 160 and g > 140 and r > b * 1.3) > 100
 
 
 def test_parrot_movement_setting_reaches_the_overlay(window):
@@ -263,6 +264,37 @@ def test_frames_slow_down_while_the_parrots_only_breathe(window):
         perch.grab()
     assert perch._timer.interval() == RESTING_FRAME_MS
     assert not image.isNull()
+
+
+def test_blink_wakes_fast_rendering_and_returns_to_idle(window):
+    from focuslab.ui.overlay import FRAME_MS, RESTING_FRAME_MS
+
+    window.settings.mascot_motion.setCurrentIndex(window.settings.mascot_motion.findData("minimal"))
+    start(window)
+    perch = window.overlay.perch
+    now = [100.0]
+    perch.clock = lambda: now[0]
+    for actor in perch.director.actors:
+        actor._next_blink = 100.01
+    perch.grab()
+    assert perch._timer.interval() == FRAME_MS
+    now[0] = 100.088
+    perch.grab()
+    assert all(actor.pose(now[0]).eye_open == 0 for actor in perch.director.actors)
+    assert perch._timer.interval() == FRAME_MS
+    now[0] = 100.3
+    perch.grab()
+    assert perch._timer.interval() == RESTING_FRAME_MS
+
+
+def test_parrot_action_is_keyboard_operable(window, qtbot):
+    start(window)
+    button = window.overlay.pause_button
+    assert button.focusPolicy() == Qt.FocusPolicy.StrongFocus
+    qtbot.keyClick(button, Qt.Key.Key_Space)
+    assert snapshot(window).lifecycle is Lifecycle.PAUSED
+    qtbot.keyClick(button, Qt.Key.Key_Space)
+    assert snapshot(window).lifecycle is Lifecycle.RUNNING
 
 
 def test_studio_overlay_shows_target_progress(window):

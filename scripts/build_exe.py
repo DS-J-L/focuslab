@@ -94,6 +94,13 @@ def main() -> None:
     dll = internal / "mediapipe" / "tasks" / "c" / "libmediapipe.dll"
     if not dll.is_file():
         raise SystemExit(f"build is missing {dll}; the face model would fail to load")
+    art = Path("focuslab/ui/mascot/art")
+    for source in (ROOT / "src" / art).iterdir():
+        if source.suffix not in (".png", ".json"):
+            continue
+        bundled = internal / art / source.name
+        if not bundled.is_file() or not filecmp.cmp(bundled, source, shallow=False):
+            raise SystemExit(f"build is missing or changed parrot artwork: {source.name}")
     for dll in python_openssl():
         bundled = internal / dll.name
         if not bundled.is_file() or not filecmp.cmp(bundled, dll, shallow=False):

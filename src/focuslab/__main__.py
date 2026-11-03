@@ -49,8 +49,13 @@ def _check() -> int:
             lines.append(f"{module}: {getattr(mod, '__version__', 'ok')}")
         except Exception as exc:  # report, do not crash
             lines.append(f"{module}: unavailable ({exc})")
+    from focuslab.ui.mascot.artwork import CHARACTER_IDS, character_art
+
+    art = [character_art(name) for name in CHARACTER_IDS]
+    fallbacks = sum(item.fallback is not None for item in art)
+    lines.append(f"Parrot art: {len(art)} characters, 9 face states each, {fallbacks} fallbacks")
     print("\n".join(lines))
-    return 0
+    return 1 if fallbacks else 0
 
 
 def _relevance_selftest() -> int:
@@ -118,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--check", action="store_true", help="print environment status and exit")
     parser.add_argument(
+        "--preview-overlay", action="store_true",
+        help="preview the parrots using isolated demo data without sensors",
+    )
+    parser.add_argument(
         "--fetch-models",
         action="store_true",
         help="download the MediaPipe face model and verify its SHA256",
@@ -146,6 +155,10 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["FOCUSLAB_LANGUAGE"] = args.language
     if args.check:
         return _check()
+    if args.preview_overlay:
+        from focuslab.ui.mascot.preview import run
+
+        return run()
     if args.relevance_selftest:
         return _relevance_selftest()
     if args.fetch_models:

@@ -1,9 +1,7 @@
-"""QPainter drawing of the parrots, the branch, the time plaque and speech bubbles.
+"""Reference-preserving image rigs, the perch, action pins and speech bubbles.
 
-Everything is drawn from shapes rather than image files, so the parrots stay sharp at any
-display scale and every body part can move on its own. A parrot is drawn around its feet:
-``(0, 0)`` is where it grips the branch and the body extends upwards (negative y), about
-84 px tall at scale 1.
+Faces keep their original artwork. Only registered eye/mouth patches change; the
+head silhouette, feather texture and feet remain stable during small movements.
 """
 
 import math
@@ -13,9 +11,11 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 
 from focuslab.ui.mascot.animation import Pose
+from focuslab.ui.mascot.artwork import character_art, eye_frame
 
-HEAD_Y = -54.0  # eye line; emotes and bubbles are placed relative to the head
-TOP_Y = -84.0  # top of the crest
+HEAD_Y = -73.0
+TOP_Y = -133.0  # clears the cockatiel's separate crest, including its sway
+INK = QColor("#20222B")
 
 
 @dataclass(frozen=True)
@@ -26,15 +26,16 @@ class Plumage:
     belly: str
     beak: str = "#F59E2B"
     beak_outline: str = "#B5651A"
+    character_id: str = "peach-lovebird"
 
 
-RED = Plumage("#E8483F", "#962A24", "#C9342C", "#F38A7F")
-BLUE = Plumage("#3E72E6", "#1F3E8C", "#2C57BE", "#7FA4F2")
-YELLOW = Plumage("#F8C935", "#A87A0C", "#E6A91F", "#FDE6A0", "#F0802A", "#A34F12")
-
-INK = QColor("#20222B")
-FOOT = QColor("#F2A33A")
-CHEEK = QColor(255, 120, 150)
+# Legacy names retain the existing button/personality mapping.
+RED = Plumage("#B8D77D", "#678856", "#69A982", "#F4AC85")
+BLUE = Plumage("#83CCF1", "#234A85", "#467BD0", "#CCEAF8", character_id="sky-parrot")
+YELLOW = Plumage(
+    "#F9DF7D", "#B68F43", "#E5C868", "#FFF0CD", "#8D8177", "#61594E",
+    character_id="lemon-cockatiel",
+)
 
 
 def _pen(color: QColor | str, width: float) -> QPen:
@@ -44,203 +45,91 @@ def _pen(color: QColor | str, width: float) -> QPen:
     return pen
 
 
-def _body_path() -> QPainterPath:
-    "A bean: narrower head on top of a round body."
-    path = QPainterPath(QPointF(0, -80))
-    path.cubicTo(19, -80, 29, -64, 29, -44)
-    path.cubicTo(30, -16, 18, -3, 0, -3)
-    path.cubicTo(-18, -3, -30, -16, -29, -44)
-    path.cubicTo(-29, -64, -19, -80, 0, -80)
-    return path
-
-
 def _feather(length: float, width: float) -> QPainterPath:
-    "A leaf shape pointing down from (0, 0)."
     path = QPainterPath(QPointF(0, 0))
     path.quadTo(width, length * 0.45, 0, length)
     path.quadTo(-width, length * 0.45, 0, 0)
     return path
 
 
-BODY = _body_path()
-WING = _feather(30, 9)
-TUFT = _feather(-15, 4.5)
+def character_top(plumage: Plumage) -> float:
+    art = character_art(plumage.character_id)
+    return min(-103.0, art.crest.top()) if art.crest is not None else -103.0
 
 
 def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = None) -> None:
-    """Illustrated, layered parrot; all details follow the existing bone/pose animation."""
+    """One continuous rig shared by the perch, collapsed preview and flight window."""
+    art = character_art(plumage.character_id)
     p.save()
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
     p.translate(pose.x, pose.y)
-    p.setOpacity(p.opacity() * pose.alpha)
-    s = pose.scale * (1 + 0.1 * pose.puff)
-    squash = max(0.5, pose.squash)
-    p.scale(s / math.sqrt(squash), s * squash)
-
-    # Tail appears behind the body; its outer feathers are in two different tones.
-    for i, dx in enumerate((-1, 0, 1)):
-        tail = QPainterPath(QPointF(dx * 7, -27))
-        tail.cubicTo(QPointF(dx * 12 + 3, -10), QPointF(dx * 11 + 4, 0), QPointF(dx * 9, 3))
-        tail.cubicTo(QPointF(dx * 6 - 1, -3), QPointF(dx * 4, -17), QPointF(dx * 7, -27))
-        p.setPen(_pen(plumage.outline, 1.0))
-        p.setBrush(QColor(plumage.wing if i != 1 else plumage.body))
-        p.drawPath(tail)
-    _feet(p, pose.airborne)
-    p.rotate(pose.tilt)
-    outline = _pen(plumage.outline, 2.0)
-
-    # Crest is tied to the head transform, not the body, so looking around is natural.
-    p.save()
-    _face_transform(p, pose)
-    p.setPen(outline)
-    p.setBrush(QColor(plumage.body))
-    for angle, length in ((-24, 0.8), (6, 1.0), (26, 0.58)):
-        p.save()
-        p.translate(0, -77.5)
-        p.rotate(angle + pose.crest)
-        p.scale(length, length)
-        p.drawPath(TUFT)
+    p.setOpacity(p.opacity() * max(0.0, min(1.0, pose.alpha)))
+    p.scale(pose.scale, pose.scale)
+    p.rotate(max(-16.0, min(16.0, pose.tilt)))
+    if art.fallback is not None:
+        p.drawImage(QRectF(-61, -122, 122, 122), art.fallback)
         p.restore()
+        return
+    parts = art.parts
+    # Tail and far wing are behind the torso. In flight the unfurled artwork is
+    # articulated continuously, rather than dissolving unrelated wing images.
+    p.save()
+    p.translate(13, -29)
+    p.rotate(-28 + pose.crest * 0.30)
+    p.drawImage(QRectF(-7, -3, 19, 30), parts[5])
     p.restore()
+    _wing(p, parts, -1, pose.wing_l, pose.airborne)
 
-    p.setPen(outline)
-    p.setBrush(QColor(plumage.body))
-    p.drawPath(BODY)
-
-    # Transparent painted edges give the previously flat silhouette some volume.
-    shade = QPainterPath(QPointF(17, -70))
-    shade.cubicTo(34, -51, 29, -22, 17, -12)
-    shade.cubicTo(13, -9, 9, -7, 4, -5)
-    shade.cubicTo(26, -6, 32, -28, 28, -53)
-    shade.cubicTo(27, -63, 23, -67, 17, -70)
-    p.setPen(Qt.PenStyle.NoPen)
-    c = QColor(plumage.outline)
-    c.setAlpha(54)
-    p.setBrush(c)
-    p.drawPath(shade)
-    glint = QPainterPath(QPointF(-22, -60))
-    glint.cubicTo(-19, -69, -9, -75, -5, -74)
-    glint.cubicTo(-14, -70, -19, -59, -20, -46)
-    glint.cubicTo(-23, -47, -24, -54, -22, -60)
-    p.setBrush(QColor(255, 255, 255, 43))
-    p.drawPath(glint)
-
-    belly = QLinearGradient(QPointF(-14, -37), QPointF(15, -7))
-    lighter = QColor(plumage.belly).lighter(112)
-    belly.setColorAt(0, lighter)
-    belly.setColorAt(1, QColor(plumage.belly))
-    p.setBrush(belly)
-    p.drawEllipse(QPointF(0, -23), 17.5, 15.5)
-
-    # The action sits on a medallion, with enough contrast to read at 100% scale.
-    if emblem:
-        p.setPen(_pen(QColor(255, 255, 255, 145), 0.9))
-        p.setBrush(QColor(255, 250, 239, 192))
-        p.drawEllipse(QPointF(0, -22), 10.6, 10.6)
-        paint_icon(p, emblem, QPointF(0, -22), 7.8, on_belly=True)
-
-    for side, angle in ((-1, pose.wing_l), (1, pose.wing_r)):
+    # The toes do not stretch with breathing. Their contact baseline stays at y=0.
+    tuck = max(0.0, min(1.0, pose.airborne))
+    for x, image in ((-11, parts[6]), (11, parts[7])):
         p.save()
-        p.translate(side * 24, -46)
-        p.rotate(-side * angle - side * 8)
-        p.setPen(_pen(plumage.outline, 1.6))
-        p.setBrush(QColor(plumage.wing))
-        p.drawPath(WING)
-        p.setPen(_pen(QColor(255, 255, 255, 78), 1))
-        feather_line = QPainterPath(QPointF(-side * 2, 5))
-        feather_line.quadTo(QPointF(-side * 5.7, 14), QPointF(0, 24))
-        p.drawPath(feather_line)
-        p.setPen(_pen(QColor(plumage.outline), 1.1))
-        p.drawLine(QPointF(side * 2, 20), QPointF(side * 5.2, 24))
+        p.translate(x * (1 - tuck * 0.25), -tuck * 5)
+        p.scale(1 - tuck * 0.25, 1 - tuck * 0.25)
+        p.drawImage(QRectF(-8.5, -11, 17, 11), image)
         p.restore()
 
+    squash = max(0.86, min(1.12, pose.squash))
     p.save()
-    _face_transform(p, pose)
-    _face(p, pose, plumage)
+    p.scale((1 + 0.045 * pose.puff) / math.sqrt(squash), squash)
+    p.drawImage(QRectF(-32, -59, 64, 56), parts[1])
+    p.restore()
+    _wing(p, parts, 1, pose.wing_r, pose.airborne)
+
+    p.save()
+    p.translate(max(-1, min(1, pose.turn)) * 2, (1 - squash) * 10)
+    p.translate(0, -47)
+    p.rotate(max(-9, min(9, pose.head_tilt)))
+    p.translate(0, 47)
+    head_height = 62 * art.head.height() / art.head.width()
+    head_rect = QRectF(-31, -103, 62, head_height)
+    index = eye_frame(pose.eye_open, pose.eyes)
+    p.drawImage(head_rect, art.faces[int(pose.beak_open > 0.3)][index])
+    if art.crest is not None:
+        # The independent tuft follows the head with its own slow secondary sway.
+        p.save()
+        p.translate(4, -97)
+        p.rotate(max(-12, min(12, pose.crest * 0.55)))
+        p.translate(-4, 97)
+        p.drawImage(art.crest, parts[8])
+        p.restore()
     p.restore()
     p.restore()
 
-def _face_transform(p: QPainter, pose: Pose) -> None:
-    "Turning the head slides the face sideways a little and tilts it around the eye line."
-    p.translate(pose.turn * 6, 0)
-    p.translate(0, HEAD_Y)
-    p.rotate(pose.head_tilt)
-    p.translate(0, -HEAD_Y)
 
-
-def _feet(p: QPainter, airborne: float) -> None:
-    p.setPen(_pen(FOOT, 2.6))
-    tuck = min(1.0, max(0.0, airborne))
-    for side in (-1, 1):
-        x = side * 8 * (1 - 0.3 * tuck)
-        for dx in (-3, 0, 3):
-            top = -5 - 4 * tuck
-            p.drawLine(QPointF(x + dx * (1 - 0.5 * tuck), top), QPointF(x + dx, top + 7 - 4 * tuck))
-
-
-def _face(p: QPainter, pose: Pose, plumage: Plumage) -> None:
-    cheek = QColor(CHEEK)
-    cheek.setAlpha(int(90 + 120 * min(1.0, pose.blush)))
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(cheek)
-    for side in (-1, 1):
-        p.drawEllipse(QPointF(side * 17, -44), 4.3, 2.7)
-
-    look = QPointF(pose.look_x * 2.2, pose.look_y * 1.6)
-    for side in (-1, 1):
-        _eye(p, QPointF(side * 10.5, HEAD_Y) + look, pose, side)
-
-    # Beak: a hooked upper half and, when open, a lower half below a dark mouth.
-    p.setPen(_pen(plumage.beak_outline, 1.5))
-    if pose.beak_open > 0.05:
-        p.setBrush(QColor("#7A2E2E"))
-        p.drawEllipse(QPointF(0, -42.5 + 2 * pose.beak_open), 3.2, 2.6 * pose.beak_open + 0.5)
-        lower = QPainterPath(QPointF(-3.6, -42 + 4 * pose.beak_open))
-        lower.quadTo(0, -38 + 5 * pose.beak_open, 3.6, -42 + 4 * pose.beak_open)
-        p.setBrush(QColor(plumage.beak))
-        p.drawPath(lower)
-    upper = QPainterPath(QPointF(-5.8, -48.5))
-    upper.quadTo(0, -53, 5.8, -48.5)
-    upper.quadTo(3.4, -41.5, 0, -39.5)
-    upper.quadTo(-3.4, -41.5, -5.8, -48.5)
-    p.setBrush(QColor(plumage.beak))
-    p.drawPath(upper)
-
-
-def _eye(p: QPainter, c: QPointF, pose: Pose, side: int) -> None:
-    ink = _pen(INK, 2.2)
-    if pose.eyes == "happy":
-        path = QPainterPath(c + QPointF(-4, 1.5))
-        path.quadTo(c + QPointF(0, -5), c + QPointF(4, 1.5))
-        p.setPen(ink)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(path)
-        return
-    open_ = min(1.0, max(0.0, pose.eye_open))
-    if open_ < 0.3:
-        path = QPainterPath(c + QPointF(-4, -0.5))
-        path.quadTo(c + QPointF(0, 2.8), c + QPointF(4, -0.5))
-        p.setPen(ink)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(path)
-        return
-
-    r = 5.4 if pose.eyes == "wide" else 4.6
-    p.setPen(Qt.PenStyle.NoPen)
-    eye = QLinearGradient(c + QPointF(-3, -r), c + QPointF(2, r))
-    eye.setColorAt(0, QColor("#141A2B"))
-    eye.setColorAt(1, QColor("#32394B"))
-    p.setBrush(eye)
-    p.drawEllipse(c, r * 0.95, r * 1.1 * open_)
-    p.setBrush(QColor("#FFFFFF"))
-    p.drawEllipse(c + QPointF(1.4, -2.0 * open_), 1.65, 1.65 * open_)
-    p.setBrush(QColor(222, 244, 255, 155))
-    p.drawEllipse(c + QPointF(-1.8, 1.5 * open_), 0.7, 0.7 * open_)
-    if pose.eyes == "angry":
-        p.setPen(_pen(INK, 2.6))
-        inner, outer = c + QPointF(-side * 4.5, -6), c + QPointF(side * 4.5, -9.5)
-        p.drawLine(inner, outer)
-
+def _wing(p: QPainter, parts: tuple, side: int, angle: float, airborne: float) -> None:
+    p.save()
+    p.translate(side * 25, -46)
+    p.scale(side, 1)
+    if side < 0:
+        p.scale(0.85, 0.85)
+    if airborne > 0.12:
+        p.rotate(52 - max(0, min(110, angle)) * 1.12)
+        p.drawImage(QRectF(-4, -6, 58, 36), parts[4])
+    else:
+        p.rotate(-max(0, min(110, angle)) * 0.70 - 7)
+        p.drawImage(QRectF(-8, -3, 20, 35), parts[2])
+    p.restore()
 
 
 # Perch, plaque and bubbles -------------------------------------------------------------
