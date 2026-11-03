@@ -57,6 +57,8 @@ def _check(report: Path | None = None) -> int:
     art = [character_art(name) for name in CHARACTER_IDS]
     fallbacks = sum(item.fallback is not None for item in art)
     lines.append(f"Parrot art: {len(art)} characters, 9 face states each, {fallbacks} fallbacks")
+    lines.append(f"Directional parrot rigs: {sum(bool(item.views) for item in art)}/3 "
+                 "(5 yaw, 4 pitch/preening views, 3 eyelid states)")
     text = "\n".join(lines)
     print(text)
     if report is not None:

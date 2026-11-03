@@ -8,10 +8,20 @@ import math
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QTransform,
+)
 
 from focuslab.ui.mascot.animation import Pose
-from focuslab.ui.mascot.artwork import character_art, eye_frame
+from focuslab.ui.mascot.artwork import CharacterArt, character_art, eye_frame
 
 HEAD_Y = -73.0
 TOP_Y = -133.0  # clears the cockatiel's separate crest, including its sway
@@ -57,6 +67,72 @@ def character_top(plumage: Plumage) -> float:
     return min(-103.0, art.crest.top()) if art.crest is not None else -103.0
 
 
+@dataclass(frozen=True)
+class HeadPlacement:
+    image: QImage
+    rect: QRectF
+    transform: QTransform
+    beak: QPointF
+    contact: QPointF | None = None
+
+
+def wing_contact(side: int, angle: float, stroke: float = 0) -> QPointF:
+    """A point on the drawn feather, in the same perch coordinates as the head."""
+    transform = QTransform()
+    transform.translate(side * 25, -46)
+    transform.scale(side, 1)
+    if side < 0:
+        transform.scale(.85, .85)
+    transform.rotate(-max(0, min(110, angle)) * .70 - 7)
+    return transform.map(QPointF(4, 12 + 4 * stroke))
+
+
+def head_placement(art: CharacterArt, pose: Pose) -> HeadPlacement:
+    """Select an authored view, then solve the beak's feather contact in that view."""
+    yaw = max(-1, min(1, .75 * pose.turn + .25 * pose.look_x))
+    column = max(0, min(4, math.floor((yaw + 1) * 2 + .5)))
+    view = None
+    amount = min(1, max(abs(pose.preen), pose.preen_chest))
+    contact = None
+    if art.views:
+        if abs(pose.preen) > .08:
+            side = -1 if pose.preen < 0 else 1
+            view = art.views["pitch"][art.groom_columns[int(side > 0)]]
+            angle = max(pose.wing_l if side < 0 else pose.wing_r, amount * 22)
+            contact = wing_contact(side, angle, pose.preen_stroke)
+        elif pose.preen_chest > .08:
+            view = art.views["pitch"][1]
+            contact = QPointF(0, -30 + pose.preen_stroke * 3)
+        elif pose.eyes != "happy" and pose.beak_open <= .3:
+            if pose.look_y < -.6:
+                view = art.views["pitch"][0]
+            elif pose.look_y > .6:
+                view = art.views["pitch"][1]
+            elif column != 2:
+                view = art.views["yaw"][column]
+    if view is None:
+        image = art.faces[int(pose.beak_open > .3)][eye_frame(pose.eye_open, pose.eyes)]
+        beak = QPointF(.5, .84)
+    else:
+        index = 2 if pose.eye_open < .25 else (1 if pose.eye_open < .75 else 0)
+        image, beak = view.frames[index], view.beak
+    height = 62 * art.head.height() / art.head.width()
+    width = height * image.width() / image.height()
+    rect = QRectF(-width / 2, -103, width, height)
+    beak = QPointF(rect.left() + rect.width() * beak.x(),
+                   rect.top() + rect.height() * beak.y())
+    transform = QTransform()
+    transform.translate(yaw * 2, (1 - max(.86, min(1.12, pose.squash))) * 10)
+    transform.translate(0, -47)
+    transform.rotate(max(-12, min(12, pose.head_tilt)))
+    transform.translate(0, 47)
+    if contact is not None:
+        delta = (contact - transform.map(beak)) * amount
+        # QTransform uses row vectors: multiplying here translates in perch space.
+        transform *= QTransform.fromTranslate(delta.x(), delta.y())
+    return HeadPlacement(image, rect, transform, beak, contact)
+
+
 def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = None) -> None:
     """One continuous rig shared by the perch, collapsed preview and flight window."""
     art = character_art(plumage.character_id)
@@ -78,7 +154,9 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     p.rotate(-28 + pose.crest * 0.30)
     p.drawImage(QRectF(-7, -3, 19, 30), parts[5])
     p.restore()
-    _wing(p, parts, -1, pose.wing_l, pose.airborne)
+    wing_l = max(pose.wing_l, max(0, -pose.preen) * 22)
+    wing_r = max(pose.wing_r, max(0, pose.preen) * 22)
+    _wing(p, parts, -1, wing_l, pose.airborne)
 
     # The toes do not stretch with breathing. Their contact baseline stays at y=0.
     tuck = max(0.0, min(1.0, pose.airborne))
@@ -94,17 +172,12 @@ def paint_bird(p: QPainter, pose: Pose, plumage: Plumage, emblem: str | None = N
     p.scale((1 + 0.045 * pose.puff) / math.sqrt(squash), squash)
     p.drawImage(QRectF(-32, -59, 64, 56), parts[1])
     p.restore()
-    _wing(p, parts, 1, pose.wing_r, pose.airborne)
+    _wing(p, parts, 1, wing_r, pose.airborne)
 
     p.save()
-    p.translate(max(-1, min(1, pose.turn)) * 2, (1 - squash) * 10)
-    p.translate(0, -47)
-    p.rotate(max(-9, min(9, pose.head_tilt)))
-    p.translate(0, 47)
-    head_height = 62 * art.head.height() / art.head.width()
-    head_rect = QRectF(-31, -103, 62, head_height)
-    index = eye_frame(pose.eye_open, pose.eyes)
-    p.drawImage(head_rect, art.faces[int(pose.beak_open > 0.3)][index])
+    head = head_placement(art, pose)
+    p.setTransform(head.transform, True)
+    p.drawImage(head.rect, head.image)
     if art.crest is not None:
         # The independent tuft follows the head with its own slow secondary sway.
         p.save()

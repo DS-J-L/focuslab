@@ -23,6 +23,9 @@ class Pose:
     look_y: float = 0.0  # -1..1, negative looks up
     eye_open: float = 1.0  # 0 closed .. 1 open
     beak_open: float = 0.0  # 0..1
+    preen: float = 0.0  # -1 left wing .. 1 right wing, magnitude is contact amount
+    preen_chest: float = 0.0  # 0..1 chest-feather contact
+    preen_stroke: float = 0.0  # 0..1 travel along feathers during a short stroke
     wing_l: float = 0.0  # degrees raised away from the body
     wing_r: float = 0.0
     crest: float = 0.0  # degrees the head feathers sway

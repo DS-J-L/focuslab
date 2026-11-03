@@ -9,9 +9,9 @@ The original control functions and existing observation/consent defaults are pre
 
 ## Artwork and movement
 
-Nine PNGs ship under `src/focuslab/ui/mascot/art/`: three parts atlases, three expression
-atlases and three original transparent fallback images. The generated atlases contain
-53 nonempty parts/expression cells. Each character has five eyelid states plus happy,
+Eighteen PNGs ship under `src/focuslab/ui/mascot/art/`: the original nine parts,
+expression and fallback images plus nine forward-expression, yaw and pitch atlases.
+The original expression sheets remain as source provenance. Each character has five eyelid states plus happy,
 wide, singing and concerned expressions. Body, wings, tail, feet and optional tuft are
 independently articulated. The lovebird has no invented crest.
 
@@ -33,6 +33,20 @@ the separate tuft and tail have secondary sway. Sleep and resume interpolate fro
 current behavior pose over 180ms. Minimal movement retains its still-reaction semantics.
 At most one random performance (including a planned two-bird interaction) runs at a time.
 
+Five authored yaw views distinguish front, shallow left/right and deeper left/right.
+Pitch art adds up, down and each side's preening view. Turned heads have three registered
+eyelid states with unchanged alpha silhouettes. Neutral forward expressions replace the
+previous permanently angled face. Each actor has an independently seeded gaze sequence,
+3–7.5 second dwell times and smoothed movement. Repeated targets are excluded; directions
+do not follow a fixed alternating sweep. Attention and explicit behaviors take priority;
+minimal movement disables idle gaze. Large idle direction changes are accompanied by a blink.
+
+Wing preening chooses either side and lifts that wing. A per-view beak anchor is solved
+onto a point on the rendered feather; two or three irregular strokes follow that contact,
+then settle back to the perch. A separate chest-preening behavior uses the down view.
+These are brief occasional behaviors with cooldowns, not continuous grooming. The feet
+remain fixed through head direction changes and both grooming behaviors.
+
 The overlay requests 16ms updates during gestures, attention transitions and the full
 180ms blink. Idle breathing requests 33ms updates; a due blink wakes the faster timer.
 Time still comes from the injected monotonic clock, not a frame counter. Hidden and
@@ -44,9 +58,9 @@ existing path, scale and return logic. Flapping amplitude settles during takeoff
 The flier window has space for the larger crest and wings. Function symbols sit below
 the branch; they do not obscure the character artwork. Hover hints stay below the header.
 
-This first implementation uses continuously articulated image parts rather than baking
-all 315 frame-equivalents from the design budget into separate PNGs. Large camera turns,
-walk cycles and a full turnaround are not included. Registered eyelid images are discrete;
+The implementation combines articulated image parts with authored head viewpoints rather
+than baking all frame-equivalents into separate PNGs. Rear views, walk cycles and a full
+turnaround are not included. Head viewpoints and registered eyelid images are discrete;
 additional in-between art remains possible if a future larger display size requires it.
 
 ## Source and packaged preview
@@ -56,7 +70,8 @@ Run the real overlay with a temporary demo database, no collectors and no camera
 ~~~powershell
 python -m uv run focuslab --preview-overlay
 python -m uv run python scripts/preview_mascots.py --snapshot build/parrots.png --scale 2
-python -m uv run python scripts/preview_mascots.py --snapshot build/greet.png --behavior greet --at 0.7
+python -m uv run python scripts/preview_mascots.py --snapshot build/preen.png --behavior preen --at 2
+python -m uv run python scripts/preview_mascots.py --snapshot build/chest.png --behavior preen_chest --at 2
 python -m uv run python scripts/preview_mascots.py --snapshot build/sleep.png --state paused
 ~~~
 
@@ -69,8 +84,10 @@ not changed by the preview. `FocusLab.exe --check` also verifies packaged charac
 
 Regression coverage includes original session/flight behavior, species and seat mapping,
 blink timing and wakeup, keyboard activation, transitions, art completeness, checksum
-failure fallback, unchanged blink silhouettes, wing/crest bounds, cached rendering and
-a decoded-raster budget below 48MiB. The locally measured raster cache is about 17.4MiB;
+failure fallback, unchanged blink silhouettes at every view, distinct directions, feather
+contact through grooming strokes, independent idle gaze, minimal motion, wing/crest bounds,
+cached rendering and a decoded-raster budget below 48MiB. The locally measured raster cache
+is about 28.4MiB;
 this excludes Qt window buffers and GPU resources. Whole-app performance depends on the
 machine and is not implied by this memory measurement.
 
@@ -100,3 +117,5 @@ selected in this chat as identity references. Full production prompts are record
 [art/prompts.json](../src/focuslab/ui/mascot/art/prompts.json). No external artwork or new
 third-party runtime dependency was introduced. The original reference cutouts serve as
 the fallback files; generated atlases are bundled without file-level image edits.
+Directional and new forward-expression prompts are recorded in
+[head-view-prompts.json](../src/focuslab/ui/mascot/art/head-view-prompts.json).
