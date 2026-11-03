@@ -8,13 +8,14 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
-    QFont,
     QLinearGradient,
     QPainter,
     QPainterPath,
     QPen,
     QRadialGradient,
 )
+
+from focuslab.ui.mascot.renderer import paint_icon
 
 INK = QColor("#101725")
 MINT = QColor("#72E5C5")
@@ -41,53 +42,23 @@ def _glow(p: QPainter, center: QPointF, radius: float, color: QColor, alpha: int
 
 
 def paint_scene(p: QPainter, width: int, height: int) -> None:
-    """Draw a calm midnight-terrarium panel with restrained lighting and hairlines."""
+    """A quiet charcoal stage lets the three original character palettes lead."""
     p.save()
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     panel = QRectF(2, 2, width - 4, height - 4)
     p.setClipPath(_rounded(panel, 16))
-
     bg = QLinearGradient(QPointF(0, 0), QPointF(width, height))
-    bg.setColorAt(0, QColor("#202D43"))
-    bg.setColorAt(0.52, QColor("#161F31"))
-    bg.setColorAt(1, QColor("#0F1726"))
+    bg.setColorAt(0, QColor("#343844"))
+    bg.setColorAt(1, QColor("#252932"))
     p.fillRect(panel, QBrush(bg))
-
-    _glow(p, QPointF(80, 96), 92, QColor("#F17C7B"), 38)
-    _glow(p, QPointF(153, 103), 96, QColor("#7D9FFE"), 40)
-    _glow(p, QPointF(232, 100), 92, QColor("#F5D16E"), 38)
-
-    # A subtly illuminated perch, without a busy full-scene grid.
-    p.setPen(QPen(QColor(255, 255, 255, 12), 1))
+    for fraction, color in ((0.20, "#ACD98A"), (0.5, "#8CCAF2"), (0.8, "#F3D578")):
+        _glow(p, QPointF(width * fraction, 139), 90, QColor(color), 17)
+    p.setPen(QPen(QColor(255, 255, 255, 17), 1))
     p.drawLine(QPointF(14, 38), QPointF(width - 14, 38))
-    for x, y, radius, opacity in (
-        (28, 59, 1.4, 55), (63, 43, 1.0, 65), (125, 66, 1.0, 45),
-        (179, 57, 1.5, 60), (264, 50, 1.0, 70), (278, 96, 1.3, 40),
-        (30, 126, 1.0, 40), (258, 137, 1.0, 45),
-    ):
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(218, 234, 255, opacity))
-        p.drawEllipse(QPointF(x, y), radius, radius)
-
-    # Thin arc silhouettes suggest a little glass greenhouse around the birds.
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.setPen(QPen(QColor(207, 226, 251, 18), 1))
-    p.drawArc(QRectF(23, 45, 254, 200), 28 * 16, 124 * 16)
-    p.drawArc(QRectF(33, 59, 234, 167), 19 * 16, 148 * 16)
-
-    brand_font = QFont()
-    brand_font.setPixelSize(9)
-    brand_font.setWeight(QFont.Weight.DemiBold)
-    brand_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
-    p.setFont(brand_font)
-    p.setPen(QColor("#7F93B1"))
-    p.drawText(QRectF(156, 12, 76, 18), Qt.AlignmentFlag.AlignRight, "FOCUSLAB")
     p.setClipping(False)
     p.setBrush(Qt.BrushStyle.NoBrush)
-    p.setPen(QPen(QColor(176, 209, 245, 38), 1))
+    p.setPen(QPen(QColor(205, 218, 233, 45), 1))
     p.drawRoundedRect(panel, 16, 16)
-    p.setPen(QPen(QColor(255, 255, 255, 18), 1))
-    p.drawLine(QPointF(17, 3.5), QPointF(width - 17, 3.5))
     p.restore()
 
 
@@ -100,6 +71,21 @@ def paint_seat(p: QPainter, x: float, y: float, hovered: bool, enabled: bool) ->
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.setPen(QPen(QColor(216, 234, 255, 115), 1.25))
         p.drawEllipse(QPointF(x, y - 42), 36, 47)
+    p.restore()
+
+
+def paint_action_pin(p: QPainter, x: float, icon: str, enabled: bool, focused: bool) -> None:
+    """Keep function symbols below the perch, away from character artwork."""
+    p.save()
+    p.setOpacity(1.0 if enabled else 0.38)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor("#FFF5DF"))
+    p.drawEllipse(QPointF(x, 238), 11, 11)
+    paint_icon(p, icon, QPointF(x, 238), 7, on_belly=True)
+    if focused:
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(QColor("#B8E8F4"))
+        p.drawEllipse(QPointF(x, 238), 15, 15)
     p.restore()
 
 

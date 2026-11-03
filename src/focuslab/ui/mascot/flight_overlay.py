@@ -20,13 +20,14 @@ from PySide6.QtWidgets import QWidget
 
 from focuslab.i18n import tr
 from focuslab.ui.mascot.animation import Pose, ease_in_out, lerp
+from focuslab.ui.mascot.artwork import preload_artwork
 from focuslab.ui.mascot.renderer import HEAD_Y, Plumage, paint_bird, paint_emote
 
 FLIGHT_FRAME_MS = 16  # smooth movement while flying (only during a sortie)
 FLY_SCALE = 1.5  # the flier is drawn bigger than on the branch, to be noticed
 SPEED = 650.0  # px/s along a swoop
 HOVER_S = (2.4, 2.0, 2.0)  # hovering in front of your work at each waypoint
-WIN_W, WIN_H = 280, 210
+WIN_W, WIN_H = 360, 300
 ANCHOR = QPointF(WIN_W / 2, WIN_H - 26)  # the flier's feet inside its window
 
 
@@ -115,6 +116,7 @@ class FlightWindow(QWidget):
             | Qt.WindowType.WindowDoesNotAcceptFocus,
         )
         self.setWindowTitle("FocusLab")
+        preload_artwork()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setFixedSize(WIN_W, WIN_H)
@@ -312,9 +314,9 @@ class FlightController(QObject):
             scale=lerp(self.perched_scale, FLY_SCALE, grow),
             tilt=max(-25.0, min(25.0, dx * 1.5)) if not leg.hover else 0.0,
             airborne=lerp(0.0, 1.0, grow) if (first or self.returning) else 1.0,
-            wing_l=flap,
-            wing_r=flap,
-            eyes="wide" if shooed else "angry",
+            wing_l=flap * grow,
+            wing_r=flap * grow,
+            eyes=("wide" if shooed else "angry") if grow > 0.2 else "normal",
             puff=0.6,
             look_y=0.4,
             emote="alert" if shooed else "anger",

@@ -18,6 +18,7 @@ def test_check_reports_environment_without_creating_data(capsys, isolated_data_d
     out = capsys.readouterr().out
     assert f"FocusLab {__version__}" in out
     assert "Face model:" in out and "PySide6" in out
+    assert "Parrot art: 3 characters, 9 face states each, 0 fallbacks" in out
     assert not isolated_data_dir.exists()
 
 

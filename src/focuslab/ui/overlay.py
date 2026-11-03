@@ -7,7 +7,6 @@ branch to fly around the screen after a long off-task run (``mascot.flight_overl
 """
 
 import time
-from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -39,12 +38,14 @@ from focuslab.i18n import tr
 from focuslab.services.session_service import ACTIVE, Lifecycle, LiveSnapshot
 from focuslab.ui.context import AppContext
 from focuslab.ui.mascot.animation import Pose
+from focuslab.ui.mascot.artwork import preload_artwork
 from focuslab.ui.mascot.behavior_policy import BehaviorPolicy, Mood
 from focuslab.ui.mascot.director import BREAK, FINISH, PAUSE, WINDOW, Director
 from focuslab.ui.mascot.flight_overlay import FlightController, screen_area
 from focuslab.ui.mascot.renderer import (
     HEAD_Y,
-    TOP_Y,
+    RED,
+    character_top,
     paint_bird,
     paint_branch,
     paint_bubble,
@@ -52,6 +53,7 @@ from focuslab.ui.mascot.renderer import (
     paint_plaque,
 )
 from focuslab.ui.mascot.studio import (
+    paint_action_pin,
     paint_progress,
     paint_scene,
     paint_seat,
@@ -62,17 +64,17 @@ from focuslab.ui.widgets import clock_text, timer_text
 
 MARGIN = 16
 POS_KEY = "ui.overlay_pos"  # top-right corner, so collapsing keeps the right edge in place
-FRAME_MS = 33  # about 30 frames per second, only while the parrots are on screen
-RESTING_FRAME_MS = 80  # when they are only breathing and blinking
+FRAME_MS = 16  # target ~60 Hz during gestures and the complete blink
+RESTING_FRAME_MS = 33  # gentle breathing; a due blink wakes the faster timer
 
 # Scene geometry (px) of the expanded overlay.
-SCENE_W, SCENE_H = 300, 244
-SEATS = (78.0, 150.0, 222.0)  # x of each parrot's feet
-BRANCH = QRectF(16, 164, 268, 15)
+SCENE_W, SCENE_H = 464, 314
+SEATS = (96.0, 232.0, 368.0)  # x of each parrot's feet
+BRANCH = QRectF(20, 206, 424, 15)
 SEAT_Y = BRANCH.top() + 3
-PLAQUE = QRectF(42, 196, 216, 41)
-STRINGS = (91.0, 209.0)
-BIRD_SCALE = 1.04
+PLAQUE = QRectF(72, 261, 320, 41)
+STRINGS = (142.0, 322.0)
+BIRD_SCALE = 1.08
 
 
 def status_texts() -> tuple[str, str, str]:
@@ -94,12 +96,16 @@ def long_text(seconds: int) -> str:
 
 def _mascot() -> QLabel:
     label = QLabel()
-    pixmap = QPixmap(str(Path(__file__).with_name("icons") / "parrot-telescope.png"))
-    label.setPixmap(
-        pixmap.scaled(
-            18, 18, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        )
-    )
+    ratio = QGuiApplication.primaryScreen().devicePixelRatio()
+    pixmap = QPixmap(round(34 * ratio), round(34 * ratio))
+    pixmap.setDevicePixelRatio(ratio)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.translate(17, 32)
+    painter.scale(0.29, 0.29)
+    paint_bird(painter, Pose(), RED)
+    painter.end()
+    label.setPixmap(pixmap)
     return label
 
 
@@ -109,9 +115,9 @@ class ParrotButton(QAbstractButton):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.icon_name = ""  # shown in the speech bubble while hovered
-        self.emblem = ""  # drawn on the parrot's belly
+        self.emblem = ""  # drawn in a separate action pin below the perch
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         pass
@@ -122,6 +128,7 @@ class PerchView(QWidget):
 
     def __init__(self, parent: QWidget | None = None, clock=time.monotonic) -> None:
         super().__init__(parent)
+        preload_artwork()
         self.setFixedSize(SCENE_W, SCENE_H)
         self.clock = clock
         self.director = Director()
@@ -140,13 +147,14 @@ class PerchView(QWidget):
 
         self.parrots = tuple(ParrotButton(self) for _ in SEATS)
         for seat, button in zip(SEATS, self.parrots, strict=True):
-            button.setGeometry(int(seat - 36), 76, 72, 92)
+            button.setGeometry(int(seat - 56), 43, 112, 209)
             button.installEventFilter(self)
         self.time = QLabel(self, objectName="OverlayTime", alignment=Qt.AlignmentFlag.AlignCenter)
         self.time.setGeometry(PLAQUE.adjusted(5, 0, -5, -5).toRect())
         self.time.setToolTip(tr("Session time without pauses and breaks, not estimated focus"))
 
         self._timer = QTimer(self, interval=FRAME_MS)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self.update)
         self._backdrop: QPixmap | None = None
 
@@ -211,15 +219,19 @@ class PerchView(QWidget):
             p.save()
             p.translate(seat, SEAT_Y)
             p.scale(BIRD_SCALE, BIRD_SCALE)
-            paint_bird(p, pose, actor.plumage, button.emblem)
+            paint_bird(p, pose, actor.plumage)
             p.restore()
+            # Actions remain readable without placing interface symbols on the art.
+            paint_action_pin(p, seat, button.emblem, button.isEnabled(), button.hasFocus())
         # Symbols and bubbles last, so a neighbour never covers them.
         for seat, pose in zip(SEATS, poses, strict=True):
             if pose.emote:
                 paint_emote(p, pose.emote, scene_point(seat, pose, HEAD_Y), pose.emote_t)
         hovered = self.director.hover
         if isinstance(hovered, int) and self.parrots[hovered].icon_name:
-            tip = scene_point(SEATS[hovered], poses[hovered], TOP_Y) + QPointF(4, 0)
+            top = character_top(self.director.actors[hovered].plumage)
+            tip = scene_point(SEATS[hovered], poses[hovered], top) + QPointF(4, 0)
+            tip.setY(max(84, tip.y()))  # keep the hint below the status/header controls
             paint_bubble(p, tip, self.parrots[hovered].icon_name)
         p.end()
 

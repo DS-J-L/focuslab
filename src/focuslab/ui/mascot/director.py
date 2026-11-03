@@ -154,6 +154,9 @@ class Director:
         gap = self.motion.gap
         if gap is None:
             return
+        # One major random performance at a time; a planned pair is one interaction.
+        if any(actor.busy(now) and actor.behavior.random for actor in self.actors):
+            return
         for i in range(len(self.actors)):
             if self._next[i] is None:  # stagger the first behaviors
                 self._next[i] = now + self.rng.uniform(gap[0] * 0.3, gap[1])
@@ -164,6 +167,7 @@ class Director:
                 self._next[i] = now + self.rng.uniform(*gap)
                 continue
             self._start(i, behavior, now)
+            break
 
     def _pick(self, i: int, now: float) -> Behavior | None:
         name = self.actors[i].name
