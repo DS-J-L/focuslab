@@ -22,6 +22,27 @@ def test_check_reports_environment_without_creating_data(capsys, isolated_data_d
     assert not isolated_data_dir.exists()
 
 
+def test_check_report_supports_windowed_executables(tmp_path, isolated_data_dir):
+    report = tmp_path / "packaged-check.txt"
+    assert main(["--check-report", str(report)]) == 0
+    text = report.read_text(encoding="utf-8")
+    assert "Qt runtime:" in text
+    assert "3 characters, 9 face states each, 0 fallbacks" in text
+    assert not isolated_data_dir.exists()
+
+
+def test_failed_check_exits_without_a_blocking_windowed_exception_dialog(monkeypatch, tmp_path):
+    from focuslab import __main__ as entry
+
+    def broken(report):
+        raise ImportError("DLL load failed while importing QtCore")
+
+    monkeypatch.setattr(entry, "_check", broken)
+    report = tmp_path / "failed-check.txt"
+    assert main(["--check-report", str(report)]) == 1
+    assert "DLL load failed while importing QtCore" in report.read_text(encoding="utf-8")
+
+
 def test_packaged_exe_downloads_models_into_data_folder(monkeypatch, isolated_data_dir):
     from focuslab import model_fetch
 
