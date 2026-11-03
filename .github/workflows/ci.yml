@@ -77,3 +77,21 @@ jobs:
         run: uv run focuslab --check
       - name: Build wheel and source distribution
         run: uv build
+      - name: Build and smoke Windows EXE
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          uv sync --locked --group build
+          if ($LASTEXITCODE -ne 0) { throw "Build environment install failed" }
+          uv run --group build python scripts/build_exe.py
+          if ($LASTEXITCODE -ne 0) { throw "EXE build failed" }
+          $exe = (Resolve-Path 'dist/FocusLab/FocusLab.exe').Path
+          $report = Join-Path $PWD 'build/packaged-check.txt'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--check-report', $report) -PassThru
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id
+            throw "Packaged check timed out"
+          }
+          $process.Refresh()
+          Get-Content -LiteralPath $report
+          if ($process.ExitCode -ne 0) { throw "Packaged check failed: $($process.ExitCode)" }

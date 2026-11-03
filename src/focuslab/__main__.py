@@ -10,8 +10,10 @@ from pathlib import Path
 from focuslab import __version__
 
 
-def _check() -> int:
+def _check(report: Path | None = None) -> int:
     """Print environment status without opening sensors or writing user data."""
+    from PySide6.QtCore import qVersion
+
     from focuslab.config import data_dir, db_path, face_model_path
     from focuslab.model_fetch import FACE_MODEL_SHA256, sha256
 
@@ -24,6 +26,7 @@ def _check() -> int:
     lines = [
         f"FocusLab {__version__}",
         f"Python {platform.python_version()} on {platform.platform()}",
+        f"Qt runtime: {qVersion()}",
         f"Data folder: {data_dir()}",
         f"Database: {db_path()} ({'exists' if db_path().exists() else 'not created yet'})",
         f"Face model: {model_text}",
@@ -54,7 +57,11 @@ def _check() -> int:
     art = [character_art(name) for name in CHARACTER_IDS]
     fallbacks = sum(item.fallback is not None for item in art)
     lines.append(f"Parrot art: {len(art)} characters, 9 face states each, {fallbacks} fallbacks")
-    print("\n".join(lines))
+    text = "\n".join(lines)
+    print(text)
+    if report is not None:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(text + "\n", encoding="utf-8")
     return 1 if fallbacks else 0
 
 
@@ -123,6 +130,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--check", action="store_true", help="print environment status and exit")
     parser.add_argument(
+        "--check-report", type=Path,
+        help="run the headless check and write its result to this file (also for windowed EXEs)",
+    )
+    parser.add_argument(
         "--preview-overlay", action="store_true",
         help="preview the parrots using isolated demo data without sensors",
     )
@@ -153,8 +164,18 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["FOCUSLAB_DATA_DIR"] = str(args.data_dir)
     if args.language:
         os.environ["FOCUSLAB_LANGUAGE"] = args.language
-    if args.check:
-        return _check()
+    if args.check or args.check_report:
+        try:
+            return _check(args.check_report)
+        except Exception as exc:
+            # A frozen windowed executable otherwise opens a blocking exception
+            # dialog. CI and users need a nonzero exit and an optional report.
+            text = f"Environment check failed: {type(exc).__name__}: {exc}"
+            print(text)
+            if args.check_report is not None:
+                args.check_report.parent.mkdir(parents=True, exist_ok=True)
+                args.check_report.write_text(text + "\n", encoding="utf-8")
+            return 1
     if args.preview_overlay:
         from focuslab.ui.mascot.preview import run
 

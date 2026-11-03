@@ -79,6 +79,14 @@ compares every packaged PNG/JSON byte-for-byte with source, alongside its existi
 MediaPipe and OpenSSL validations. Copy the entire `dist/FocusLab` folder; the EXE needs
 its adjacent `_internal` directory.
 
+Windows system DLLs are resolved before unrelated PATH tools. A post-merge EXE check
+found that a Poppler ICU 78 DLL could shadow the Windows ICU API required by QtCore,
+even though source tests and the wheel passed. The build now prioritizes System32 and
+rejects a foreign bundled icuuc.dll. Windows CI builds the actual EXE and runs
+`--check-report build/packaged-check.txt` with a bounded wait. The report includes the
+loaded Qt runtime and character validation; failures return nonzero without blocking
+on PyInstaller's windowed exception dialog. This recovery does not modify Windows DLLs.
+
 Delivery surfaces: GitHub source and a rebuilt desktop EXE. There is no browser extension
 or Native Messaging protocol change. A main merge does not update an existing binary;
 EXE replacement and actual Windows verification must be recorded separately. This feature

@@ -20,13 +20,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-import PyInstaller.__main__
-
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "assets" / "models" / "face_landmarker.task"
 EXTENSION = ROOT / "browser_extension"
 EXTENSION_FILES = ("manifest.json", "background.js", "logic.js")
 PYTHON_DLLS = Path(sys.base_prefix) / "DLLs"
+SYSTEM32 = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32"
 # Python's own OpenSSL; builds name it differently (libssl-3.dll, libssl-3-x64.dll).
 OPENSSL_PATTERNS = ("libssl-3*.dll", "libcrypto-3*.dll")
 
@@ -59,9 +58,25 @@ def python_openssl() -> list[Path]:
     return found
 
 
+def windows_dll_path(current: str, python_dlls: Path = PYTHON_DLLS,
+                     system32: Path = SYSTEM32) -> str:
+    """Resolve Python TLS and Windows APIs before unrelated tools on the host PATH."""
+    return os.pathsep.join((str(python_dlls), str(system32), current))
+
+
+def verify_system_icu(internal: Path, system32: Path = SYSTEM32) -> None:
+    """Qt's unversioned ICU API must not resolve to a foreign, versioned Poppler ICU."""
+    bundled = internal / "icuuc.dll"
+    if bundled.exists():
+        original = system32 / "icuuc.dll"
+        if not original.is_file() or not filecmp.cmp(bundled, original, shallow=False):
+            raise SystemExit("build bundled a foreign icuuc.dll; Windows QtCore cannot load")
+
+
 def main() -> None:
     if sys.platform != "win32":
         raise SystemExit("FocusLab.exe is built on Windows only")
+    import PyInstaller.__main__
     args = [
         str(ROOT / "src" / "focuslab" / "__main__.py"),
         "--name=FocusLab",
@@ -88,9 +103,12 @@ def main() -> None:
     # Qt's TLS plugin pulls in libssl/libcrypto by name and PyInstaller resolves those through
     # PATH, where another OpenSSL (e.g. Git's mingw64\bin) can win. _ssl.pyd then fails to load
     # and urllib loses https ("unknown url type: https"), so Python's own copies go first.
-    os.environ["PATH"] = os.pathsep.join([str(PYTHON_DLLS), os.environ.get("PATH", "")])
+    # Qt 6.10 uses the Windows ICU API. A tool such as Poppler can put its own
+    # version-suffixed ICU exports on PATH; bundling that DLL breaks QtCore.
+    os.environ["PATH"] = windows_dll_path(os.environ.get("PATH", ""))
     PyInstaller.__main__.run(args)
     internal = ROOT / "dist" / "FocusLab" / "_internal"
+    verify_system_icu(internal)
     dll = internal / "mediapipe" / "tasks" / "c" / "libmediapipe.dll"
     if not dll.is_file():
         raise SystemExit(f"build is missing {dll}; the face model would fail to load")

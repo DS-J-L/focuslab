@@ -252,6 +252,10 @@ def test_frames_slow_down_while_the_parrots_only_breathe(window):
     perch = overlay.perch
     t = [100.0]
     perch.clock = lambda: t[0]
+    # This test isolates hover settling. A random blink legitimately wakes 16ms
+    # rendering and is covered by the separate blink cadence regression below.
+    for actor in perch.director.actors:
+        actor._next_blink = 1000.0
     image = perch.grab()  # paints a frame
     assert perch.director.resting and perch._timer.interval() == RESTING_FRAME_MS
     QApplication.sendEvent(overlay.pause_button, QEvent(QEvent.Type.Enter))
