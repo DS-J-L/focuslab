@@ -30,6 +30,11 @@ class BirdActor:
         self.name = name
         self.plumage = plumage
         self.rng = rng
+        self._gaze_rng = random.Random(rng.getrandbits(64))
+        self.idle_gaze = True
+        self._gaze_at: float | None = None
+        self._gaze_target = (0.0, 0.0)
+        self._gaze_x = self._gaze_y = 0.0
         self.attention = CALM
         self._phase = rng.uniform(0, math.tau)  # so the three never breathe in step
         self._next_blink: float | None = None
@@ -101,11 +106,14 @@ class BirdActor:
         self._perk = approach(self._perk, perk, dt, HOVER_S)
         self._glance = approach(self._glance, toward, dt, HOVER_S * 2.5)
         self._up = approach(self._up, up, dt, HOVER_S * 1.5)
+        gaze_moving = self._idle_look(now, dt, self.behavior is None and a == CALM
+                                      and now >= self._watch_until and not self._returning)
         # Only breathing and blinking: the view can then draw fewer frames.
         self.resting = (
             self.behavior is None
             and not self._returning
             and a.emote is None
+            and not gaze_moving
             and max(abs(self._perk - perk), abs(self._glance - toward), abs(self._up - up)) < 0.01
         )
 
@@ -115,6 +123,9 @@ class BirdActor:
             squash=base.squash * (1 + 0.012 * breath),
             crest=base.crest + 3 * math.sin((now - 0.055) * math.tau / 5.0 + self._phase),
             eye_open=base.eye_open * self._blink(now),
+            turn=base.turn + self._gaze_x,
+            look_x=base.look_x + self._gaze_x,
+            look_y=base.look_y + self._gaze_y,
         )
         if self._glance or self._up:
             pose = replace(
@@ -139,6 +150,31 @@ class BirdActor:
         if a.emote:
             pose = replace(pose, emote=a.emote, emote_t=now - self._emote_since)
         return pose
+
+    def _idle_look(self, now: float, dt: float, available: bool) -> bool:
+        """Independent dwell times and directions; never a left/right metronome."""
+        if available and self.idle_gaze:
+            if self._gaze_at is None:
+                self._gaze_at = now + self._gaze_rng.uniform(2.5, 6.5)
+            elif now >= self._gaze_at:
+                options = ((0., 0.), (-.5, 0.), (.5, 0.), (-1., 0.), (1., 0.),
+                           (0., -.9), (0., .8))
+                weights = (4, 3, 3, 1, 1, 1, 1)
+                candidates = [(p, w) for p, w in zip(options, weights, strict=True)
+                              if p != self._gaze_target]
+                self._gaze_target = self._gaze_rng.choices(
+                    [p for p, _ in candidates], [w for _, w in candidates])[0]
+                self._gaze_at = now + self._gaze_rng.uniform(3.0, 7.5)
+                # A blink often accompanies a larger change in attention.
+                if abs(self._gaze_target[0] - self._gaze_x) > .6:
+                    self._next_blink = now
+            target = self._gaze_target
+        else:
+            self._gaze_at = None
+            self._gaze_target = target = (0., 0.)
+        self._gaze_x = approach(self._gaze_x, target[0], dt, .18)
+        self._gaze_y = approach(self._gaze_y, target[1], dt, .22)
+        return max(abs(self._gaze_x - target[0]), abs(self._gaze_y - target[1])) > .01
 
     def _blink(self, now: float) -> float:
         if self._next_blink is None:

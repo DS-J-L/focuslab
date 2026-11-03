@@ -72,6 +72,8 @@ class Director:
 
     def set_motion(self, level: str) -> None:
         motion = MOTION.get(level, MOTION[DEFAULT_MOTION])
+        for actor in self.actors:
+            actor.idle_gaze = motion.gap is not None
         if motion != self.motion:
             self.motion = motion
             for actor in self.actors:  # restart, moving or still
@@ -204,7 +206,7 @@ class Director:
             self.actors[j].play(behavior, now, -side)
             self._interaction_at = now + self.motion.interaction_cooldown
         else:
-            self.actors[i].play(behavior, now)
+            self.actors[i].play(behavior, now, self.rng.choice((-1, 1)))
             if (
                 behavior.audience
                 and now >= self._interaction_at

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import cache
 from importlib.resources import files
 
-from PySide6.QtCore import QRect, QRectF, Qt
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter
 
 MAX_PART_PX = 256
@@ -26,12 +26,20 @@ class Patch:
 
 
 @dataclass(frozen=True)
+class HeadView:
+    frames: tuple[QImage, ...]  # open, half-closed, closed; one stable silhouette
+    beak: QPointF  # normalized tip, measured on this viewpoint
+
+
+@dataclass(frozen=True)
 class CharacterArt:
     character_id: str
     parts: tuple[QImage | None, ...]
     faces: tuple[tuple[QImage, ...], ...]  # closed/open beak, nine eye expressions
     crest: QRectF | None
     fallback: QImage | None = None
+    views: dict[str, tuple[HeadView, ...]] | None = None
+    groom_columns: tuple[int, int] = (2, 3)  # left, right in the pitch atlas
 
     @property
     def head(self) -> QImage:
@@ -43,6 +51,9 @@ class CharacterArt:
         if self.fallback is not None:
             images.append(self.fallback)
         images.extend(image for row in self.faces for image in row)
+        if self.views:
+            images.extend(image for bank in self.views.values()
+                          for view in bank for image in view.frames)
         return sum(im.sizeInBytes() for im in images)
 
 
@@ -66,14 +77,14 @@ def _sheet(spec: dict) -> QImage:
     return image.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
 
 
-def _cell(sheet: QImage, rect: list[int] | None) -> QImage | None:
+def _cell(sheet: QImage, rect: list[int] | None, limit: int = MAX_PART_PX) -> QImage | None:
     if rect is None:
         return None
     source = QRect(*rect)
     if source.isEmpty() or not sheet.rect().contains(source):
         raise ValueError("Parrot source rectangle is outside its atlas")
     return sheet.copy(source).scaled(
-        MAX_PART_PX, MAX_PART_PX,
+        limit, limit,
         Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation,
     )
 
@@ -154,7 +165,44 @@ def _load_character(character_id: str) -> CharacterArt:
     return CharacterArt(
         character_id, parts, tuple(faces),
         QRectF(*spec["crest"]) if spec["crest"] is not None else None,
+        views=_head_views(spec["directional"]),
+        groom_columns=tuple(spec["directional"]["groom_columns"]),
     )
+
+
+def _head_views(spec: dict) -> dict[str, tuple[HeadView, ...]]:
+    banks = {}
+    for name, columns in (("yaw", 5), ("pitch", 4)):
+        definition = spec[name]
+        if len(definition["rects"]) != columns * 3 or len(definition["beaks"]) != columns:
+            raise ValueError("Incomplete directional head atlas")
+        sheet = _sheet(definition)
+        heads = tuple(_cell(sheet, rect, 192) for rect in definition["rects"])
+        if any(head is None for head in heads):
+            raise ValueError("Missing directional head")
+        views = []
+        for col in range(columns):
+            base = heads[col]
+            states = [base]
+            for row in (1, 2):
+                # Register facial edits on a constant head, keeping its outline
+                # and beak tip stationary throughout a blink in every direction.
+                patch = _patch(heads[row * columns + col], [.03, .12, .94, .64])
+                image = base.copy()
+                painter = QPainter(image)
+                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
+                draw_patch(painter, QRectF(image.rect()), patch)
+                painter.end()
+                states.append(image)
+            point = QPointF(*definition["beaks"][col])
+            if not QRectF(0, 0, 1, 1).contains(point):
+                raise ValueError("Beak anchor is outside its head")
+            views.append(HeadView(tuple(states), point))
+        banks[name] = tuple(views)
+    left, right = spec["groom_columns"]
+    if left == right or any(index not in range(4) for index in (left, right)):
+        raise ValueError("Invalid preening head selection")
+    return banks
 
 
 def preload_artwork() -> None:
